@@ -31,9 +31,9 @@ export function DataSection({ title, icon, fields, defaultOpen = true }: DataSec
         </div>
         <span className="text-muted-foreground">
           {open ? (
-            <AltArrowUpBoldDuotone width={18} height={18} />
+          <AltArrowUpBoldDuotone size={18} />
           ) : (
-            <AltArrowDownBoldDuotone width={18} height={18} />
+            <AltArrowDownBoldDuotone size={18} />
           )}
         </span>
       </CardHeader>

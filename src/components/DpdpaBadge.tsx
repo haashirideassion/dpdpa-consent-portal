@@ -12,7 +12,7 @@ export function DpdpaBadge() {
       <Tooltip>
         <TooltipTrigger asChild>
           <span className="inline-flex items-center gap-1 rounded-full bg-dpdpa-muted px-2 py-0.5 text-xs font-medium text-dpdpa-foreground">
-            <ShieldCheckBoldDuotone width={14} height={14} />
+            <ShieldCheckBoldDuotone size={14} />
             DPDPA
           </span>
         </TooltipTrigger>
