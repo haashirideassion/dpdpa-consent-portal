@@ -22,7 +22,7 @@ import {
 import { MinimalisticMagniferBoldDuotone, EyeBoldDuotone } from 'solar-icon-set';
 import type { Tables } from '@/integrations/supabase/types';
 
-export const Route = createFileRoute('/_authenticated/admin/employees')({
+export const Route = createFileRoute('/_authenticated/admin/employees/')({
   head: () => ({
     meta: [
       { title: 'Employees — Admin Dashboard' },

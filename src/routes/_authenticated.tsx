@@ -1,4 +1,4 @@
-import { createFileRoute, redirect, Outlet, Link, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Outlet, Link, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@/hooks/use-auth';
 import { signOut } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
