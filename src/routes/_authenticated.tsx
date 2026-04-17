@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { createFileRoute, Outlet, Link, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@/hooks/use-auth';
 import { signOut } from '@/lib/auth';
@@ -15,23 +16,41 @@ export const Route = createFileRoute('/_authenticated')({
 function AuthenticatedLayout() {
   const { user, loading, role } = useAuth();
   const navigate = useNavigate();
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
-  if (loading) {
+  useEffect(() => {
+
+    if (!loading && !user && !isSigningOut) {
+      navigate({ to: '/login' });
+    }
+  }, [user, loading, navigate, isSigningOut]);
+
+  // Loading or redirecting logic
+  if (loading || isSigningOut) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="space-y-4 text-center">
-          <Skeleton className="h-8 w-48 mx-auto" />
-          <Skeleton className="h-4 w-32 mx-auto" />
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-sm font-medium text-muted-foreground">
+            {isSigningOut ? 'Signing out...' : ''}
+          </p>
         </div>
       </div>
     );
   }
 
-  if (!user) {
-    if (typeof window !== 'undefined') {
+  if (!user) return null;
+
+  async function handleSignOut() {
+    try {
+      setIsSigningOut(true);
+      await signOut();
+      // Ensure local state is cleared before moving
       navigate({ to: '/login' });
+    } catch (error) {
+      console.error('Sign out error:', error);
+      setIsSigningOut(false);
     }
-    return null;
   }
 
   return (
@@ -40,7 +59,7 @@ function AuthenticatedLayout() {
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-3">
             <ShieldCheckBoldDuotone size={24} color="var(--primary)" />
-            <span className="font-semibold text-sm sm:text-base">DPDPA Consent Portal</span>
+            <span className="font-semibold text-sm sm:text-base text-foreground">DPDPA Consent Portal</span>
           </div>
           <div className="flex items-center gap-3">
             {role === 'admin' && (
@@ -62,16 +81,16 @@ function AuthenticatedLayout() {
                 </Link>
               </nav>
             )}
-            <span className="text-xs text-muted-foreground hidden sm:inline">
-              {user.email}
-            </span>
+            <div className="hidden sm:flex flex-col items-end mr-1">
+              {/* <span className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground leading-none mb-0.5">Logged in as</span> */}
+              <span className="text-xs font-medium text-foreground">{user.email}</span>
+            </div>
             <Button
               variant="ghost"
               size="icon"
-              onClick={async () => {
-                await signOut();
-                navigate({ to: '/login' });
-              }}
+              onClick={handleSignOut}
+              disabled={isSigningOut}
+              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
             >
               <LogoutBoldDuotone size={18} />
             </Button>
