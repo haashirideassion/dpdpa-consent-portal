@@ -18,13 +18,24 @@ mkdirSync('.vercel/output/functions/index.func', { recursive: true })
 // Keeping the relative paths intact so dynamic imports resolve correctly at runtime
 cpSync('dist/server', '.vercel/output/functions/index.func/server', { recursive: true })
 
-// Adapter: converts Node.js IncomingMessage/ServerResponse ↔ Web Fetch API
+// Adapter (CJS): Vercel's Nodejs launcher expects CommonJS.
+// We use dynamic import() to load the ESM server bundle.
 writeFileSync(
-  '.vercel/output/functions/index.func/index.js',
-  `import { Readable } from 'node:stream'
-import server from './server/server.js'
+  '.vercel/output/functions/index.func/index.cjs',
+  `'use strict'
+const { Readable } = require('node:stream')
 
-export default async function handler(req, res) {
+// Cache the ESM server module (loaded once per cold start)
+let serverPromise = null
+function getServer() {
+  if (!serverPromise) {
+    serverPromise = import('./server/server.js').then(m => m.default)
+  }
+  return serverPromise
+}
+
+module.exports = async function handler(req, res) {
+  const server = await getServer()
   const protocol = req.headers['x-forwarded-proto'] || 'https'
   const url = \`\${protocol}://\${req.headers.host}\${req.url}\`
 
@@ -73,20 +84,19 @@ export default async function handler(req, res) {
 `
 )
 
-// Function needs ESM resolution
+// server/ subdir needs ESM so dynamic import() resolves correctly
 writeFileSync(
-  '.vercel/output/functions/index.func/package.json',
+  '.vercel/output/functions/index.func/server/package.json',
   JSON.stringify({ type: 'module' })
 )
 
-// Vercel function config
+// Vercel function config — CJS handler, no streaming flag
 writeFileSync(
   '.vercel/output/functions/index.func/.vc-config.json',
   JSON.stringify({
     runtime: 'nodejs20.x',
-    handler: 'index.js',
+    handler: 'index.cjs',
     launcherType: 'Nodejs',
-    supportsResponseStreaming: true,
   })
 )
 
