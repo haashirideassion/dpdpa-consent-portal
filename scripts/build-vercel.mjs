@@ -1,4 +1,5 @@
 import { cpSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { build } from 'esbuild'
 
 // Clean previous Vercel output
 rmSync('.vercel/output', { recursive: true, force: true })
@@ -14,9 +15,65 @@ cpSync('dist/client', '.vercel/output/static', { recursive: true })
 // Server function → .vercel/output/functions/index.func/
 mkdirSync('.vercel/output/functions/index.func', { recursive: true })
 
-// Copy the full server bundle (server.js + assets/) into the function dir
-// Keeping the relative paths intact so dynamic imports resolve correctly at runtime
-cpSync('dist/server', '.vercel/output/functions/index.func/server', { recursive: true })
+// Copy the server assets (route chunks, manifests) — keep relative paths for dynamic imports
+mkdirSync('.vercel/output/functions/index.func/server/assets', { recursive: true })
+cpSync('dist/server/assets', '.vercel/output/functions/index.func/server/assets', { recursive: true })
+
+// Bundle server.js with all npm dependencies inlined (only node: built-ins stay external)
+// The assets/ chunks are kept as separate files and loaded via dynamic import() at runtime
+console.log('Bundling server.js with esbuild...')
+await build({
+  entryPoints: ['dist/server/server.js'],
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  outfile: '.vercel/output/functions/index.func/server/server.js',
+  // Keep Node.js built-ins external
+  external: [
+    'node:*',
+    'async_hooks',
+    'stream',
+    'http',
+    'https',
+    'url',
+    'net',
+    'tls',
+    'fs',
+    'path',
+    'os',
+    'crypto',
+    'buffer',
+    'events',
+    'util',
+    'zlib',
+    'querystring',
+    'string_decoder',
+    'child_process',
+    'worker_threads',
+    'perf_hooks',
+    'v8',
+    'vm',
+  ],
+  // Keep dynamic route chunk imports as-is (they live in ./assets/)
+  plugins: [
+    {
+      name: 'external-assets',
+      setup(build) {
+        build.onResolve({ filter: /^\.\/assets\// }, args => ({
+          path: args.path,
+          external: true,
+        }))
+      },
+    },
+  ],
+})
+console.log('✓ Server bundle ready')
+
+// server/ subdir needs ESM so dynamic import() resolves correctly
+writeFileSync(
+  '.vercel/output/functions/index.func/server/package.json',
+  JSON.stringify({ type: 'module' })
+)
 
 // Adapter (CJS): Vercel's Nodejs launcher expects CommonJS.
 // We use dynamic import() to load the ESM server bundle.
@@ -93,12 +150,6 @@ module.exports = async function handler(req, res) {
   }
 }
 `
-)
-
-// server/ subdir needs ESM so dynamic import() resolves correctly
-writeFileSync(
-  '.vercel/output/functions/index.func/server/package.json',
-  JSON.stringify({ type: 'module' })
 )
 
 // Vercel function config — CJS handler, no streaming flag
