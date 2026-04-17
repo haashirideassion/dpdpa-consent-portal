@@ -29,13 +29,23 @@ const { Readable } = require('node:stream')
 let serverPromise = null
 function getServer() {
   if (!serverPromise) {
-    serverPromise = import('./server/server.js').then(m => m.default)
+    serverPromise = import('./server/server.js')
+      .then(m => m.default)
+      .catch(err => { throw new Error('SERVER_IMPORT_FAILED: ' + err?.message + '\\n' + err?.stack) })
   }
   return serverPromise
 }
 
 module.exports = async function handler(req, res) {
-  const server = await getServer()
+  let server
+  try {
+    server = await getServer()
+  } catch (importErr) {
+    res.statusCode = 500
+    res.setHeader('content-type', 'text/plain')
+    res.end(\`Import Error: \${importErr?.message}\`)
+    return
+  }
   const protocol = req.headers['x-forwarded-proto'] || 'https'
   const url = \`\${protocol}://\${req.headers.host}\${req.url}\`
 
@@ -78,7 +88,8 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     console.error('[handler error]', err)
     res.statusCode = 500
-    res.end('Internal Server Error')
+    res.setHeader('content-type', 'text/plain')
+    res.end(\`Error: \${err?.message}\\n\\n\${err?.stack}\`)
   }
 }
 `
