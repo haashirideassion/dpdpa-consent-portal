@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as EventRegisterRouteImport } from './routes/event-register'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated.index'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated.admin'
@@ -20,6 +21,11 @@ import { Route as AuthenticatedAdminEmployeesIdRouteImport } from './routes/_aut
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EventRegisterRoute = EventRegisterRouteImport.update({
+  id: '/event-register',
+  path: '/event-register',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
@@ -56,6 +62,7 @@ const AuthenticatedAdminEmployeesIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
+  '/event-register': typeof EventRegisterRoute
   '/login': typeof LoginRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -63,6 +70,7 @@ export interface FileRoutesByFullPath {
   '/admin/employees/': typeof AuthenticatedAdminEmployeesIndexRoute
 }
 export interface FileRoutesByTo {
+  '/event-register': typeof EventRegisterRoute
   '/login': typeof LoginRoute
   '/': typeof AuthenticatedIndexRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -72,6 +80,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/event-register': typeof EventRegisterRoute
   '/login': typeof LoginRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/': typeof AuthenticatedIndexRoute
@@ -83,16 +92,24 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/event-register'
     | '/login'
     | '/admin'
     | '/admin/'
     | '/admin/employees/$id'
     | '/admin/employees/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/' | '/admin' | '/admin/employees/$id' | '/admin/employees'
+  to:
+    | '/event-register'
+    | '/login'
+    | '/'
+    | '/admin'
+    | '/admin/employees/$id'
+    | '/admin/employees'
   id:
     | '__root__'
     | '/_authenticated'
+    | '/event-register'
     | '/login'
     | '/_authenticated/admin'
     | '/_authenticated/'
@@ -103,6 +120,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  EventRegisterRoute: typeof EventRegisterRoute
   LoginRoute: typeof LoginRoute
 }
 
@@ -113,6 +131,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/event-register': {
+      id: '/event-register'
+      path: '/event-register'
+      fullPath: '/event-register'
+      preLoaderRoute: typeof EventRegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -191,6 +216,7 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  EventRegisterRoute: EventRegisterRoute,
   LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport
