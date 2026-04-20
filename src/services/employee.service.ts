@@ -30,6 +30,22 @@ export const EmployeeService = {
   },
 
   /**
+   * Updates employee fields — used when employee overrides AD-provided data
+   */
+  async updateEmployee(
+    employeeId: string,
+    updates: Partial<
+      Omit<
+        import("@/integrations/supabase/types").Tables<"employees">,
+        "id" | "created_at" | "updated_at"
+      >
+    >,
+  ) {
+    const { error } = await supabase.from("employees").update(updates).eq("id", employeeId);
+    if (error) throw error;
+  },
+
+  /**
    * Logs a consent action
    */
   async logConsent(employeeId: string, status: string, version: string) {

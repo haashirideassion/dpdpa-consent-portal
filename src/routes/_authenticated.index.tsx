@@ -6,7 +6,9 @@ import { EmployeeDataView } from "@/components/EmployeeDataView";
 import { ConsentModule } from "@/components/ConsentModule";
 import { DpdpaLegend } from "@/components/DpdpaLegend";
 import { DpdpaInfo } from "@/components/DpdpaInfo";
+import { DpdpaActContent } from "@/components/DpdpaActContent";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Tables } from "@/integrations/supabase/types";
 
 export const Route = createFileRoute("/_authenticated/")({
@@ -56,7 +58,7 @@ function EmployeePortal() {
 
   if (authLoading || loading) {
     return (
-      <div className="mx-auto max-w-4xl px-4 py-8 space-y-4">
+      <div className="mx-auto max-w-5xl px-4 py-8 space-y-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <Skeleton key={i} className="h-32 w-full rounded-xl" />
         ))}
@@ -66,7 +68,7 @@ function EmployeePortal() {
 
   if (!employee) {
     return (
-      <div className="mx-auto max-w-4xl px-4 py-16 text-center">
+      <div className="mx-auto max-w-5xl px-4 py-16 text-center">
         <h2 className="text-lg font-semibold">No Employee Record Found</h2>
         <p className="text-sm text-muted-foreground mt-2">
           Your account is not linked to an employee record. Please contact HR for assistance.
@@ -76,29 +78,48 @@ function EmployeePortal() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Your Employee Data</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Review all personal and employment-related information stored by the organization.
-        </p>
-      </div>
+    <div className="mx-auto max-w-5xl px-4 py-6">
+      <Tabs defaultValue="my-data">
+        <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold">DPDPA Compliance Portal</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Review your data, read the Act, and submit your consent
+            </p>
+          </div>
+          <TabsList className="shrink-0">
+            <TabsTrigger value="my-data">My Data & Consent</TabsTrigger>
+            <TabsTrigger value="dpdpa-act">DPDPA Act</TabsTrigger>
+          </TabsList>
+        </div>
 
-      {!dpdpaInfoDismissed && <DpdpaInfo onDismiss={() => setDpdpaInfoDismissed(true)} />}
+        {/* ── Tab 1: My Data & Consent ── */}
+        <TabsContent value="my-data" className="space-y-6 mt-0">
+          {!dpdpaInfoDismissed && <DpdpaInfo onDismiss={() => setDpdpaInfoDismissed(true)} />}
 
-      <DpdpaLegend />
+          <DpdpaLegend />
 
-      <EmployeeDataView employee={employee} />
+          <EmployeeDataView
+            employee={employee}
+            onEmployeeUpdated={(updated) => setEmployee(updated)}
+          />
 
-      {user && (
-        <ConsentModule
-          employeeId={employee.id}
-          userId={user.id}
-          hasExistingConsent={!!consentLog}
-          lastConsentDate={consentLog?.created_at}
-          onConsentSubmitted={fetchData}
-        />
-      )}
+          {user && (
+            <ConsentModule
+              employeeId={employee.id}
+              userId={user.id}
+              hasExistingConsent={!!consentLog}
+              lastConsentDate={consentLog?.created_at}
+              onConsentSubmitted={fetchData}
+            />
+          )}
+        </TabsContent>
+
+        {/* ── Tab 2: DPDPA Act ── */}
+        <TabsContent value="dpdpa-act" className="mt-0">
+          <DpdpaActContent />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

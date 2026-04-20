@@ -92,7 +92,7 @@ function EmployeeDetail() {
 
       <DpdpaLegend />
 
-      <EmployeeDataView employee={employee} />
+      <EmployeeDataView employee={employee} onEmployeeUpdated={(u) => setEmployee(u)} />
 
       <Card>
         <CardHeader>
