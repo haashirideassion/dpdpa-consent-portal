@@ -1,16 +1,20 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { signInWithMicrosoft } from '@/lib/auth';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ShieldCheckBoldDuotone } from 'solar-icon-set';
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/use-auth';
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { signInWithMicrosoft } from "@/lib/auth";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { ShieldCheckBoldDuotone } from "solar-icon-set";
+import { useState, useEffect } from "react";
+import { IdeassionLogo } from "@/components/IdeassionLogo";
+import { useAuth } from "@/hooks/use-auth";
 
-export const Route = createFileRoute('/login')({
+export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
-      { title: 'Sign In — Employee Data Consent Portal' },
-      { name: 'description', content: 'Sign in to review your personal data and provide DPDPA consent.' },
+      { title: "Sign In — Employee Data Consent Portal" },
+      {
+        name: "description",
+        content: "Sign in to review your personal data and provide DPDPA consent.",
+      },
     ],
   }),
   component: LoginPage,
@@ -25,7 +29,7 @@ function LoginPage() {
   // Route Guard: Redirect already authenticated users to the dashboard
   useEffect(() => {
     if (user) {
-      navigate({ to: '/' });
+      navigate({ to: "/" });
     }
   }, [user, navigate]);
 
@@ -38,9 +42,9 @@ function LoginPage() {
       setIsLoading(true);
       setError(null);
       await signInWithMicrosoft();
-    } catch (err: any) {
-      console.error('Login: Sign in request failed', err);
-      setError(err.message || 'An unexpected error occurred during sign in.');
+    } catch (err) {
+      console.error("Login: Sign in request failed", err);
+      setError(err instanceof Error ? err.message : "An unexpected error occurred during sign in.");
       setIsLoading(false);
     }
   }
@@ -49,11 +53,16 @@ function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
       <Card className="w-full max-w-md shadow-xl border-t-4 border-t-primary animate-in fade-in zoom-in duration-300">
         <CardHeader className="text-center space-y-4 pb-2">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 transition-transform hover:scale-105 duration-300">
-            <ShieldCheckBoldDuotone size={32} color="var(--primary)" />
+          <div className="mx-auto">
+            <IdeassionLogo height={48} />
+          </div>
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
+            <ShieldCheckBoldDuotone size={24} color="var(--primary)" />
           </div>
           <div>
-            <CardTitle className="text-2xl font-bold tracking-tight">Employee Data Consent Portal</CardTitle>
+            <CardTitle className="text-2xl font-bold tracking-tight">
+              Employee Data Consent Portal
+            </CardTitle>
             <CardDescription className="mt-1.5 text-balance">
               Review your personal data and provide DPDPA consent securely
             </CardDescription>
@@ -82,7 +91,7 @@ function LoginPage() {
                 <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
               </svg>
             )}
-            {isLoading ? 'Connecting to Microsoft...' : 'Sign in with Microsoft'}
+            {isLoading ? "Connecting to Microsoft..." : "Sign in with Microsoft"}
           </Button>
 
           <div className="relative">
@@ -96,7 +105,6 @@ function LoginPage() {
 
           <p className="text-xs text-center text-muted-foreground leading-relaxed px-4">
             Use your organization Microsoft account to sign in securely.
-
           </p>
         </CardContent>
       </Card>

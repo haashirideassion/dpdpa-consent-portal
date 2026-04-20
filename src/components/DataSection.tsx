@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { AltArrowDownBoldDuotone, AltArrowUpBoldDuotone } from 'solar-icon-set';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DataField } from './DataField';
+import { useState } from "react";
+import { AltArrowDownBoldDuotone, AltArrowUpBoldDuotone } from "solar-icon-set";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DataField } from "./DataField";
 
 interface Field {
   label: string;
@@ -30,11 +30,7 @@ export function DataSection({ title, icon, fields, defaultOpen = true }: DataSec
           <CardTitle className="text-base font-semibold">{title}</CardTitle>
         </div>
         <span className="text-muted-foreground">
-          {open ? (
-          <AltArrowUpBoldDuotone size={18} />
-          ) : (
-            <AltArrowDownBoldDuotone size={18} />
-          )}
+          {open ? <AltArrowUpBoldDuotone size={18} /> : <AltArrowDownBoldDuotone size={18} />}
         </span>
       </CardHeader>
       {open && (

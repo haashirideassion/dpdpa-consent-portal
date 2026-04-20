@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from "@/integrations/supabase/client";
 
 /**
  * EMPLOYEE SERVICE
@@ -11,18 +11,18 @@ export const EmployeeService = {
    */
   async getByUserId(userId: string) {
     const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('employee_id')
-      .eq('user_id', userId)
+      .from("profiles")
+      .select("employee_id")
+      .eq("user_id", userId)
       .maybeSingle();
 
     if (profileError) throw profileError;
     if (!profile?.employee_id) return null;
 
     const { data: employee, error: employeeError } = await supabase
-      .from('employees')
-      .select('*')
-      .eq('id', profile.employee_id)
+      .from("employees")
+      .select("*")
+      .eq("id", profile.employee_id)
       .maybeSingle();
 
     if (employeeError) throw employeeError;
@@ -32,14 +32,13 @@ export const EmployeeService = {
   /**
    * Logs a consent action
    */
-  async logConsent(employeeId: string, status: boolean, version: string) {
-    const { error } = await supabase.from('consent_logs').insert({
+  async logConsent(employeeId: string, status: string, version: string) {
+    const { error } = await supabase.from("consent_logs").insert({
       employee_id: employeeId,
       consent_status: status,
       consent_version: version,
-      timestamp: new Date().toISOString(),
     });
 
     if (error) throw error;
-  }
+  },
 };

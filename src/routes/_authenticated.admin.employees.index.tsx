@@ -1,9 +1,9 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
-import { useState, useEffect, useMemo } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState, useEffect, useMemo } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -11,43 +11,43 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { MinimalisticMagniferBoldDuotone, EyeBoldDuotone } from 'solar-icon-set';
-import type { Tables } from '@/integrations/supabase/types';
+} from "@/components/ui/select";
+import { MinimalisticMagniferBoldDuotone, EyeBoldDuotone } from "solar-icon-set";
+import type { Tables } from "@/integrations/supabase/types";
 
-export const Route = createFileRoute('/_authenticated/admin/employees/')({
+export const Route = createFileRoute("/_authenticated/admin/employees/")({
   head: () => ({
     meta: [
-      { title: 'Employees — Admin Dashboard' },
-      { name: 'description', content: 'View and filter all employee records and consent status.' },
+      { title: "Employees — Admin Dashboard" },
+      { name: "description", content: "View and filter all employee records and consent status." },
     ],
   }),
   component: EmployeeList,
 });
 
-type Employee = Tables<'employees'>;
-type ConsentLog = Tables<'consent_logs'>;
+type Employee = Tables<"employees">;
+type ConsentLog = Tables<"consent_logs">;
 
 function EmployeeList() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [consents, setConsents] = useState<ConsentLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [deptFilter, setDeptFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [search, setSearch] = useState("");
+  const [deptFilter, setDeptFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
     async function fetch() {
       const [empRes, consentRes] = await Promise.all([
-        supabase.from('employees').select('*').order('employee_id'),
-        supabase.from('consent_logs').select('*').order('created_at', { ascending: false }),
+        supabase.from("employees").select("*").order("employee_id"),
+        supabase.from("consent_logs").select("*").order("created_at", { ascending: false }),
       ]);
       setEmployees(empRes.data ?? []);
       setConsents(consentRes.data ?? []);
@@ -66,7 +66,7 @@ function EmployeeList() {
 
   const departments = useMemo(
     () => [...new Set(employees.map((e) => e.department))].sort(),
-    [employees]
+    [employees],
   );
 
   const filtered = useMemo(() => {
@@ -76,12 +76,12 @@ function EmployeeList() {
         !q ||
         `${e.first_name} ${e.last_name}`.toLowerCase().includes(q) ||
         e.employee_id.toLowerCase().includes(q);
-      const matchDept = deptFilter === 'all' || e.department === deptFilter;
+      const matchDept = deptFilter === "all" || e.department === deptFilter;
       const hasConsent = consentMap.has(e.id);
       const matchStatus =
-        statusFilter === 'all' ||
-        (statusFilter === 'consented' && hasConsent) ||
-        (statusFilter === 'pending' && !hasConsent);
+        statusFilter === "all" ||
+        (statusFilter === "consented" && hasConsent) ||
+        (statusFilter === "pending" && !hasConsent);
       return matchSearch && matchDept && matchStatus;
     });
   }, [employees, search, deptFilter, statusFilter, consentMap]);
@@ -119,7 +119,9 @@ function EmployeeList() {
           <SelectContent>
             <SelectItem value="all">All Departments</SelectItem>
             {departments.map((d) => (
-              <SelectItem key={d} value={d}>{d}</SelectItem>
+              <SelectItem key={d} value={d}>
+                {d}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -159,27 +161,29 @@ function EmployeeList() {
                   <TableCell className="hidden sm:table-cell text-muted-foreground text-xs">
                     {emp.employee_id}
                   </TableCell>
-                  <TableCell className="hidden md:table-cell text-sm">
-                    {emp.department}
-                  </TableCell>
+                  <TableCell className="hidden md:table-cell text-sm">{emp.department}</TableCell>
                   <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
                     {emp.designation}
                   </TableCell>
                   <TableCell>
                     {consent ? (
-                      <Badge variant="default" className="bg-success text-success-foreground text-xs">
+                      <Badge
+                        variant="default"
+                        className="bg-success text-success-foreground text-xs"
+                      >
                         Consented
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="text-warning-foreground border-warning text-xs">
+                      <Badge
+                        variant="outline"
+                        className="text-warning-foreground border-warning text-xs"
+                      >
                         Pending
                       </Badge>
                     )}
                   </TableCell>
                   <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
-                    {consent
-                      ? new Date(consent.created_at).toLocaleDateString('en-IN')
-                      : '—'}
+                    {consent ? new Date(consent.created_at).toLocaleDateString("en-IN") : "—"}
                   </TableCell>
                   <TableCell>
                     <Button variant="ghost" size="icon" asChild>

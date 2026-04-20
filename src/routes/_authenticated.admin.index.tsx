@@ -1,20 +1,23 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
+import { createFileRoute } from "@tanstack/react-router";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import {
   UsersGroupTwoRoundedBoldDuotone,
   CheckCircleBoldDuotone,
   ClockCircleBoldDuotone,
   ChartSquareBoldDuotone,
-} from 'solar-icon-set';
+} from "solar-icon-set";
 
-export const Route = createFileRoute('/_authenticated/admin/')({
+export const Route = createFileRoute("/_authenticated/admin/")({
   head: () => ({
     meta: [
-      { title: 'Admin Dashboard — DPDPA Consent Portal' },
-      { name: 'description', content: 'Monitor employee DPDPA consent compliance across the organization.' },
+      { title: "Admin Dashboard — DPDPA Consent Portal" },
+      {
+        name: "description",
+        content: "Monitor employee DPDPA consent compliance across the organization.",
+      },
     ],
   }),
   component: AdminDashboard,
@@ -34,8 +37,8 @@ function AdminDashboard() {
   useEffect(() => {
     async function fetchStats() {
       const [empRes, consentRes] = await Promise.all([
-        supabase.from('employees').select('id', { count: 'exact' }),
-        supabase.from('consent_logs').select('employee_id'),
+        supabase.from("employees").select("id", { count: "exact" }),
+        supabase.from("consent_logs").select("employee_id"),
       ]);
 
       const totalEmployees = empRes.count ?? 0;
@@ -58,7 +61,9 @@ function AdminDashboard() {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i} className="animate-pulse"><CardContent className="h-24" /></Card>
+          <Card key={i} className="animate-pulse">
+            <CardContent className="h-24" />
+          </Card>
         ))}
       </div>
     );
@@ -66,28 +71,28 @@ function AdminDashboard() {
 
   const metricCards = [
     {
-      label: 'Total Employees',
+      label: "Total Employees",
       value: stats.totalEmployees,
       icon: <UsersGroupTwoRoundedBoldDuotone size={22} />,
-      color: 'text-primary',
+      color: "text-primary",
     },
     {
-      label: 'Consented',
+      label: "Consented",
       value: stats.totalConsented,
       icon: <CheckCircleBoldDuotone size={22} />,
-      color: 'text-success',
+      color: "text-success",
     },
     {
-      label: 'Pending',
+      label: "Pending",
       value: stats.pendingConsent,
       icon: <ClockCircleBoldDuotone size={22} />,
-      color: 'text-warning-foreground',
+      color: "text-warning-foreground",
     },
     {
-      label: 'Completion',
+      label: "Completion",
       value: `${stats.completionPercentage}%`,
       icon: <ChartSquareBoldDuotone size={22} />,
-      color: 'text-primary',
+      color: "text-primary",
     },
   ];
 

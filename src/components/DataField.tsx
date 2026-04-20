@@ -1,5 +1,5 @@
-import { isDpdpaField } from '@/lib/dpdpa';
-import { DpdpaBadge } from './DpdpaBadge';
+import { isDpdpaField } from "@/lib/dpdpa";
+import { DpdpaBadge } from "./DpdpaBadge";
 
 interface DataFieldProps {
   label: string;
@@ -18,8 +18,10 @@ export function DataField({ label, value, fieldKey }: DataFieldProps) {
         </span>
         {sensitive && <DpdpaBadge />}
       </div>
-      <span className={`text-sm font-medium ${sensitive ? 'text-dpdpa-foreground' : 'text-foreground'}`}>
-        {value || '—'}
+      <span
+        className={`text-sm font-medium ${sensitive ? "text-dpdpa-foreground" : "text-foreground"}`}
+      >
+        {value || "—"}
       </span>
     </div>
   );

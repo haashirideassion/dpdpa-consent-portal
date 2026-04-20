@@ -1,10 +1,5 @@
-import { ShieldCheckBoldDuotone } from 'solar-icon-set';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { ShieldCheckBoldDuotone } from "solar-icon-set";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export function DpdpaBadge() {
   return (

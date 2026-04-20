@@ -1,24 +1,27 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { EmployeeDataView } from '@/components/EmployeeDataView';
-import { DpdpaLegend } from '@/components/DpdpaLegend';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { EmployeeDataView } from "@/components/EmployeeDataView";
+import { DpdpaLegend } from "@/components/DpdpaLegend";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   AltArrowLeftBoldDuotone,
   CheckCircleBoldDuotone,
   ClockCircleBoldDuotone,
-} from 'solar-icon-set';
-import type { Tables } from '@/integrations/supabase/types';
+} from "solar-icon-set";
+import type { Tables } from "@/integrations/supabase/types";
 
-export const Route = createFileRoute('/_authenticated/admin/employees/$id')({
+export const Route = createFileRoute("/_authenticated/admin/employees/$id")({
   head: () => ({
     meta: [
-      { title: 'Employee Detail — Admin Dashboard' },
-      { name: 'description', content: 'View detailed employee profile with DPDPA fields and consent history.' },
+      { title: "Employee Detail — Admin Dashboard" },
+      {
+        name: "description",
+        content: "View detailed employee profile with DPDPA fields and consent history.",
+      },
     ],
   }),
   component: EmployeeDetail,
@@ -26,19 +29,19 @@ export const Route = createFileRoute('/_authenticated/admin/employees/$id')({
 
 function EmployeeDetail() {
   const { id } = Route.useParams();
-  const [employee, setEmployee] = useState<Tables<'employees'> | null>(null);
-  const [consentLogs, setConsentLogs] = useState<Tables<'consent_logs'>[]>([]);
+  const [employee, setEmployee] = useState<Tables<"employees"> | null>(null);
+  const [consentLogs, setConsentLogs] = useState<Tables<"consent_logs">[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetch() {
       const [empRes, logsRes] = await Promise.all([
-        supabase.from('employees').select('*').eq('id', id).maybeSingle(),
+        supabase.from("employees").select("*").eq("id", id).maybeSingle(),
         supabase
-          .from('consent_logs')
-          .select('*')
-          .eq('employee_id', id)
-          .order('created_at', { ascending: false }),
+          .from("consent_logs")
+          .select("*")
+          .eq("employee_id", id)
+          .order("created_at", { ascending: false }),
       ]);
       setEmployee(empRes.data);
       setConsentLogs(logsRes.data ?? []);
@@ -104,14 +107,14 @@ function EmployeeDetail() {
           ) : (
             <div className="space-y-3">
               {consentLogs.map((log) => (
-                <div
-                  key={log.id}
-                  className="flex items-start gap-3 rounded-lg border p-3"
-                >
+                <div key={log.id} className="flex items-start gap-3 rounded-lg border p-3">
                   <CheckCircleBoldDuotone size={18} color="var(--success)" className="mt-0.5" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <Badge variant="default" className="bg-success text-success-foreground text-xs">
+                      <Badge
+                        variant="default"
+                        className="bg-success text-success-foreground text-xs"
+                      >
                         {log.consent_status}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
@@ -119,12 +122,12 @@ function EmployeeDetail() {
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(log.created_at).toLocaleDateString('en-IN', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
+                      {new Date(log.created_at).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
                       })}
                     </p>
                   </div>

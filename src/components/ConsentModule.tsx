@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import { CheckCircleBoldDuotone } from 'solar-icon-set';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Button } from '@/components/ui/button';
-import { CONSENT_STATEMENT, CONSENT_VERSION } from '@/lib/dpdpa';
-import { supabase } from '@/integrations/supabase/client';
+import { useState } from "react";
+import { CheckCircleBoldDuotone } from "solar-icon-set";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { CONSENT_STATEMENT, CONSENT_VERSION } from "@/lib/dpdpa";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ConsentModuleProps {
   employeeId: string;
@@ -29,19 +29,19 @@ export function ConsentModule({
     if (!checked) return;
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('consent_logs').insert({
+      const { error } = await supabase.from("consent_logs").insert({
         employee_id: employeeId,
         user_id: userId,
-        consent_status: 'granted',
+        consent_status: "granted",
         consent_version: CONSENT_VERSION,
         ip_address: null,
-        user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+        user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
       });
       if (error) throw error;
       setSubmitted(true);
       onConsentSubmitted();
     } catch (err) {
-      console.error('Consent submission error:', err);
+      console.error("Consent submission error:", err);
     } finally {
       setSubmitting(false);
     }
@@ -55,8 +55,11 @@ export function ConsentModule({
           <div>
             <p className="font-semibold text-foreground">Consent Submitted</p>
             <p className="text-sm text-muted-foreground">
-              Your consent was recorded{lastConsentDate ? ` on ${new Date(lastConsentDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}.
-              Version: {CONSENT_VERSION}
+              Your consent was recorded
+              {lastConsentDate
+                ? ` on ${new Date(lastConsentDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}`
+                : ""}
+              . Version: {CONSENT_VERSION}
             </p>
           </div>
         </CardContent>
@@ -80,11 +83,16 @@ export function ConsentModule({
             onCheckedChange={(val) => setChecked(val === true)}
           />
           <label htmlFor="consent-check" className="text-sm leading-snug cursor-pointer">
-            I acknowledge and consent to the storage and processing of my personal data as described above, in accordance with the DPDPA.
+            I acknowledge and consent to the storage and processing of my personal data as described
+            above, in accordance with the DPDPA.
           </label>
         </div>
-        <Button onClick={handleSubmit} disabled={!checked || submitting} className="w-full sm:w-auto">
-          {submitting ? 'Submitting...' : 'Submit Consent'}
+        <Button
+          onClick={handleSubmit}
+          disabled={!checked || submitting}
+          className="w-full sm:w-auto"
+        >
+          {submitting ? "Submitting..." : "Submit Consent"}
         </Button>
       </CardContent>
     </Card>

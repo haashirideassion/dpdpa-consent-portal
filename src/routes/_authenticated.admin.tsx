@@ -1,11 +1,8 @@
-import { createFileRoute, Link, Outlet } from '@tanstack/react-router';
-import { useAuth } from '@/hooks/use-auth';
-import {
-  ChartSquareBoldDuotone,
-  UsersGroupTwoRoundedBoldDuotone,
-} from 'solar-icon-set';
+import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
+import { useAuth } from "@/hooks/use-auth";
+import { ChartSquareBoldDuotone, UsersGroupTwoRoundedBoldDuotone } from "solar-icon-set";
 
-export const Route = createFileRoute('/_authenticated/admin')({
+export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminLayout,
 });
 
@@ -14,7 +11,7 @@ function AdminLayout() {
 
   if (loading) return null;
 
-  if (role !== 'admin') {
+  if (role !== "admin") {
     return (
       <div className="mx-auto max-w-4xl px-4 py-16 text-center">
         <h2 className="text-lg font-semibold">Access Denied</h2>
@@ -34,7 +31,7 @@ function AdminLayout() {
               to="/admin"
               activeOptions={{ exact: true }}
               className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              activeProps={{ className: 'bg-accent text-foreground' }}
+              activeProps={{ className: "bg-accent text-foreground" }}
             >
               <ChartSquareBoldDuotone size={18} />
               Dashboard
@@ -42,7 +39,7 @@ function AdminLayout() {
             <Link
               to="/admin/employees"
               className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              activeProps={{ className: 'bg-accent text-foreground' }}
+              activeProps={{ className: "bg-accent text-foreground" }}
             >
               <UsersGroupTwoRoundedBoldDuotone size={18} />
               Employees

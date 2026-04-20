@@ -1,15 +1,13 @@
-import { useEffect, useState } from 'react';
-import { createFileRoute, Outlet, Link, useNavigate } from '@tanstack/react-router';
-import { useAuth } from '@/hooks/use-auth';
-import { signOut } from '@/lib/auth';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-  ShieldCheckBoldDuotone,
-  LogoutBoldDuotone,
-} from 'solar-icon-set';
+import { useEffect, useState } from "react";
+import { createFileRoute, Outlet, Link, useNavigate } from "@tanstack/react-router";
+import { useAuth } from "@/hooks/use-auth";
+import { signOut } from "@/lib/auth";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ShieldCheckBoldDuotone, LogoutBoldDuotone } from "solar-icon-set";
+import { IdeassionLogo } from "@/components/IdeassionLogo";
 
-export const Route = createFileRoute('/_authenticated')({
+export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
 });
 
@@ -19,9 +17,8 @@ function AuthenticatedLayout() {
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   useEffect(() => {
-
     if (!loading && !user && !isSigningOut) {
-      navigate({ to: '/login' });
+      navigate({ to: "/login" });
     }
   }, [user, loading, navigate, isSigningOut]);
 
@@ -32,7 +29,7 @@ function AuthenticatedLayout() {
         <div className="flex flex-col items-center gap-4">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           <p className="text-sm font-medium text-muted-foreground">
-            {isSigningOut ? 'Signing out...' : ''}
+            {isSigningOut ? "Signing out..." : ""}
           </p>
         </div>
       </div>
@@ -46,9 +43,9 @@ function AuthenticatedLayout() {
       setIsSigningOut(true);
       await signOut();
       // Ensure local state is cleared before moving
-      navigate({ to: '/login' });
+      navigate({ to: "/login" });
     } catch (error) {
-      console.error('Sign out error:', error);
+      console.error("Sign out error:", error);
       setIsSigningOut(false);
     }
   }
@@ -58,16 +55,22 @@ function AuthenticatedLayout() {
       <header className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur-sm">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-3">
-            <ShieldCheckBoldDuotone size={24} color="var(--primary)" />
-            <span className="font-semibold text-sm sm:text-base text-foreground">DPDPA Consent Portal</span>
+            <IdeassionLogo height={28} />
+            <div className="h-4 w-px bg-border hidden sm:block" />
+            <div className="hidden sm:flex items-center gap-1.5">
+              <ShieldCheckBoldDuotone size={16} color="var(--primary)" />
+              <span className="font-medium text-sm text-muted-foreground">
+                DPDPA Consent Portal
+              </span>
+            </div>
           </div>
           <div className="flex items-center gap-3">
-            {role === 'admin' && (
+            {role === "admin" && (
               <nav className="hidden sm:flex items-center gap-1">
                 <Link
                   to="/"
                   className="px-3 py-1.5 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                  activeProps={{ className: 'text-foreground bg-accent' }}
+                  activeProps={{ className: "text-foreground bg-accent" }}
                   activeOptions={{ exact: true }}
                 >
                   My Data
@@ -75,7 +78,7 @@ function AuthenticatedLayout() {
                 <Link
                   to="/admin"
                   className="px-3 py-1.5 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                  activeProps={{ className: 'text-foreground bg-accent' }}
+                  activeProps={{ className: "text-foreground bg-accent" }}
                 >
                   Admin
                 </Link>
