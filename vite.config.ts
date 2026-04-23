@@ -1,11 +1,10 @@
-// @lovable.dev/vite-tanstack-config already includes the following — do NOT add them manually
-// or the app will break with duplicate plugins:
-//   - tanstackStart, viteReact, tailwindcss, tsConfigPaths, cloudflare (build-only),
-//     componentTagger (dev-only), VITE_* env injection, @ path alias, React/TanStack dedupe,
-//     error logger plugins, and sandbox detection (port/host/strictPort).
-// You can pass additional config via defineConfig({ vite: { ... } }) if needed.
-import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import tsConfigPaths from "vite-tsconfig-paths";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import type { Plugin } from "vite";
+import path from "node:path";
 
 // Vite 7 + TanStack Start compatibility fix:
 // TanStack Start SSR generates script URLs like /@id/virtual:tanstack-start-client-entry
@@ -26,6 +25,29 @@ function fixVirtualClientEntryUrl(): Plugin {
 }
 
 export default defineConfig({
-  cloudflare: false,
-  vite: { plugins: [fixVirtualClientEntryUrl()] },
+  plugins: [
+    tanstackStart(),
+    react(),
+    tailwindcss(),
+    tsConfigPaths({ projects: ["./tsconfig.json"] }),
+    fixVirtualClientEntryUrl(),
+  ],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+    dedupe: [
+      "react",
+      "react-dom",
+      "react/jsx-runtime",
+      "react/jsx-dev-runtime",
+      "@tanstack/react-query",
+      "@tanstack/query-core",
+    ],
+  },
+  server: {
+    host: "::",
+    port: 8080,
+    strictPort: true,
+  },
 });

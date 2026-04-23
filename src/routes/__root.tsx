@@ -29,14 +29,14 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "DPDPA Consent Portal" },
+      { name: "description", content: "Employee Data Consent Portal — DPDPA compliance & consent management" },
+      { name: "author", content: "Ideassion" },
+      { property: "og:title", content: "DPDPA Consent Portal" },
+      { property: "og:description", content: "Employee Data Consent Portal — DPDPA compliance & consent management" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:site", content: "@Ideassion" },
     ],
     links: [
       {
