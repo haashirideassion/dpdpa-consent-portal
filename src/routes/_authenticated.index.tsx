@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,7 +25,15 @@ export const Route = createFileRoute("/_authenticated/")({
 });
 
 function EmployeePortal() {
-  const { user, employeeId, loading: authLoading } = useAuth();
+  const { user, employeeId, role, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+
+  // Admins go straight to admin panel
+  useEffect(() => {
+    if (!authLoading && role === "admin") {
+      navigate({ to: "/admin" });
+    }
+  }, [role, authLoading, navigate]);
   const [employee, setEmployee] = useState<Tables<"employees"> | null>(null);
   const [consentLog, setConsentLog] = useState<Tables<"consent_logs"> | null>(null);
   const [loading, setLoading] = useState(true);
