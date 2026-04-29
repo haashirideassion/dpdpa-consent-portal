@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AltArrowDownBoldDuotone, AltArrowUpBoldDuotone } from "solar-icon-set";
+import { ArrowDownBoldDuotone, ArrowUpBoldDuotone } from "solar-icon-set";
 import { PenBoldDuotone } from "solar-icon-set";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -95,7 +95,7 @@ export function DataSection({ title, icon, fields, defaultOpen = true, onSave }:
           )}
           {!editMode && (
             <span className="text-muted-foreground cursor-pointer" onClick={() => setOpen(!open)}>
-              {open ? <AltArrowUpBoldDuotone size={18} /> : <AltArrowDownBoldDuotone size={18} />}
+              {open ? <ArrowUpBoldDuotone size={18} /> : <ArrowDownBoldDuotone size={18} />}
             </span>
           )}
         </div>

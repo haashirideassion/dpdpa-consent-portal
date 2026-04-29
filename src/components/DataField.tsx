@@ -38,6 +38,25 @@ export function DataField({
 }: DataFieldProps & { fieldKey: string }) {
   const sensitive = isDpdpaField(fieldKey);
 
+  // Masking logic
+  const getDisplayValue = () => {
+    if (!value) return "—";
+    if (editMode) return value; // Don't mask in edit mode
+    
+    switch (fieldKey) {
+      case "aadhaar_number":
+        return value.length >= 4 ? `XXXX-XXXX-${value.slice(-4)}` : "XXXX";
+      case "pan_number":
+        return value.length >= 5 ? `${value.slice(0, 2)}XXXXX${value.slice(-3)}` : "XXXX";
+      case "bank_account_number":
+        return value.length >= 4 ? `XXXX${value.slice(-4)}` : "XXXX";
+      case "ctc":
+        return "Confidential";
+      default:
+        return value;
+    }
+  };
+
   return (
     <div className="flex flex-col gap-1 py-2">
       <div className="flex items-center gap-2">
@@ -87,7 +106,7 @@ export function DataField({
         <span
           className={`text-sm font-medium ${sensitive ? "text-dpdpa-foreground" : "text-foreground"}`}
         >
-          {value || "—"}
+          {getDisplayValue()}
         </span>
       )}
     </div>

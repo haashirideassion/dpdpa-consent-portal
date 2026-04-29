@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ShieldCheckBoldDuotone, LogoutBoldDuotone } from "solar-icon-set";
 import { IdeassionLogo } from "@/components/IdeassionLogo";
+import { AuditService } from "@/services/audit.service";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
@@ -15,6 +17,26 @@ function AuthenticatedLayout() {
   const { user, loading, role } = useAuth();
   const navigate = useNavigate();
   const [isSigningOut, setIsSigningOut] = useState(false);
+
+  // Capture login / logout audit events
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session?.user) {
+        AuditService.log({
+          action: "login",
+          metadata: {
+            email: session.user.email,
+            provider: session.user.app_metadata?.provider,
+          },
+        });
+      }
+      if (event === "SIGNED_OUT") {
+        // user_id already gone from session; audit row captured with actor_user_id from previous session
+        AuditService.log({ action: "logout" });
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (!loading && !user && !isSigningOut) {

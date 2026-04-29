@@ -1,17 +1,18 @@
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
-import { ChartSquareBoldDuotone, UsersGroupTwoRoundedBoldDuotone } from "solar-icon-set";
+import { ChartSquareBoldDuotone, UsersGroupTwoRoundedBoldDuotone, FolderWithFilesBoldDuotone, ClipboardListBoldDuotone, ShieldCheckBoldDuotone } from "solar-icon-set";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminLayout,
 });
 
 function AdminLayout() {
-  const { role, loading } = useAuth();
+  const { role, loading, hasRole } = useAuth();
 
   if (loading) return null;
 
-  if (role !== "admin") {
+  // Only admin and hr_manager can access the admin section
+  if (!hasRole("admin") && !hasRole("hr_manager")) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-16 text-center">
         <h2 className="text-lg font-semibold">Access Denied</h2>
@@ -43,6 +44,30 @@ function AdminLayout() {
             >
               <UsersGroupTwoRoundedBoldDuotone size={18} />
               Employees
+            </Link>
+            <Link
+              to="/admin/campaigns"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              activeProps={{ className: "bg-accent text-foreground" }}
+            >
+              <FolderWithFilesBoldDuotone size={18} />
+              Campaigns
+            </Link>
+            <Link
+              to="/admin/dpr"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              activeProps={{ className: "bg-accent text-foreground" }}
+            >
+              <ClipboardListBoldDuotone size={18} />
+              DPR Requests
+            </Link>
+            <Link
+              to="/admin/audit"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              activeProps={{ className: "bg-accent text-foreground" }}
+            >
+              <ShieldCheckBoldDuotone size={18} />
+              Audit Logs
             </Link>
           </nav>
         </aside>

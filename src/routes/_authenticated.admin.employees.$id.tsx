@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  AltArrowLeftBoldDuotone,
+  ArrowLeftBoldDuotone,
   CheckCircleBoldDuotone,
   ClockCircleBoldDuotone,
 } from "solar-icon-set";
@@ -77,7 +77,7 @@ function EmployeeDetail() {
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>
           <Link to="/admin/employees">
-            <AltArrowLeftBoldDuotone size={18} />
+            <ArrowLeftBoldDuotone size={18} />
           </Link>
         </Button>
         <div>
