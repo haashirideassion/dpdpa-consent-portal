@@ -36,13 +36,19 @@ function AdminDashboard() {
 
   useEffect(() => {
     async function fetchStats() {
-      const [empRes, consentRes] = await Promise.all([
+      const [empRes, consentLogsRes, consentRecordsRes] = await Promise.all([
         supabase.from("employees").select("id", { count: "exact" }),
         supabase.from("consent_logs").select("employee_id"),
+        supabase.from("consent_records").select("employee_id")
       ]);
 
       const totalEmployees = empRes.count ?? 0;
-      const uniqueConsented = new Set(consentRes.data?.map((c) => c.employee_id) ?? []).size;
+      
+      const uniqueConsented = new Set([
+        ...(consentLogsRes.data?.map((c) => c.employee_id) ?? []),
+        ...(consentRecordsRes.data?.map((c) => c.employee_id) ?? [])
+      ]).size;
+
       const pending = totalEmployees - uniqueConsented;
       const pct = totalEmployees > 0 ? Math.round((uniqueConsented / totalEmployees) * 100) : 0;
 

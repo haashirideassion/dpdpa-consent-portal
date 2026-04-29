@@ -1,0 +1,52 @@
+import { supabase } from "@/integrations/supabase/client";
+
+export type AuditAction =
+  | "login"
+  | "logout"
+  | "consent.granted"
+  | "consent.withdrawn"
+  | "video.completed"
+  | "video.progress"
+  | "education.completed"
+  | "data.edited"
+  | "invite.sent"
+  | "dpr.created"
+  | "campaign.created"
+  | "campaign.activated";
+
+interface AuditPayload {
+  action: AuditAction;
+  entityType?: string;
+  entityId?: string;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * AUDIT SERVICE
+ * Inserts append-only audit log entries.
+ * Silently catches errors so audit failures never block the main flow.
+ */
+export const AuditService = {
+  async log({ action, entityType, entityId, metadata }: AuditPayload): Promise<void> {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const userId = session?.user?.id ?? null;
+
+      await supabase.from("audit_logs").insert({
+        actor_user_id: userId,
+        action,
+        entity_type: entityType ?? null,
+        entity_id: entityId ?? null,
+        metadata: metadata ?? null,
+        // IP is captured server-side; best-effort from client
+        ip_address: null,
+      });
+    } catch (err) {
+      // Audit failures must NEVER block the user flow
+      console.warn("[AuditService] Failed to write audit log:", err);
+    }
+  },
+};

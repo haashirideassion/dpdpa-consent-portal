@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
 import {
   Table,
   TableBody,
@@ -42,6 +43,8 @@ function EmployeeList() {
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [uploading, setUploading] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     async function fetch() {
@@ -74,8 +77,8 @@ function EmployeeList() {
       const q = search.toLowerCase();
       const matchSearch =
         !q ||
-        `${e.first_name} ${e.last_name}`.toLowerCase().includes(q) ||
-        e.employee_id.toLowerCase().includes(q);
+        `${e.first_name || ""} ${e.last_name || ""}`.toLowerCase().includes(q) ||
+        (e.employee_id?.toLowerCase() || "").includes(q);
       const matchDept = deptFilter === "all" || e.department === deptFilter;
       const hasConsent = consentMap.has(e.id);
       const matchStatus =
@@ -86,17 +89,74 @@ function EmployeeList() {
     });
   }, [employees, search, deptFilter, statusFilter, consentMap]);
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploading(true);
+
+    try {
+      const text = await file.text();
+      // Improved CSV parser to handle Windows/Unix line endings
+      const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
+      if (lines.length < 2) throw new Error("File must contain headers and at least one row");
+      
+      const headers = lines[0].split(",").map(h => h.trim().toLowerCase().replace(/\s+/g, "_"));
+      
+      const rowsToInsert = lines.slice(1).map(line => {
+        // Use a regex to split by comma but ignore commas inside quotes
+        const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+        const row: Record<string, string> = {};
+        headers.forEach((h, i) => {
+          if (h) {
+            let val = values[i]?.trim() || "";
+            // Remove surrounding quotes if they exist
+            if (val.startsWith('"') && val.endsWith('"')) {
+              val = val.substring(1, val.length - 1);
+            }
+            row[h] = val;
+          }
+        });
+        return row;
+      }).filter(row => Object.values(row).some(v => v !== "")); // Skip completely empty rows
+
+      const { error } = await supabase.from("employees").insert(rowsToInsert as any);
+      if (error) throw error;
+      
+      // Reload page to show new employees
+      window.location.reload();
+    } catch (err: any) {
+      console.error("CSV Upload Error:", err);
+      alert(`Failed to upload CSV: ${err.message || "Unknown error"}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   if (loading) {
     return <div className="py-8 text-center text-muted-foreground">Loading employees...</div>;
   }
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Employee Records</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {employees.length} employees • {consentMap.size} consented
-        </p>
+      <div className="flex items-start justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Employee Records</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {employees.length} employees • {consentMap.size} consented
+          </p>
+        </div>
+        <div>
+          <Input 
+            type="file" 
+            accept=".csv" 
+            id="csv-upload" 
+            className="hidden" 
+            onChange={handleFileUpload} 
+          />
+          <Button variant="outline" className="gap-2" onClick={() => document.getElementById('csv-upload')?.click()} disabled={uploading}>
+            {uploading ? "Uploading..." : "Bulk Import (CSV)"}
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-3">

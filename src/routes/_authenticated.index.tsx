@@ -2,8 +2,12 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
+import { VideoService } from "@/services/video.service";
+import { EducationService } from "@/services/education.service";
+import { ConsentService, type ConsentTemplate } from "@/services/consent.service";
 import { EmployeeDataView } from "@/components/EmployeeDataView";
-import { ConsentModule } from "@/components/ConsentModule";
+import { GranularConsentForm } from "@/components/GranularConsentForm";
+import { MyConsentsView } from "@/components/MyConsentsView";
 import { DpdpaLegend } from "@/components/DpdpaLegend";
 import { DpdpaInfo } from "@/components/DpdpaInfo";
 import { DpdpaActContent } from "@/components/DpdpaActContent";
@@ -35,7 +39,8 @@ function EmployeePortal() {
     }
   }, [role, authLoading, navigate]);
   const [employee, setEmployee] = useState<Tables<"employees"> | null>(null);
-  const [consentLog, setConsentLog] = useState<Tables<"consent_logs"> | null>(null);
+  const [activeTemplate, setActiveTemplate] = useState<ConsentTemplate | null>(null);
+  const [hasConsented, setHasConsented] = useState(false);
   const [loading, setLoading] = useState(true);
   const [dpdpaInfoDismissed, setDpdpaInfoDismissed] = useState(false);
 
@@ -43,21 +48,41 @@ function EmployeePortal() {
     if (!employeeId || !user) return;
     setLoading(true);
 
-    const [empRes, consentRes] = await Promise.all([
+    const [empRes, activeVideo, activeEducation, activeTemplateData] = await Promise.all([
       supabase.from("employees").select("*").eq("id", employeeId).maybeSingle(),
-      supabase
-        .from("consent_logs")
-        .select("*")
-        .eq("employee_id", employeeId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+      VideoService.getActiveVideoVersion(),
+      EducationService.getActiveModule(),
+      ConsentService.getActiveTemplate(),
     ]);
 
+    let consentedToActive = false;
+    if (activeTemplateData) {
+      consentedToActive = await ConsentService.hasConsentedToVersion(employeeId, activeTemplateData.version);
+    }
+
+    // Check video gate
+    if (activeVideo) {
+      const hasCompletedVideo = await VideoService.hasCompletedVideo(employeeId, activeVideo.id);
+      if (!hasCompletedVideo) {
+        navigate({ to: "/consent/video" });
+        return;
+      }
+    }
+
+    // Check education gate
+    if (activeEducation) {
+      const hasCompletedEducation = await EducationService.hasCompletedModule(employeeId, activeEducation.version);
+      if (!hasCompletedEducation) {
+        navigate({ to: "/consent/education" });
+        return;
+      }
+    }
+
     setEmployee(empRes.data);
-    setConsentLog(consentRes.data);
+    setActiveTemplate(activeTemplateData);
+    setHasConsented(consentedToActive);
     setLoading(false);
-  }, [employeeId, user]);
+  }, [employeeId, user, navigate]);
 
   useEffect(() => {
     if (!authLoading && employeeId) fetchData();
@@ -97,6 +122,7 @@ function EmployeePortal() {
           </div>
           <TabsList className="shrink-0">
             <TabsTrigger value="my-data">My Data & Consent</TabsTrigger>
+            <TabsTrigger value="history">My Consents History</TabsTrigger>
             <TabsTrigger value="dpdpa-act">DPDPA Act</TabsTrigger>
           </TabsList>
         </div>
@@ -112,18 +138,23 @@ function EmployeePortal() {
             onEmployeeUpdated={(updated) => setEmployee(updated)}
           />
 
-          {user && (
-            <ConsentModule
+          {user && activeTemplate && (
+            <GranularConsentForm
               employeeId={employee.id}
               userId={user.id}
-              hasExistingConsent={!!consentLog}
-              lastConsentDate={consentLog?.created_at}
+              template={activeTemplate}
+              hasConsented={hasConsented}
               onConsentSubmitted={fetchData}
             />
           )}
         </TabsContent>
 
-        {/* ── Tab 2: DPDPA Act ── */}
+        {/* ── Tab 2: My Consents History ── */}
+        <TabsContent value="history" className="mt-0">
+          <MyConsentsView employeeId={employee.id} />
+        </TabsContent>
+
+        {/* ── Tab 3: DPDPA Act ── */}
         <TabsContent value="dpdpa-act" className="mt-0">
           <DpdpaActContent />
         </TabsContent>
