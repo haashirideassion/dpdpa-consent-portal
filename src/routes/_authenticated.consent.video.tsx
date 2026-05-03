@@ -17,15 +17,20 @@ export const Route = createFileRoute("/_authenticated/consent/video")({
 });
 
 function ConsentVideoStep() {
-  const { employeeId } = useAuth();
+  const { employeeId, role } = useAuth();
   const navigate = useNavigate();
   
   const [loading, setLoading] = useState(true);
-  const [videoData, setVideoData] = useState<{ id: string; url: string; position: number } | null>(null);
+  const [videoData, setVideoData] = useState<{ id: string; url: string; captionUrl?: string; position: number } | null>(null);
   const [isCompleted, setIsCompleted] = useState(false);
 
   useEffect(() => {
     async function initVideo() {
+      // Prevent admin from seeing this
+      if (role === "admin") {
+         navigate({ to: "/admin" });
+         return;
+      }
       if (!employeeId) return;
       
       // Get active video version
@@ -48,6 +53,7 @@ function ConsentVideoStep() {
       setVideoData({
         id: activeVideo.id,
         url: activeVideo.url,
+        captionUrl: activeVideo.caption_url,
         position: progress.position,
       });
       setLoading(false);
@@ -79,6 +85,7 @@ function ConsentVideoStep() {
       <IntroVideoPlayer
         videoVersionId={videoData.id}
         videoUrl={videoData.url}
+        captionUrl={videoData.captionUrl}
         initialPosition={videoData.position}
         onCompleted={() => setIsCompleted(true)}
       />

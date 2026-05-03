@@ -1,10 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { supabase } from "@/integrations/supabase/client";
 import { VideoService } from "@/services/video.service";
 import { EducationService } from "@/services/education.service";
 import { ConsentService, type ConsentTemplate } from "@/services/consent.service";
+import { EmployeeService } from "@/services/employee.service";
+import { OnboardingService } from "@/services/onboarding.service";
 import { EmployeeDataView } from "@/components/EmployeeDataView";
 import { GranularConsentForm } from "@/components/GranularConsentForm";
 import { MyConsentsView } from "@/components/MyConsentsView";
@@ -14,6 +15,7 @@ import { DpdpaActContent } from "@/components/DpdpaActContent";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Tables } from "@/integrations/supabase/types";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
@@ -32,12 +34,6 @@ function EmployeePortal() {
   const { user, employeeId, role, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Admins go straight to admin panel
-  useEffect(() => {
-    if (!authLoading && role === "admin") {
-      navigate({ to: "/admin" });
-    }
-  }, [role, authLoading, navigate]);
   const [employee, setEmployee] = useState<Tables<"employees"> | null>(null);
   const [activeTemplate, setActiveTemplate] = useState<ConsentTemplate | null>(null);
   const [hasConsented, setHasConsented] = useState(false);
@@ -45,49 +41,63 @@ function EmployeePortal() {
   const [dpdpaInfoDismissed, setDpdpaInfoDismissed] = useState(false);
 
   const fetchData = useCallback(async () => {
-    if (!employeeId || !user) return;
+    if (!user) return;
     setLoading(true);
 
-    const [empRes, activeVideo, activeEducation, activeTemplateData] = await Promise.all([
-      supabase.from("employees").select("*").eq("id", employeeId).maybeSingle(),
-      VideoService.getActiveVideoVersion(),
-      EducationService.getActiveModule(),
-      ConsentService.getActiveTemplate(),
-    ]);
+    try {
+      // 1. Strict Role-Based Routing via Backend
+      const { screen } = await OnboardingService.getScreen().catch(() => ({ screen: "SHOW_EMPLOYEE_PORTAL" as const }));
 
-    let consentedToActive = false;
-    if (activeTemplateData) {
-      consentedToActive = await ConsentService.hasConsentedToVersion(employeeId, activeTemplateData.version);
-    }
-
-    // Check video gate
-    if (activeVideo) {
-      const hasCompletedVideo = await VideoService.hasCompletedVideo(employeeId, activeVideo.id);
-      if (!hasCompletedVideo) {
-        navigate({ to: "/consent/video" });
-        return;
+      switch (screen) {
+        case "ADMIN_DASHBOARD":
+          navigate({ to: "/admin" });
+          return;
+        case "SHOW_VIDEO":
+          navigate({ to: "/consent/video" });
+          return;
+        case "SHOW_EDUCATION":
+          navigate({ to: "/consent/education" });
+          return;
+        case "NO_EMPLOYEE_RECORD":
+          // Fall through to show "No Employee Record Found" UI
+          break;
+        case "SHOW_EMPLOYEE_PORTAL":
+          // Proceed with loading employee portal data
+          break;
       }
-    }
 
-    // Check education gate
-    if (activeEducation) {
-      const hasCompletedEducation = await EducationService.hasCompletedModule(employeeId, activeEducation.version);
-      if (!hasCompletedEducation) {
-        navigate({ to: "/consent/education" });
-        return;
+      // 2. Fetch Employee Data
+      let empRes = await EmployeeService.getByUserId(user.id).catch(() => null);
+
+      const activeTemplateData = await ConsentService.getActiveTemplate().catch(() => null);
+
+      const employeeData = empRes;
+      const resolvedEmployeeId = employeeData?.id ?? employeeId;
+
+      if (!resolvedEmployeeId) {
+        return; // will fall through to finally → setLoading(false)
       }
-    }
 
-    setEmployee(empRes.data);
-    setActiveTemplate(activeTemplateData);
-    setHasConsented(consentedToActive);
-    setLoading(false);
+      let consentedToActive = false;
+      if (activeTemplateData) {
+        consentedToActive = await ConsentService.hasConsentedToVersion(resolvedEmployeeId, activeTemplateData.version).catch(() => false);
+      }
+
+      setEmployee(employeeData as any);
+      setActiveTemplate(activeTemplateData);
+      setHasConsented(consentedToActive);
+    } catch (err) {
+      console.error("[fetchData] Unexpected error:", err);
+    } finally {
+      // ALWAYS stop the spinner — no more infinite loading
+      setLoading(false);
+    }
   }, [employeeId, user, navigate]);
 
   useEffect(() => {
-    if (!authLoading && employeeId) fetchData();
+    if (!authLoading && user) fetchData();
     else if (!authLoading) setLoading(false);
-  }, [authLoading, employeeId, fetchData]);
+  }, [authLoading, user, fetchData]);
 
   if (authLoading || loading) {
     return (
@@ -135,7 +145,8 @@ function EmployeePortal() {
 
           <EmployeeDataView
             employee={employee}
-            onEmployeeUpdated={(updated) => setEmployee(updated)}
+            hasConsented={hasConsented}
+            onEmployeeUpdated={(updated) => { if (updated) setEmployee(updated); }}
           />
 
           {user && activeTemplate && (

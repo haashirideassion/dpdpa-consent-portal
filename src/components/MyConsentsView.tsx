@@ -45,7 +45,7 @@ export function MyConsentsView({ employeeId }: { employeeId: string }) {
     async function fetchConsents() {
       // Fetch records with joined template and purpose names
       const { data, error } = await supabase
-        .from("consent_records")
+        .from("consent_purpose_records")
         .select(`
           id, template_version, purpose_key, consented, is_mandatory, created_at,
           template:consent_templates(name),

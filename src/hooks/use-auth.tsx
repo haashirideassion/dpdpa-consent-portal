@@ -58,33 +58,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     try {
-      const metadataPromise = Promise.all([
-        // Fetch ALL roles for this user (user may hold multiple)
-        supabase.from("user_roles").select("role").eq("user_id", userId),
-        supabase.from("profiles").select("employee_id").eq("user_id", userId).maybeSingle(),
-      ]);
+      // Single source of truth: employees table holds both role and id
+      const metadataPromise = supabase
+        .from("employees")
+        .select("id, role")
+        .eq("user_id", userId)
+        .maybeSingle();
 
-      const [rolesRes, profileRes] = await Promise.race([metadataPromise, timeoutPromise]);
+      const employeeRes = await Promise.race([metadataPromise, timeoutPromise]);
 
-      const allRoles = (rolesRes.data ?? []).map((r: { role: string }) => r.role as AppRole);
+      const empRole = (employeeRes.data?.role ?? "employee") as AppRole;
 
-      // Primary role = highest-privilege role the user holds
-      const primaryRole: AppRole | null =
-        ROLE_PRIORITY.find((r) => allRoles.includes(r)) ?? null;
+      // Build roles array — derive multi-role support from single role field
+      // Admin implicitly holds all lower roles for permission checks
+      const allRoles: AppRole[] = empRole === "admin"
+        ? ["admin", "hr_manager", "dpo", "employee"]
+        : empRole === "hr_manager"
+        ? ["hr_manager", "employee"]
+        : empRole === "dpo"
+        ? ["dpo", "employee"]
+        : ["employee"];
 
       return {
-        role: primaryRole,
+        role: empRole,
         roles: allRoles,
-        employeeId: profileRes.data?.employee_id ?? null,
+        employeeId: employeeRes.data?.id ?? null,
       };
     } catch (err) {
-      console.warn("Auth: Profile link missing or DB slow", err);
+      console.warn("Auth: Employee record missing or DB slow", err);
       return { role: null, roles: [] as AppRole[], employeeId: null };
     }
   }, []);
 
+  const lastTokenRef = React.useRef<string | null>(null);
+
   const updateState = useCallback(
     async (session: Session | null) => {
+      const newToken = session?.access_token ?? null;
+      
+      // Prevent redundant state updates if session hasn't changed
+      // (This avoids "refreshing" behavior on tab switch)
+      if (newToken === lastTokenRef.current && state.initialized) {
+        return;
+      }
+      
+      lastTokenRef.current = newToken;
+
       if (session?.user) {
         const meta = await fetchUserMeta(session.user.id);
         setState({
@@ -108,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       }
     },
-    [fetchUserMeta],
+    [fetchUserMeta, state.initialized],
   );
 
   useEffect(() => {

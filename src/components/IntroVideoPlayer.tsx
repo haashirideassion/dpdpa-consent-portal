@@ -9,13 +9,15 @@ import { useAuth } from "@/hooks/use-auth";
 interface IntroVideoPlayerProps {
   videoVersionId: string;
   videoUrl: string;
+  captionUrl?: string;
   initialPosition?: number;
-  onCompleted: () => void;
+  onCompleted?: () => void;
 }
 
 export function IntroVideoPlayer({
   videoVersionId,
   videoUrl,
+  captionUrl,
   initialPosition = 0,
   onCompleted,
 }: IntroVideoPlayerProps) {
@@ -128,7 +130,17 @@ export function IntroVideoPlayer({
         onPause={() => setIsPlaying(false)}
         onSeeking={handleSeeking}
         playsInline
-      />
+      >
+        {captionUrl && (
+          <track
+            kind="captions"
+            src={captionUrl}
+            srcLang="en"
+            label="Captions"
+            default
+          />
+        )}
+      </video>
       
       {/* Custom Controls Overlay */}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 p-4">

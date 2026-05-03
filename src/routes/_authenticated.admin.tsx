@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
-import { ChartSquareBoldDuotone, UsersGroupTwoRoundedBoldDuotone, FolderWithFilesBoldDuotone, ClipboardListBoldDuotone, ShieldCheckBoldDuotone } from "solar-icon-set";
+import { ChartSquareBoldDuotone, UsersGroupTwoRoundedBoldDuotone, FolderWithFilesBoldDuotone, ClipboardListBoldDuotone, ShieldCheckBoldDuotone, CheckCircleBoldDuotone } from "solar-icon-set";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminLayout,
@@ -68,6 +68,22 @@ function AdminLayout() {
             >
               <ShieldCheckBoldDuotone size={18} />
               Audit Logs
+            </Link>
+            <Link
+              to="/admin/corrections"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              activeProps={{ className: "bg-accent text-foreground" }}
+            >
+              <CheckCircleBoldDuotone size={18} />
+              Corrections
+            </Link>
+            <Link
+              to="/admin/videos"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              activeProps={{ className: "bg-accent text-foreground" }}
+            >
+              <ChartSquareBoldDuotone size={18} />
+              Videos
             </Link>
           </nav>
         </aside>

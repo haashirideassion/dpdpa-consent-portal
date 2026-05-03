@@ -48,6 +48,7 @@ export const EducationService = {
       .select("id")
       .eq("employee_id", employeeId)
       .eq("module_version", moduleVersion)
+      .eq("reset_flag", false) // Ensure it hasn't been reset by admin
       .limit(1)
       .maybeSingle();
 
@@ -68,6 +69,8 @@ export const EducationService = {
           employee_id: employeeId,
           user_id: userId,
           module_version: moduleVersion,
+          reset_flag: false, // Reset flag upon completion
+          is_completed: true,
         },
         { onConflict: "employee_id, module_version" }
       );

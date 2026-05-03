@@ -1,0 +1,4 @@
+employee_code,first_name,last_name,email,date_of_joining,department,designation,employment_type,work_location
+EMP-1001,John,Doe,john.doe@company.com,2023-01-15,Engineering,Senior Developer,Full-time,Bangalore
+EMP-1002,Jane,Smith,jane.smith@company.com,2023-03-01,Human Resources,HR Manager,Full-time,Mumbai
+EMP-1003,Rahul,Kumar,rahul.kumar@company.com,2024-05-10,Sales,Sales Executive,Contract,Delhi

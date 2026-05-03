@@ -16,7 +16,10 @@ export interface FieldDef {
   value: string | null | undefined;
   type?: "text" | "email" | "tel" | "date" | "textarea" | "select";
   options?: string[];
+  /** locked: prevents editing in pre-consent mode (e.g. HR-only fields). Can still request correction post-consent. */
   locked?: boolean;
+  /** uncorrectable: field can NEVER be corrected by the employee (e.g. work email, system IDs). */
+  uncorrectable?: boolean;
 }
 
 interface DataFieldProps extends FieldDef {

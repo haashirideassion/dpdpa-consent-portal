@@ -33,13 +33,13 @@ export async function getCurrentSession() {
   return session;
 }
 
-export async function getUserRole(userId: string): Promise<"admin" | "employee" | null> {
+export async function getUserRole(userId: string): Promise<"admin" | "hr_manager" | "dpo" | "employee" | null> {
   const { data } = await supabase
-    .from("user_roles")
+    .from("employees")
     .select("role")
     .eq("user_id", userId)
     .maybeSingle();
-  return data?.role ?? null;
+  return (data?.role as any) ?? null;
 }
 
 export async function getEmployeeForUser(userId: string) {

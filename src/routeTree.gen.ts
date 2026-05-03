@@ -18,7 +18,9 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated.
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated.admin.index'
 import { Route as AuthenticatedConsentVideoRouteImport } from './routes/_authenticated.consent.video'
 import { Route as AuthenticatedConsentEducationRouteImport } from './routes/_authenticated.consent.education'
+import { Route as AuthenticatedAdminVideosRouteImport } from './routes/_authenticated.admin.videos'
 import { Route as AuthenticatedAdminDprRouteImport } from './routes/_authenticated.admin.dpr'
+import { Route as AuthenticatedAdminCorrectionsRouteImport } from './routes/_authenticated.admin.corrections'
 import { Route as AuthenticatedAdminCampaignsRouteImport } from './routes/_authenticated.admin.campaigns'
 import { Route as AuthenticatedAdminAuditRouteImport } from './routes/_authenticated.admin.audit'
 import { Route as AuthenticatedAdminEmployeesIndexRouteImport } from './routes/_authenticated.admin.employees.index'
@@ -70,11 +72,23 @@ const AuthenticatedConsentEducationRoute =
     path: '/consent/education',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminVideosRoute =
+  AuthenticatedAdminVideosRouteImport.update({
+    id: '/videos',
+    path: '/videos',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminDprRoute = AuthenticatedAdminDprRouteImport.update({
   id: '/dpr',
   path: '/dpr',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminCorrectionsRoute =
+  AuthenticatedAdminCorrectionsRouteImport.update({
+    id: '/corrections',
+    path: '/corrections',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminCampaignsRoute =
   AuthenticatedAdminCampaignsRouteImport.update({
     id: '/campaigns',
@@ -107,7 +121,9 @@ export interface FileRoutesByFullPath {
   '/invite/$token': typeof InviteTokenRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/campaigns': typeof AuthenticatedAdminCampaignsRoute
+  '/admin/corrections': typeof AuthenticatedAdminCorrectionsRoute
   '/admin/dpr': typeof AuthenticatedAdminDprRoute
+  '/admin/videos': typeof AuthenticatedAdminVideosRoute
   '/consent/education': typeof AuthenticatedConsentEducationRoute
   '/consent/video': typeof AuthenticatedConsentVideoRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -121,7 +137,9 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/admin/campaigns': typeof AuthenticatedAdminCampaignsRoute
+  '/admin/corrections': typeof AuthenticatedAdminCorrectionsRoute
   '/admin/dpr': typeof AuthenticatedAdminDprRoute
+  '/admin/videos': typeof AuthenticatedAdminVideosRoute
   '/consent/education': typeof AuthenticatedConsentEducationRoute
   '/consent/video': typeof AuthenticatedConsentVideoRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -138,7 +156,9 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/admin/audit': typeof AuthenticatedAdminAuditRoute
   '/_authenticated/admin/campaigns': typeof AuthenticatedAdminCampaignsRoute
+  '/_authenticated/admin/corrections': typeof AuthenticatedAdminCorrectionsRoute
   '/_authenticated/admin/dpr': typeof AuthenticatedAdminDprRoute
+  '/_authenticated/admin/videos': typeof AuthenticatedAdminVideosRoute
   '/_authenticated/consent/education': typeof AuthenticatedConsentEducationRoute
   '/_authenticated/consent/video': typeof AuthenticatedConsentVideoRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -155,7 +175,9 @@ export interface FileRouteTypes {
     | '/invite/$token'
     | '/admin/audit'
     | '/admin/campaigns'
+    | '/admin/corrections'
     | '/admin/dpr'
+    | '/admin/videos'
     | '/consent/education'
     | '/consent/video'
     | '/admin/'
@@ -169,7 +191,9 @@ export interface FileRouteTypes {
     | '/'
     | '/admin/audit'
     | '/admin/campaigns'
+    | '/admin/corrections'
     | '/admin/dpr'
+    | '/admin/videos'
     | '/consent/education'
     | '/consent/video'
     | '/admin'
@@ -185,7 +209,9 @@ export interface FileRouteTypes {
     | '/_authenticated/'
     | '/_authenticated/admin/audit'
     | '/_authenticated/admin/campaigns'
+    | '/_authenticated/admin/corrections'
     | '/_authenticated/admin/dpr'
+    | '/_authenticated/admin/videos'
     | '/_authenticated/consent/education'
     | '/_authenticated/consent/video'
     | '/_authenticated/admin/'
@@ -265,11 +291,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedConsentEducationRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/videos': {
+      id: '/_authenticated/admin/videos'
+      path: '/videos'
+      fullPath: '/admin/videos'
+      preLoaderRoute: typeof AuthenticatedAdminVideosRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/dpr': {
       id: '/_authenticated/admin/dpr'
       path: '/dpr'
       fullPath: '/admin/dpr'
       preLoaderRoute: typeof AuthenticatedAdminDprRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/corrections': {
+      id: '/_authenticated/admin/corrections'
+      path: '/corrections'
+      fullPath: '/admin/corrections'
+      preLoaderRoute: typeof AuthenticatedAdminCorrectionsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/campaigns': {
@@ -306,7 +346,9 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAuditRoute: typeof AuthenticatedAdminAuditRoute
   AuthenticatedAdminCampaignsRoute: typeof AuthenticatedAdminCampaignsRoute
+  AuthenticatedAdminCorrectionsRoute: typeof AuthenticatedAdminCorrectionsRoute
   AuthenticatedAdminDprRoute: typeof AuthenticatedAdminDprRoute
+  AuthenticatedAdminVideosRoute: typeof AuthenticatedAdminVideosRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminEmployeesIdRoute: typeof AuthenticatedAdminEmployeesIdRoute
   AuthenticatedAdminEmployeesIndexRoute: typeof AuthenticatedAdminEmployeesIndexRoute
@@ -315,7 +357,9 @@ interface AuthenticatedAdminRouteChildren {
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAuditRoute: AuthenticatedAdminAuditRoute,
   AuthenticatedAdminCampaignsRoute: AuthenticatedAdminCampaignsRoute,
+  AuthenticatedAdminCorrectionsRoute: AuthenticatedAdminCorrectionsRoute,
   AuthenticatedAdminDprRoute: AuthenticatedAdminDprRoute,
+  AuthenticatedAdminVideosRoute: AuthenticatedAdminVideosRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminEmployeesIdRoute: AuthenticatedAdminEmployeesIdRoute,
   AuthenticatedAdminEmployeesIndexRoute: AuthenticatedAdminEmployeesIndexRoute,

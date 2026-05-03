@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { EmployeeDataView } from "@/components/EmployeeDataView";
+import { EmployeeService } from "@/services/employee.service";
 import { DpdpaLegend } from "@/components/DpdpaLegend";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,15 +36,17 @@ function EmployeeDetail() {
 
   useEffect(() => {
     async function fetch() {
-      const [empRes, logsRes] = await Promise.all([
-        supabase.from("employees").select("*").eq("id", id).maybeSingle(),
+      const [fullEmployee, logsRes] = await Promise.all([
+        // getById fetches from all normalized tables and aliases fields for the UI
+        EmployeeService.getById(id),
         supabase
           .from("consent_logs")
           .select("*")
           .eq("employee_id", id)
           .order("created_at", { ascending: false }),
       ]);
-      setEmployee(empRes.data);
+
+      setEmployee(fullEmployee as any);
       setConsentLogs(logsRes.data ?? []);
       setLoading(false);
     }
@@ -82,17 +85,26 @@ function EmployeeDetail() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold">
-            {employee.first_name} {employee.last_name}
+            {(employee as any).first_name} {(employee as any).last_name}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {employee.employee_id} • {employee.department} • {employee.designation}
+            {(employee as any).employee_code ?? (employee as any).employee_id}
+            {(employee as any).department ? ` • ${(employee as any).department}` : ""}
+            {(employee as any).designation ? ` • ${(employee as any).designation}` : ""}
           </p>
         </div>
       </div>
 
       <DpdpaLegend />
 
-      <EmployeeDataView employee={employee} onEmployeeUpdated={(u) => setEmployee(u)} />
+      <EmployeeDataView
+        employee={employee}
+        onEmployeeUpdated={async () => {
+          // Re-fetch the full normalized record so admin sees the updated values
+          const updated = await EmployeeService.getById(id);
+          if (updated) setEmployee(updated as any);
+        }}
+      />
 
       <Card>
         <CardHeader>

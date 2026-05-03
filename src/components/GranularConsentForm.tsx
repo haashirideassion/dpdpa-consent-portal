@@ -3,6 +3,7 @@ import { CheckCircleBoldDuotone, InfoCircleBoldDuotone } from "solar-icon-set";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ConsentService, type ConsentTemplate } from "@/services/consent.service";
@@ -64,6 +65,8 @@ export function GranularConsentForm({
       is_mandatory: p.is_mandatory,
     }));
 
+    const consentStatementText = "By typing my name below and clicking \"Submit Consent\", I acknowledge that I have read and understood the purposes for data processing as defined under the Digital Personal Data Protection Act, 2023.";
+
     const success = await ConsentService.submitConsent({
       employeeId,
       userId,
@@ -71,6 +74,9 @@ export function GranularConsentForm({
       templateVersion: template.version,
       purposes,
       esignName,
+      consentStatementText,
+      language: navigator.language || 'en',
+      device: navigator.userAgent, // Basic client-side device tracking
     });
 
     setSubmitting(false);
@@ -110,6 +116,22 @@ export function GranularConsentForm({
                     <InfoCircleBoldDuotone size={14} className="opacity-70" />
                     Legal Basis: {purpose.legal_basis}
                   </div>
+                  {(purpose.data_categories || purpose.third_parties || purpose.retention_period) && (
+                    <details className="mt-3 text-xs text-muted-foreground group cursor-pointer">
+                      <summary className="font-medium outline-none">View detailed processing information</summary>
+                      <div className="mt-2 pl-2 border-l-2 border-muted space-y-2 py-1">
+                        {purpose.data_categories && (
+                          <p><strong className="text-foreground/80">Data Categories:</strong> {purpose.data_categories}</p>
+                        )}
+                        {purpose.third_parties && (
+                          <p><strong className="text-foreground/80">Third Parties:</strong> {purpose.third_parties}</p>
+                        )}
+                        {purpose.retention_period && (
+                          <p><strong className="text-foreground/80">Retention Period:</strong> {purpose.retention_period}</p>
+                        )}
+                      </div>
+                    </details>
+                  )}
                 </div>
                 
                 <div className="pt-1 flex items-center gap-2">
@@ -153,7 +175,14 @@ export function GranularConsentForm({
             onClick={handleSubmit} 
             disabled={submitting || !esignName.trim()}
           >
-            {submitting ? "Recording Consent..." : "Submit Consent"}
+            {submitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Recording Consent...
+              </>
+            ) : (
+              "Submit Consent"
+            )}
           </Button>
         </CardContent>
       </Card>

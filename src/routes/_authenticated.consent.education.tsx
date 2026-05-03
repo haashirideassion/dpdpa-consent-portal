@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_authenticated/consent/education")({
 });
 
 function ConsentEducationStep() {
-  const { employeeId, user } = useAuth();
+  const { employeeId, user, role } = useAuth();
   const navigate = useNavigate();
   
   const [loading, setLoading] = useState(true);
@@ -25,6 +25,11 @@ function ConsentEducationStep() {
 
   useEffect(() => {
     async function initEducation() {
+      // Prevent admin from seeing this
+      if (role === "admin") {
+         navigate({ to: "/admin" });
+         return;
+      }
       if (!employeeId) return;
       
       const activeModule = await EducationService.getActiveModule();
