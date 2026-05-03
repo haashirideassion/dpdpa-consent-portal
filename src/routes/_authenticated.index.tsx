@@ -44,6 +44,7 @@ function EmployeePortal() {
     if (!user) return;
     setLoading(true);
 
+    let routedAway = false;
     try {
       // 1. Strict Role-Based Routing via Backend
       const { screen } = await OnboardingService.getScreen().catch(() => ({ screen: "SHOW_EMPLOYEE_PORTAL" as const }));
@@ -51,12 +52,15 @@ function EmployeePortal() {
       switch (screen) {
         case "ADMIN_DASHBOARD":
           navigate({ to: "/admin" });
+          routedAway = true;
           return;
         case "SHOW_VIDEO":
           navigate({ to: "/consent/video" });
+          routedAway = true;
           return;
         case "SHOW_EDUCATION":
           navigate({ to: "/consent/education" });
+          routedAway = true;
           return;
         case "NO_EMPLOYEE_RECORD":
           // Fall through to show "No Employee Record Found" UI
@@ -89,8 +93,11 @@ function EmployeePortal() {
     } catch (err) {
       console.error("[fetchData] Unexpected error:", err);
     } finally {
-      // ALWAYS stop the spinner — no more infinite loading
-      setLoading(false);
+      // Only stop the spinner if we are staying on this screen.
+      // If we are routing away, keep the skeleton showing until unmount.
+      if (!routedAway) {
+        setLoading(false);
+      }
     }
   }, [employeeId, user, navigate]);
 
