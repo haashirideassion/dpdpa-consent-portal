@@ -39,6 +39,7 @@ function EmployeePortal() {
   const [hasConsented, setHasConsented] = useState(false);
   const [loading, setLoading] = useState(true);
   const [dpdpaInfoDismissed, setDpdpaInfoDismissed] = useState(false);
+  const [noVideo, setNoVideo] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -62,6 +63,9 @@ function EmployeePortal() {
           navigate({ to: "/consent/education" });
           routedAway = true;
           return;
+        case "NO_VIDEO_AVAILABLE":
+          setNoVideo(true);
+          break;
         case "NO_EMPLOYEE_RECORD":
           // Fall through to show "No Employee Record Found" UI
           break;
@@ -112,6 +116,18 @@ function EmployeePortal() {
         {Array.from({ length: 4 }).map((_, i) => (
           <Skeleton key={i} className="h-32 w-full rounded-xl" />
         ))}
+      </div>
+    );
+  }
+
+  if (noVideo) {
+    return (
+      <div className="mx-auto max-w-5xl px-4 py-16 text-center">
+        <h2 className="text-lg font-semibold text-destructive">No Onboarding Video Available</h2>
+        <p className="text-sm text-muted-foreground mt-2">
+          An active onboarding video is required to proceed, but none is currently configured.
+          Please contact HR.
+        </p>
       </div>
     );
   }

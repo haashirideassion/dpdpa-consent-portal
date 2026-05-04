@@ -191,5 +191,103 @@ export const VideoService = {
 
     if (error) throw error;
     return data;
-  }
+  },
+
+  // ---------------------------------------------------------------------------
+  // File Upload (Supabase Storage → dpdpa_videos bucket)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Uploads an MP4 video file to Supabase Storage.
+   * Path: videos/{language}/{version}.mp4
+   * Returns the public URL.
+   */
+  async uploadVideoFile(file: File, language: string, version: string): Promise<string> {
+    const safeLang = language.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+    const safeVer  = version.replace(/[^a-z0-9._-]/gi, "_").toLowerCase();
+    const path = `videos/${safeLang}/${safeVer}.mp4`;
+
+    const { error } = await supabase.storage
+      .from("dpdpa_videos")
+      .upload(path, file, { upsert: true, contentType: "video/mp4" });
+
+    if (error) throw new Error(`Video upload failed: ${error.message}`);
+
+    const { data: urlData } = supabase.storage
+      .from("dpdpa_videos")
+      .getPublicUrl(path);
+
+    return urlData.publicUrl;
+  },
+
+  /**
+   * Uploads a VTT/SRT caption file to Supabase Storage.
+   * Path: captions/{language}/{version}.vtt
+   * Returns the public URL.
+   */
+  async uploadCaptionFile(file: File, language: string, version: string): Promise<string> {
+    const safeLang = language.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+    const safeVer  = version.replace(/[^a-z0-9._-]/gi, "_").toLowerCase();
+    const ext  = file.name.endsWith(".srt") ? "srt" : "vtt";
+    const path = `captions/${safeLang}/${safeVer}.${ext}`;
+
+    const { error } = await supabase.storage
+      .from("dpdpa_videos")
+      .upload(path, file, { upsert: true, contentType: "text/vtt" });
+
+    if (error) throw new Error(`Caption upload failed: ${error.message}`);
+
+    const { data: urlData } = supabase.storage
+      .from("dpdpa_videos")
+      .getPublicUrl(path);
+
+    return urlData.publicUrl;
+  },
+
+  /**
+   * Full upload flow: uploads both files then inserts the video_versions record as draft.
+   * @param videoFile - MP4 file (≤ 25 MB)
+   * @param captionFile - VTT or SRT file (mandatory)
+   * @param meta - title, version, language, duration_seconds, resolution
+   */
+  async createVideoVersionFromFiles(
+    videoFile: File,
+    captionFile: File,
+    meta: {
+      title: string;
+      version: string;
+      language: string;
+      duration_seconds: number;
+      resolution: string;
+    },
+    onProgress?: (step: "video" | "caption" | "saving") => void
+  ) {
+    // Validate before touching storage
+    if (videoFile.size > 26_214_400) {
+      throw new Error("Video file exceeds the 25 MB limit.");
+    }
+    if (!["video/mp4"].includes(videoFile.type) && !videoFile.name.endsWith(".mp4")) {
+      throw new Error("Only MP4 video files are accepted.");
+    }
+    if (!captionFile) {
+      throw new Error("A caption file (.vtt or .srt) is mandatory for DPDPA compliance.");
+    }
+    if (meta.duration_seconds < 45 || meta.duration_seconds > 90) {
+      throw new Error("Duration must be between 45 and 90 seconds.");
+    }
+
+    onProgress?.("video");
+    const videoUrl = await this.uploadVideoFile(videoFile, meta.language, meta.version);
+
+    onProgress?.("caption");
+    const captionUrl = await this.uploadCaptionFile(captionFile, meta.language, meta.version);
+
+    onProgress?.("saving");
+    return await this.createVideoVersion({
+      ...meta,
+      url: videoUrl,
+      caption_url: captionUrl,
+    });
+  },
 };
+

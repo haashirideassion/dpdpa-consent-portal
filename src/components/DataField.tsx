@@ -26,6 +26,11 @@ interface DataFieldProps extends FieldDef {
   editMode?: boolean;
   draft?: string;
   onDraftChange?: (key: string, value: string) => void;
+  /**
+   * When true (admin context), locked fields are STILL editable.
+   * Shows "Admin Editable" badge instead of "locked".
+   */
+  isAdmin?: boolean;
 }
 
 export function DataField({
@@ -38,14 +43,18 @@ export function DataField({
   editMode,
   draft,
   onDraftChange,
+  isAdmin = false,
 }: DataFieldProps & { fieldKey: string }) {
   const sensitive = isDpdpaField(fieldKey);
+
+  // For admins, locked fields are still editable
+  const effectivelyLocked = locked && !isAdmin;
 
   // Masking logic
   const getDisplayValue = () => {
     if (!value) return "—";
     if (editMode) return value; // Don't mask in edit mode
-    
+
     switch (fieldKey) {
       case "aadhaar_number":
         return value.length >= 4 ? `XXXX-XXXX-${value.slice(-4)}` : "XXXX";
@@ -67,14 +76,19 @@ export function DataField({
           {label}
         </span>
         {sensitive && <DpdpaBadge />}
-        {editMode && locked && (
+        {editMode && effectivelyLocked && (
           <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-medium">
             locked
           </span>
         )}
+        {/* {editMode && locked && isAdmin && (
+          <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-1.5 py-0.5 rounded font-medium">
+            Admin Editable
+          </span>
+        )} */}
       </div>
 
-      {editMode && !locked ? (
+      {editMode && !effectivelyLocked ? (
         type === "textarea" ? (
           <Textarea
             value={draft ?? ""}

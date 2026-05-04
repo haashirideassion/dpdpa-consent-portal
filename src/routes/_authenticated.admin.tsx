@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
-import { ChartSquareBoldDuotone, UsersGroupTwoRoundedBoldDuotone, FolderWithFilesBoldDuotone, ClipboardListBoldDuotone, ShieldCheckBoldDuotone, CheckCircleBoldDuotone } from "solar-icon-set";
+import { ChartSquareBoldDuotone, UsersGroupTwoRoundedBoldDuotone, FolderWithFilesBoldDuotone, ClipboardListBoldDuotone, ShieldCheckBoldDuotone, CheckCircleBoldDuotone, UserBoldDuotone } from "solar-icon-set";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminLayout,
@@ -28,6 +28,14 @@ function AdminLayout() {
       <div className="flex flex-col sm:flex-row gap-6">
         <aside className="sm:w-56 shrink-0">
           <nav className="flex sm:flex-col gap-1">
+            <Link
+              to="/admin/my-data"
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              activeProps={{ className: "bg-accent text-foreground" }}
+            >
+              <UserBoldDuotone size={18} />
+              My Data
+            </Link>
             <Link
               to="/admin"
               activeOptions={{ exact: true }}

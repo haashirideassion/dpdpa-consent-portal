@@ -20,13 +20,33 @@ interface EmployeeDataViewProps {
   onEmployeeUpdated: (updated?: Employee) => void;
   /** When true, all sections are locked and "Request Correction" replaces "Edit" */
   hasConsented?: boolean;
+  /**
+   * When true (admin context):
+   * - Locked fields are editable
+   * - Saves go through adminOverride() which writes audit logs per field
+   */
+  isAdmin?: boolean;
 }
 
-export function EmployeeDataView({ employee, onEmployeeUpdated, hasConsented = false }: EmployeeDataViewProps) {
+export function EmployeeDataView({
+  employee,
+  onEmployeeUpdated,
+  hasConsented = false,
+  isAdmin = false,
+}: EmployeeDataViewProps) {
   const e = employee;
 
   async function saveSection(updates: Record<string, string>) {
-    await EmployeeService.updateEmployee(e.id, updates);
+    if (isAdmin) {
+      // Build old-values snapshot from current employee state for audit diff
+      const oldValues: Record<string, string> = {};
+      for (const key of Object.keys(updates)) {
+        oldValues[key] = e[key] ?? "";
+      }
+      await EmployeeService.adminOverride(e.id, updates, oldValues);
+    } else {
+      await EmployeeService.updateEmployee(e.id, updates);
+    }
     onEmployeeUpdated({ ...e, ...updates, id: e.id });
   }
 
@@ -71,9 +91,9 @@ export function EmployeeDataView({ employee, onEmployeeUpdated, hasConsented = f
   ];
 
   const employmentFields: FieldDef[] = [
-    // Employee UUID is system-assigned — cannot be corrected by employee
+    // Employee UUID — system-assigned, never editable by anyone
     { label: "Employee ID", key: "employee_id", value: e.employee_id, locked: true, uncorrectable: true },
-    // HR-managed fields: locked for direct editing, but employees CAN request corrections
+    // HR-managed fields: locked for employees, editable for admin
     { label: "Department", key: "department", value: e.department, locked: true },
     { label: "Designation", key: "designation", value: e.designation, locked: true },
     { label: "Date of Joining", key: "date_of_joining", value: e.date_of_joining, type: "date", locked: true },
@@ -130,6 +150,7 @@ export function EmployeeDataView({ employee, onEmployeeUpdated, hasConsented = f
 
   const sharedSectionProps = {
     hasConsented,
+    isAdmin,
     employeeId: e.id as string,
     onSave: hasConsented ? undefined : saveSection,
   };

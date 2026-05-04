@@ -8,6 +8,30 @@ import { ShieldCheckBoldDuotone, LogoutBoldDuotone } from "solar-icon-set";
 import { IdeassionLogo } from "@/components/IdeassionLogo";
 import { AuditService } from "@/services/audit.service";
 import { supabase } from "@/integrations/supabase/client";
+import { NotificationDropdown } from "@/components/NotificationDropdown";
+
+// Global guard to prevent duplicate login logs per session load
+let hasLoggedLogin = false;
+
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === "SIGNED_IN" && session?.user && !hasLoggedLogin) {
+    hasLoggedLogin = true;
+
+    AuditService.log({
+      action: "USER_LOGIN" as any,
+      entityType: "auth",
+      metadata: {
+        email: session.user.email,
+        provider: session.user.app_metadata?.provider || "azure",
+      },
+    });
+  }
+  
+  if (event === "SIGNED_OUT") {
+    hasLoggedLogin = false;
+    AuditService.log({ action: "logout" as any });
+  }
+});
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
@@ -18,24 +42,23 @@ function AuthenticatedLayout() {
   const navigate = useNavigate();
   const [isSigningOut, setIsSigningOut] = useState(false);
 
-  // Capture login / logout audit events
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session?.user) {
-        AuditService.log({
-          action: "login",
-          metadata: {
-            email: session.user.email,
-            provider: session.user.app_metadata?.provider,
-          },
-        });
+    const linkEmployee = async () => {
+      const { data: userData } = await supabase.auth.getUser();
+
+      if (!userData?.user) return;
+
+      // Call RPC to link employee
+      const { data, error } = await supabase.rpc("link_employee_record");
+
+      if (error) {
+        console.error("Linking failed:", error);
+      } else if (data) {
+        console.log("Employee linked:", data);
       }
-      if (event === "SIGNED_OUT") {
-        // user_id already gone from session; audit row captured with actor_user_id from previous session
-        AuditService.log({ action: "logout" });
-      }
-    });
-    return () => subscription.unsubscribe();
+    };
+
+    linkEmployee();
   }, []);
 
   useEffect(() => {
@@ -90,10 +113,9 @@ function AuthenticatedLayout() {
             {role === "admin" && (
               <nav className="hidden sm:flex items-center gap-1">
                 <Link
-                  to="/"
+                  to="/admin/my-data"
                   className="px-3 py-1.5 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                   activeProps={{ className: "text-foreground bg-accent" }}
-                  activeOptions={{ exact: true }}
                 >
                   My Data
                 </Link>
@@ -106,16 +128,18 @@ function AuthenticatedLayout() {
                 </Link>
               </nav>
             )}
-            <div className="hidden sm:flex flex-col items-end mr-1">
-              {/* <span className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground leading-none mb-0.5">Logged in as</span> */}
+            <div className="hidden sm:flex flex-col items-end mr-2">
               <span className="text-xs font-medium text-foreground">{user.email}</span>
             </div>
+            
+            <NotificationDropdown userId={user.id} />
+
             <Button
               variant="ghost"
               size="icon"
               onClick={handleSignOut}
               disabled={isSigningOut}
-              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors ml-1"
             >
               <LogoutBoldDuotone size={18} />
             </Button>

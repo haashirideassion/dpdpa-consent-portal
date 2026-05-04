@@ -19,6 +19,7 @@ import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedConsentVideoRouteImport } from './routes/_authenticated.consent.video'
 import { Route as AuthenticatedConsentEducationRouteImport } from './routes/_authenticated.consent.education'
 import { Route as AuthenticatedAdminVideosRouteImport } from './routes/_authenticated.admin.videos'
+import { Route as AuthenticatedAdminMyDataRouteImport } from './routes/_authenticated.admin.my-data'
 import { Route as AuthenticatedAdminDprRouteImport } from './routes/_authenticated.admin.dpr'
 import { Route as AuthenticatedAdminCorrectionsRouteImport } from './routes/_authenticated.admin.corrections'
 import { Route as AuthenticatedAdminCampaignsRouteImport } from './routes/_authenticated.admin.campaigns'
@@ -78,6 +79,12 @@ const AuthenticatedAdminVideosRoute =
     path: '/videos',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminMyDataRoute =
+  AuthenticatedAdminMyDataRouteImport.update({
+    id: '/my-data',
+    path: '/my-data',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminDprRoute = AuthenticatedAdminDprRouteImport.update({
   id: '/dpr',
   path: '/dpr',
@@ -123,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/admin/campaigns': typeof AuthenticatedAdminCampaignsRoute
   '/admin/corrections': typeof AuthenticatedAdminCorrectionsRoute
   '/admin/dpr': typeof AuthenticatedAdminDprRoute
+  '/admin/my-data': typeof AuthenticatedAdminMyDataRoute
   '/admin/videos': typeof AuthenticatedAdminVideosRoute
   '/consent/education': typeof AuthenticatedConsentEducationRoute
   '/consent/video': typeof AuthenticatedConsentVideoRoute
@@ -139,6 +147,7 @@ export interface FileRoutesByTo {
   '/admin/campaigns': typeof AuthenticatedAdminCampaignsRoute
   '/admin/corrections': typeof AuthenticatedAdminCorrectionsRoute
   '/admin/dpr': typeof AuthenticatedAdminDprRoute
+  '/admin/my-data': typeof AuthenticatedAdminMyDataRoute
   '/admin/videos': typeof AuthenticatedAdminVideosRoute
   '/consent/education': typeof AuthenticatedConsentEducationRoute
   '/consent/video': typeof AuthenticatedConsentVideoRoute
@@ -158,6 +167,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/campaigns': typeof AuthenticatedAdminCampaignsRoute
   '/_authenticated/admin/corrections': typeof AuthenticatedAdminCorrectionsRoute
   '/_authenticated/admin/dpr': typeof AuthenticatedAdminDprRoute
+  '/_authenticated/admin/my-data': typeof AuthenticatedAdminMyDataRoute
   '/_authenticated/admin/videos': typeof AuthenticatedAdminVideosRoute
   '/_authenticated/consent/education': typeof AuthenticatedConsentEducationRoute
   '/_authenticated/consent/video': typeof AuthenticatedConsentVideoRoute
@@ -177,6 +187,7 @@ export interface FileRouteTypes {
     | '/admin/campaigns'
     | '/admin/corrections'
     | '/admin/dpr'
+    | '/admin/my-data'
     | '/admin/videos'
     | '/consent/education'
     | '/consent/video'
@@ -193,6 +204,7 @@ export interface FileRouteTypes {
     | '/admin/campaigns'
     | '/admin/corrections'
     | '/admin/dpr'
+    | '/admin/my-data'
     | '/admin/videos'
     | '/consent/education'
     | '/consent/video'
@@ -211,6 +223,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/campaigns'
     | '/_authenticated/admin/corrections'
     | '/_authenticated/admin/dpr'
+    | '/_authenticated/admin/my-data'
     | '/_authenticated/admin/videos'
     | '/_authenticated/consent/education'
     | '/_authenticated/consent/video'
@@ -298,6 +311,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminVideosRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/my-data': {
+      id: '/_authenticated/admin/my-data'
+      path: '/my-data'
+      fullPath: '/admin/my-data'
+      preLoaderRoute: typeof AuthenticatedAdminMyDataRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/dpr': {
       id: '/_authenticated/admin/dpr'
       path: '/dpr'
@@ -348,6 +368,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminCampaignsRoute: typeof AuthenticatedAdminCampaignsRoute
   AuthenticatedAdminCorrectionsRoute: typeof AuthenticatedAdminCorrectionsRoute
   AuthenticatedAdminDprRoute: typeof AuthenticatedAdminDprRoute
+  AuthenticatedAdminMyDataRoute: typeof AuthenticatedAdminMyDataRoute
   AuthenticatedAdminVideosRoute: typeof AuthenticatedAdminVideosRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminEmployeesIdRoute: typeof AuthenticatedAdminEmployeesIdRoute
@@ -359,6 +380,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminCampaignsRoute: AuthenticatedAdminCampaignsRoute,
   AuthenticatedAdminCorrectionsRoute: AuthenticatedAdminCorrectionsRoute,
   AuthenticatedAdminDprRoute: AuthenticatedAdminDprRoute,
+  AuthenticatedAdminMyDataRoute: AuthenticatedAdminMyDataRoute,
   AuthenticatedAdminVideosRoute: AuthenticatedAdminVideosRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminEmployeesIdRoute: AuthenticatedAdminEmployeesIdRoute,

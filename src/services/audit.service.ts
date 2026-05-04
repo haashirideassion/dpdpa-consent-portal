@@ -12,7 +12,8 @@ export type AuditAction =
   | "invite.sent"
   | "dpr.created"
   | "campaign.created"
-  | "campaign.activated";
+  | "campaign.activated"
+  | "admin.override";
 
 interface AuditPayload {
   action: AuditAction;
@@ -37,6 +38,7 @@ export const AuditService = {
 
       await supabase.from("audit_logs").insert({
         actor_user_id: userId,
+        user_email: session?.user?.email ?? null,
         action,
         entity_type: entityType ?? null,
         entity_id: entityId ?? null,

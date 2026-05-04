@@ -99,6 +99,7 @@ function EmployeeDetail() {
 
       <EmployeeDataView
         employee={employee}
+        isAdmin={true}
         onEmployeeUpdated={async () => {
           // Re-fetch the full normalized record so admin sees the updated values
           const updated = await EmployeeService.getById(id);

@@ -5,7 +5,8 @@ export type OnboardingScreen =
   | 'SHOW_VIDEO'
   | 'SHOW_EDUCATION'
   | 'SHOW_EMPLOYEE_PORTAL'
-  | 'NO_EMPLOYEE_RECORD';
+  | 'NO_EMPLOYEE_RECORD'
+  | 'NO_VIDEO_AVAILABLE';
 
 export const OnboardingService = {
   /**

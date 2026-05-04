@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { AuditService } from "./audit.service";
 
 /**
  * EMPLOYEE SERVICE
@@ -255,6 +256,82 @@ export const EmployeeService = {
         if (error) {
           console.error(`EmployeeService: error upserting ${tableName}:`, error);
           throw error;
+        }
+      }
+    }
+  },
+
+  /**
+   * Admin-only override: updates fields, writes an audit log, creates a notification, and sends an email alert.
+   */
+  async adminOverride(employeeId: string, updates: Record<string, any>, oldValues: Record<string, any>) {
+    if (!employeeId || Object.keys(updates).length === 0) return;
+
+    // Fetch the employee details for notification/email
+    const { data: employee } = await supabase
+      .from("employees")
+      .select("user_id, email, first_name")
+      .eq("id", employeeId)
+      .single();
+
+    // 1. Perform the update first
+    await this.updateEmployee(employeeId, updates);
+
+    // 2. Process side-effects for each changed field
+    for (const [key, newValue] of Object.entries(updates)) {
+      const oldValue = oldValues[key];
+      
+      // Only log if the value actually changed
+      if (newValue !== oldValue) {
+        // A. Audit Log
+        await AuditService.log({
+          action: "admin.override",
+          entityType: "employee",
+          entityId: employeeId,
+          metadata: {
+            field: key,
+            old_value: oldValue ?? null,
+            new_value: newValue,
+            reason: "Admin manual override",
+          },
+        });
+
+        // Skip notification & email if employee details couldn't be loaded
+        if (!employee) continue;
+
+        // Ensure user is fully linked before notifying them
+        if (!employee.user_id) {
+          console.warn(`[EmployeeService] User ${employee.email} not linked, skipping in-app notification`);
+        } else {
+          // B. In-App Notification (Wrapped in try/catch to prevent blocking)
+          try {
+            await supabase.from("notifications").insert({
+              user_id: employee.user_id,
+              type: "ADMIN_UPDATE",
+              title: "Profile Updated",
+              message: `Your ${key.replace(/_/g, " ")} was updated by an Admin.`
+            });
+          } catch (err) {
+            console.error("[EmployeeService] Failed to insert notification:", err);
+          }
+        }
+
+        // C. Email Alert (Wrapped in try/catch)
+        if (employee.email && employee.email.includes("@")) {
+          try {
+            await supabase.functions.invoke("send-email", {
+              body: {
+                to: employee.email,
+                subject: "Update to Your Personal Data",
+                fieldName: key,
+                oldValue: oldValue,
+                newValue: newValue,
+                employeeName: employee.first_name,
+              }
+            });
+          } catch (err) {
+            console.error("[EmployeeService] Failed to send email alert:", err);
+          }
         }
       }
     }

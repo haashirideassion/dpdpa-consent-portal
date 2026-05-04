@@ -17,9 +17,11 @@ interface DataSectionProps {
   hasConsented?: boolean;
   /** Required when hasConsented=true to submit a correction */
   employeeId?: string;
+  /** When true, all locked fields become editable for the admin */
+  isAdmin?: boolean;
 }
 
-export function DataSection({ title, icon, fields, defaultOpen = true, onSave, hasConsented = false, employeeId }: DataSectionProps) {
+export function DataSection({ title, icon, fields, defaultOpen = true, onSave, hasConsented = false, employeeId, isAdmin = false }: DataSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -136,6 +138,7 @@ export function DataSection({ title, icon, fields, defaultOpen = true, onSave, h
                     editMode={!hasConsented && editMode}
                     draft={draft[f.key]}
                     onDraftChange={(k, val) => setDraft((prev) => ({ ...prev, [k]: val }))}
+                    isAdmin={isAdmin}
                   />
                   {/* Always-visible correction pill — shown post-consent for correctable fields */}
                   {hasConsented && !f.uncorrectable && employeeId && (
@@ -144,7 +147,7 @@ export function DataSection({ title, icon, fields, defaultOpen = true, onSave, h
                       onClick={() => setCorrectionField(f)}
                       className="self-start mt-0.5 inline-flex items-center gap-1 text-[10px] font-medium text-primary border border-primary/30 bg-primary/5 hover:bg-primary/15 rounded-full px-2 py-0.5 transition-colors"
                     >
-                      ✏ Request Correction
+                      Request Correction
                     </button>
                   )}
                 </div>
