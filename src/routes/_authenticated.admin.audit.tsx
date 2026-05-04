@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { ShieldCheckBoldDuotone, FileTextBoldDuotone } from "solar-icon-set";
 import { format, startOfDay, endOfDay } from "date-fns";
+import { maskValue, isDpdpaField } from "@/lib/dpdpa";
 
 export const Route = createFileRoute("/_authenticated/admin/audit")({
   head: () => ({
@@ -43,6 +44,18 @@ function AuditAdminPage() {
   const [actionFilter, setActionFilter] = useState("All Actions");
   const [searchEmail, setSearchEmail] = useState("");
   const [dateFilter, setDateFilter] = useState("");
+
+  const SENSITIVE_FIELDS = [
+    "aadhaar_number",
+    "passport_number",
+    "pan_number",
+    "bank_account_number",
+    "voter_id",
+    "driving_license",
+    "uan_number",
+  ];
+
+  const shouldMask = (field: string) => SENSITIVE_FIELDS.includes(field) || field.includes("id");
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
@@ -134,6 +147,46 @@ function AuditAdminPage() {
     return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700";
   };
 
+  const renderMetadata = (log: AuditLog) => {
+    if (log.metadata?.field) {
+      return (
+        <div className="text-xs">
+          <span className="font-medium text-foreground capitalize mr-1">{log.metadata.field.replace(/_/g, " ")}:</span>
+          <span className="text-red-500 line-through mr-1">
+            {shouldMask(log.metadata.field) && log.metadata.old_value
+              ? maskValue(log.metadata.old_value, 4)
+              : (log.metadata.old_value || "null")}
+          </span>
+          <span className="text-muted-foreground">→</span>
+          <span className="text-green-600 dark:text-green-400 font-semibold ml-1">
+            {shouldMask(log.metadata.field) && log.metadata.new_value
+              ? maskValue(log.metadata.new_value, 4)
+              : (log.metadata.new_value || "null")}
+          </span>
+        </div>
+      );
+    }
+
+    if (log.action === "USER_LOGIN" || log.action === "login") {
+      const provider = typeof log.metadata?.provider === "string" ? log.metadata.provider : "azure";
+      return (
+        <span className="text-xs text-muted-foreground">
+          Provider: <span className="font-medium text-foreground">{provider}</span>
+        </span>
+      );
+    }
+
+    if (log.metadata) {
+      return (
+        <span className="text-xs text-muted-foreground truncate block max-w-[280px]" title={JSON.stringify(log.metadata)}>
+          {JSON.stringify(log.metadata)}
+        </span>
+      );
+    }
+
+    return <span className="text-muted-foreground">—</span>;
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -220,22 +273,7 @@ function AuditAdminPage() {
                         {log.entity_type || "—"}
                       </td>
                       <td className="px-4 py-3 align-top max-w-[300px]">
-                        {log.metadata?.field ? (
-                          <div className="text-xs">
-                            <span className="font-medium text-foreground capitalize mr-1">{log.metadata.field.replace(/_/g, " ")}:</span>
-                            <span className="text-red-500 line-through mr-1">
-                              {log.metadata.old_value || "null"}
-                            </span>
-                            <span className="text-muted-foreground">→</span>
-                            <span className="text-green-600 dark:text-green-400 font-semibold ml-1">
-                              {log.metadata.new_value || "null"}
-                            </span>
-                          </div>
-                        ) : log.metadata ? (
-                          <span className="text-xs text-muted-foreground">{JSON.stringify(log.metadata)}</span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
+                        {renderMetadata(log)}
                       </td>
                       <td className="px-4 py-3 align-top text-muted-foreground text-right whitespace-nowrap">
                         {format(new Date(log.created_at), "MMM d, yyyy HH:mm")}

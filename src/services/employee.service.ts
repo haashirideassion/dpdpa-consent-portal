@@ -31,6 +31,7 @@ interface FieldMapping {
 
 const FIELD_MAP: Record<string, FieldMapping> = {
   // ── employees (master) ──────────────────────────────────────────────────
+  employee_code: { table: "employees", column: "employee_code" },
   first_name:  { table: "employees", column: "first_name" },
   last_name:   { table: "employees", column: "last_name" },
 

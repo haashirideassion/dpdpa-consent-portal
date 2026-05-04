@@ -62,9 +62,9 @@ export const EducationService = {
   /**
    * Records that the employee has completed (acknowledged) the education module.
    */
-  async markCompleted(employeeId: string, userId: string, moduleVersion: string): Promise<void> {
+  async markCompleted(employeeId: string, userId: string, moduleVersion: string): Promise<boolean> {
     try {
-      await supabase.from("education_completions").upsert(
+      const { error } = await supabase.from("education_completions").upsert(
         {
           employee_id: employeeId,
           user_id: userId,
@@ -74,8 +74,14 @@ export const EducationService = {
         },
         { onConflict: "employee_id, module_version" }
       );
+      if (error) {
+        console.error("Failed to mark education complete:", error);
+        return false;
+      }
+      return true;
     } catch (err) {
       console.error("Failed to mark education complete:", err);
+      return false;
     }
   },
 };

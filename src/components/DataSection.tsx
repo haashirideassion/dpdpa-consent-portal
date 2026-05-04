@@ -19,9 +19,11 @@ interface DataSectionProps {
   employeeId?: string;
   /** When true, all locked fields become editable for the admin */
   isAdmin?: boolean;
+  /** When true, indicates the user is viewing their own data */
+  isOwner?: boolean;
 }
 
-export function DataSection({ title, icon, fields, defaultOpen = true, onSave, hasConsented = false, employeeId, isAdmin = false }: DataSectionProps) {
+export function DataSection({ title, icon, fields, defaultOpen = true, onSave, hasConsented = false, employeeId, isAdmin = false, isOwner = false }: DataSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -139,6 +141,7 @@ export function DataSection({ title, icon, fields, defaultOpen = true, onSave, h
                     draft={draft[f.key]}
                     onDraftChange={(k, val) => setDraft((prev) => ({ ...prev, [k]: val }))}
                     isAdmin={isAdmin}
+                    isOwner={isOwner}
                   />
                   {/* Always-visible correction pill — shown post-consent for correctable fields */}
                   {hasConsented && !f.uncorrectable && employeeId && (

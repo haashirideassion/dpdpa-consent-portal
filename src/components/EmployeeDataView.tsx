@@ -11,6 +11,7 @@ import {
   DocumentTextBoldDuotone,
 } from "solar-icon-set";
 import { EmployeeService } from "@/services/employee.service";
+import { useAuth } from "@/hooks/use-auth";
 
 type Employee = any;
 
@@ -35,6 +36,8 @@ export function EmployeeDataView({
   isAdmin = false,
 }: EmployeeDataViewProps) {
   const e = employee;
+  const { user } = useAuth();
+  const isOwner = user?.id === e.user_id;
 
   async function saveSection(updates: Record<string, string>) {
     if (isAdmin) {
@@ -91,8 +94,8 @@ export function EmployeeDataView({
   ];
 
   const employmentFields: FieldDef[] = [
-    // Employee UUID — system-assigned, never editable by anyone
-    { label: "Employee ID", key: "employee_id", value: e.employee_id, locked: true, uncorrectable: true },
+    // Employee ID — system-assigned, never editable by anyone
+    { label: "Employee ID", key: "employee_code", value: e.employee_code, locked: true, uncorrectable: true },
     // HR-managed fields: locked for employees, editable for admin
     { label: "Department", key: "department", value: e.department, locked: true },
     { label: "Designation", key: "designation", value: e.designation, locked: true },
@@ -151,6 +154,7 @@ export function EmployeeDataView({
   const sharedSectionProps = {
     hasConsented,
     isAdmin,
+    isOwner,
     employeeId: e.id as string,
     onSave: hasConsented ? undefined : saveSection,
   };

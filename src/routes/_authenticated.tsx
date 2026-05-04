@@ -3,35 +3,11 @@ import { createFileRoute, Outlet, Link, useNavigate } from "@tanstack/react-rout
 import { useAuth } from "@/hooks/use-auth";
 import { signOut } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { ShieldCheckBoldDuotone, LogoutBoldDuotone } from "solar-icon-set";
 import { IdeassionLogo } from "@/components/IdeassionLogo";
 import { AuditService } from "@/services/audit.service";
 import { supabase } from "@/integrations/supabase/client";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
-
-// Global guard to prevent duplicate login logs per session load
-let hasLoggedLogin = false;
-
-supabase.auth.onAuthStateChange((event, session) => {
-  if (event === "SIGNED_IN" && session?.user && !hasLoggedLogin) {
-    hasLoggedLogin = true;
-
-    AuditService.log({
-      action: "USER_LOGIN" as any,
-      entityType: "auth",
-      metadata: {
-        email: session.user.email,
-        provider: session.user.app_metadata?.provider || "azure",
-      },
-    });
-  }
-  
-  if (event === "SIGNED_OUT") {
-    hasLoggedLogin = false;
-    AuditService.log({ action: "logout" as any });
-  }
-});
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
@@ -43,13 +19,44 @@ function AuthenticatedLayout() {
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   useEffect(() => {
+    const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session?.user) {
+        // Stable per-auth-session id (shared across tabs for the same session).
+        const sessionMarker = `${session.user.id}:${session.expires_at ?? "no-expiry"}`;
+        const storageKey = "audit:last-login-session";
+        const lastLoggedSession = sessionStorage.getItem(storageKey);
+
+        if (lastLoggedSession === sessionMarker) {
+          return;
+        }
+
+        sessionStorage.setItem(storageKey, sessionMarker);
+        AuditService.logUserLogin(
+          sessionMarker,
+          session.user.app_metadata?.provider || "azure",
+          session.user.email ?? null,
+        );
+      }
+
+      if (event === "SIGNED_OUT") {
+        sessionStorage.removeItem("audit:last-login-session");
+        AuditService.log({ action: "logout" });
+      }
+    });
+
+    return () => {
+      subscription.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
     const linkEmployee = async () => {
       const { data: userData } = await supabase.auth.getUser();
 
       if (!userData?.user) return;
 
       // Call RPC to link employee
-      const { data, error } = await supabase.rpc("link_employee_record");
+      const { data, error } = await supabase.rpc("link_employee_record" as never);
 
       if (error) {
         console.error("Linking failed:", error);
@@ -67,7 +74,6 @@ function AuthenticatedLayout() {
     }
   }, [user, loading, navigate, isSigningOut]);
 
-  // Loading or redirecting logic
   if (loading || isSigningOut) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background">
@@ -87,7 +93,6 @@ function AuthenticatedLayout() {
     try {
       setIsSigningOut(true);
       await signOut();
-      // Ensure local state is cleared before moving
       navigate({ to: "/login" });
     } catch (error) {
       console.error("Sign out error:", error);
@@ -131,7 +136,7 @@ function AuthenticatedLayout() {
             <div className="hidden sm:flex flex-col items-end mr-2">
               <span className="text-xs font-medium text-foreground">{user.email}</span>
             </div>
-            
+
             <NotificationDropdown userId={user.id} />
 
             <Button

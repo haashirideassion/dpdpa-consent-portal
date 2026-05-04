@@ -39,3 +39,11 @@ export const CONSENT_STATEMENT = `I hereby acknowledge that I have reviewed all 
 I provide my explicit consent for the organization to store, process, and use my personal data as described, in accordance with the company's data privacy policy and applicable provisions of the DPDPA.
 
 I understand that I may withdraw this consent at any time by contacting the HR/Compliance team, subject to applicable legal obligations.`;
+
+export function maskValue(value: string, visible = 4) {
+  if (!value) return "-";
+  const len = value.length;
+  if (len <= visible) return value;
+
+  return "X".repeat(len - visible) + value.slice(-visible);
+}

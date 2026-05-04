@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
 export type AuditAction =
+  | "USER_LOGIN"
   | "login"
   | "logout"
   | "consent.granted"
@@ -28,6 +29,18 @@ interface AuditPayload {
  * Silently catches errors so audit failures never block the main flow.
  */
 export const AuditService = {
+  async logUserLogin(sessionId: string, provider?: string, email?: string | null): Promise<void> {
+    try {
+      await supabase.rpc("upsert_user_login_audit", {
+        p_session_id: sessionId,
+        p_provider: provider ?? "azure",
+        p_email: email ?? null,
+      });
+    } catch (err) {
+      console.warn("[AuditService] Failed to upsert USER_LOGIN audit log:", err);
+    }
+  },
+
   async log({ action, entityType, entityId, metadata }: AuditPayload): Promise<void> {
     try {
       const {

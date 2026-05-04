@@ -22,10 +22,17 @@ const IconMap: Record<string, React.ReactNode> = {
 
 interface EducationModuleProps {
   slides: EducationSlide[];
-  onComplete: () => void;
+  onComplete: () => Promise<void> | void;
+  isCompleting?: boolean;
+  completionError?: string | null;
 }
 
-export function EducationModule({ slides, onComplete }: EducationModuleProps) {
+export function EducationModule({
+  slides,
+  onComplete,
+  isCompleting = false,
+  completionError = null,
+}: EducationModuleProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   if (!slides || slides.length === 0) return null;
@@ -79,7 +86,7 @@ export function EducationModule({ slides, onComplete }: EducationModuleProps) {
           <Button 
             variant="ghost" 
             onClick={handlePrev} 
-            disabled={currentIndex === 0}
+            disabled={currentIndex === 0 || isCompleting}
             className="gap-2"
           >
             Back
@@ -90,20 +97,27 @@ export function EducationModule({ slides, onComplete }: EducationModuleProps) {
               size="lg"
               className="gap-2 bg-success hover:bg-success/90 text-success-foreground shadow-md animate-in fade-in slide-in-from-bottom-2"
               onClick={onComplete}
+              disabled={isCompleting}
             >
               <CheckCircleBoldDuotone size={20} />
-              I Understand & Acknowledge
+              {isCompleting ? "Saving..." : "I Understand & Acknowledge"}
             </Button>
           ) : (
             <Button 
               size="lg"
               onClick={handleNext} 
+              disabled={isCompleting}
               className="gap-2"
             >
               Next
             </Button>
           )}
         </CardFooter>
+        {completionError && (
+          <div className="px-4 pb-4 text-sm text-destructive text-center">
+            {completionError}
+          </div>
+        )}
       </Card>
     </div>
   );

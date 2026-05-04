@@ -1,4 +1,6 @@
-import { isDpdpaField } from "@/lib/dpdpa";
+import { useState } from "react";
+import { isDpdpaField, maskValue } from "@/lib/dpdpa";
+import { EyeBoldDuotone, EyeClosedBoldDuotone } from "solar-icon-set";
 import { DpdpaBadge } from "./DpdpaBadge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,6 +33,11 @@ interface DataFieldProps extends FieldDef {
    * Shows "Admin Editable" badge instead of "locked".
    */
   isAdmin?: boolean;
+  /**
+   * When true, the current user is the owner of the data.
+   * Owners see their own data unmasked.
+   */
+  isOwner?: boolean;
 }
 
 export function DataField({
@@ -44,29 +51,48 @@ export function DataField({
   draft,
   onDraftChange,
   isAdmin = false,
+  isOwner = false,
 }: DataFieldProps & { fieldKey: string }) {
   const sensitive = isDpdpaField(fieldKey);
+
+  const SENSITIVE_FIELDS = [
+    "aadhaar_number",
+    "passport_number",
+    "pan_number",
+    "bank_account_number",
+    "voter_id",
+    "driving_license",
+    "uan_number",
+  ];
+
+  const shouldMask = (field: string) => SENSITIVE_FIELDS.includes(field);
 
   // For admins, locked fields are still editable
   const effectivelyLocked = locked && !isAdmin;
 
+  const [showUnmasked, setShowUnmasked] = useState(false);
+
   // Masking logic
   const getDisplayValue = () => {
     if (!value) return "—";
-    if (editMode) return value; // Don't mask in edit mode
+    
+    // Ownership check: Owners see their own data unmasked
+    if (isOwner) return value;
 
-    switch (fieldKey) {
-      case "aadhaar_number":
-        return value.length >= 4 ? `XXXX-XXXX-${value.slice(-4)}` : "XXXX";
-      case "pan_number":
-        return value.length >= 5 ? `${value.slice(0, 2)}XXXXX${value.slice(-3)}` : "XXXX";
-      case "bank_account_number":
-        return value.length >= 4 ? `XXXX${value.slice(-4)}` : "XXXX";
-      case "ctc":
-        return "Confidential";
-      default:
-        return value;
+    // Admin toggle: Admins can reveal sensitive data
+    if (showUnmasked) return value;
+
+    if (editMode) return value;
+
+    // CTC is always masked for admin/non-owner views.
+    if (fieldKey === "ctc") return "Confidential";
+
+    // Strict sensitive fields masking
+    if (shouldMask(fieldKey)) {
+      return maskValue(value, 4);
     }
+
+    return value;
   };
 
   return (
@@ -120,11 +146,22 @@ export function DataField({
           />
         )
       ) : (
-        <span
-          className={`text-sm font-medium ${sensitive ? "text-dpdpa-foreground" : "text-foreground"}`}
-        >
-          {getDisplayValue()}
-        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className={`text-sm font-medium ${sensitive ? "text-dpdpa-foreground" : "text-foreground"}`}
+          >
+            {getDisplayValue()}
+          </span>
+          {isAdmin && !isOwner && shouldMask(fieldKey) && value && (
+            <button
+              onClick={() => setShowUnmasked(!showUnmasked)}
+              className="text-muted-foreground hover:text-foreground transition-colors ml-1"
+              title={showUnmasked ? "Hide value" : "Show full value"}
+            >
+              {showUnmasked ? <EyeClosedBoldDuotone size={14} /> : <EyeBoldDuotone size={14} />}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

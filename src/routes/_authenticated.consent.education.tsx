@@ -22,15 +22,21 @@ function ConsentEducationStep() {
   
   const [loading, setLoading] = useState(true);
   const [moduleData, setModuleData] = useState<EducationModuleType | null>(null);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [completionError, setCompletionError] = useState<string | null>(null);
 
   useEffect(() => {
     async function initEducation() {
+      setLoading(true);
       // Prevent admin from seeing this
       if (role === "admin") {
          navigate({ to: "/admin" });
          return;
       }
-      if (!employeeId) return;
+      if (!employeeId) {
+        setLoading(false);
+        return;
+      }
       
       const activeModule = await EducationService.getActiveModule();
       
@@ -53,22 +59,29 @@ function ConsentEducationStep() {
     }
     
     initEducation();
-  }, [employeeId, navigate]);
+  }, [employeeId, navigate, role]);
 
   const handleComplete = async () => {
     if (!employeeId || !user || !moduleData) return;
-    
-    // Optimistically navigate first for snappy UX
-    navigate({ to: "/" });
-    
-    // Run background tasks
-    await EducationService.markCompleted(employeeId, user.id, moduleData.version);
+
+    setCompletionError(null);
+    setIsCompleting(true);
+
+    const marked = await EducationService.markCompleted(employeeId, user.id, moduleData.version);
+    if (!marked) {
+      setCompletionError("Could not save your acknowledgement. Please try again.");
+      setIsCompleting(false);
+      return;
+    }
+
     await AuditService.log({
       action: "education.completed",
       entityType: "education_module",
       entityId: moduleData.id,
       metadata: { version: moduleData.version }
     });
+
+    navigate({ to: "/" });
   };
 
   if (loading) {
@@ -87,6 +100,8 @@ function ConsentEducationStep() {
     <EducationModule 
       slides={moduleData.content_json} 
       onComplete={handleComplete} 
+      isCompleting={isCompleting}
+      completionError={completionError}
     />
   );
 }
