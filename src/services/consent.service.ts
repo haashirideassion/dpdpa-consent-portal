@@ -1,6 +1,19 @@
 import { supabase } from "@/integrations/supabase/client";
 import { AuditService } from "@/services/audit.service";
 
+// ── Per-purpose consent status (used by MyConsentsView) ─────────────────────
+
+export interface PurposeConsentStatus {
+  purpose: ConsentPurpose & { templateId: string; templateVersion: string };
+  /** 'active' = consented and not withdrawn, 'withdrawn' = previously withdrawn,
+   *  'pending' = never given or last action was decline */
+  currentStatus: "active" | "withdrawn" | "pending";
+  grantedAt: string | null;    // created_at of the latest consented=true record
+  withdrawnAt: string | null;  // withdrawn_at of the latest withdrawal record
+  grantHistory: Array<{ id: string; consented: boolean; created_at: string; template_version: string }>;
+  withdrawalHistory: Array<{ id: string; withdrawn_at: string; reason: string | null }>;
+}
+
 export interface ConsentPurpose {
   id: string;
   purpose_key: string;
@@ -183,6 +196,196 @@ export const ConsentService = {
       return true;
     } catch (err) {
       console.error("ConsentService: unexpected error during submission", err);
+      return false;
+    }
+  },
+
+  /**
+   * Returns per-purpose consent statuses for an employee.
+   * Uses the active template to enumerate all purposes, then cross-references
+   * consent_purpose_records and consent_withdrawals to compute current state.
+   */
+  async getConsentStatuses(employeeId: string): Promise<{
+    template: ConsentTemplate | null;
+    statuses: PurposeConsentStatus[];
+  }> {
+    const template = await ConsentService.getActiveTemplate();
+    if (!template) return { template: null, statuses: [] };
+
+    // Fetch all grant records for this employee (immutable history)
+    const { data: grantRows } = await supabase
+      .from("consent_purpose_records" as any)
+      .select("id, purpose_key, consented, created_at, template_version")
+      .eq("employee_id", employeeId)
+      .order("created_at", { ascending: false });
+
+    // Fetch all withdrawal records for this employee
+    const { data: withdrawalRows } = await supabase
+      .from("consent_withdrawals" as any)
+      .select("id, purpose_key, withdrawn_at, reason")
+      .eq("employee_id", employeeId)
+      .order("withdrawn_at", { ascending: false });
+
+    const grants = (grantRows ?? []) as unknown as Array<{
+      id: string; purpose_key: string; consented: boolean; created_at: string; template_version: string;
+    }>;
+    const withdrawals = (withdrawalRows ?? []) as unknown as Array<{
+      id: string; purpose_key: string; withdrawn_at: string; reason: string | null;
+    }>;
+
+    const statuses: PurposeConsentStatus[] = template.purposes.map((purpose) => {
+      const purposeGrants = grants.filter((r) => r.purpose_key === purpose.purpose_key);
+      const purposeWithdrawals = withdrawals.filter((w) => w.purpose_key === purpose.purpose_key);
+
+      // Latest grant where consented=true
+      const latestGrant = purposeGrants.find((r) => r.consented) ?? null;
+      // Latest withdrawal
+      const latestWithdrawal = purposeWithdrawals[0] ?? null;
+
+      let currentStatus: "active" | "withdrawn" | "pending" = "pending";
+      if (latestGrant) {
+        if (latestWithdrawal) {
+          const grantTime = new Date(latestGrant.created_at).getTime();
+          const withdrawTime = new Date(latestWithdrawal.withdrawn_at).getTime();
+          currentStatus = withdrawTime > grantTime ? "withdrawn" : "active";
+        } else {
+          currentStatus = "active";
+        }
+      }
+
+      return {
+        purpose: { ...purpose, templateId: template.id, templateVersion: template.version },
+        currentStatus,
+        grantedAt: latestGrant?.created_at ?? null,
+        withdrawnAt: latestWithdrawal?.withdrawn_at ?? null,
+        grantHistory: purposeGrants,
+        withdrawalHistory: purposeWithdrawals,
+      };
+    });
+
+    return { template, statuses };
+  },
+
+  /**
+   * Records a consent withdrawal for a single purpose.
+   * - Inserts into consent_withdrawals
+   * - Writes audit log (consent.withdrawn)
+   * - Sends in-app notification to the employee (acknowledgement)
+   * - Calls SECURITY DEFINER RPC to notify HR/DPO
+   */
+  async withdrawConsent(params: {
+    employeeId: string;
+    userId: string;
+    purposeKey: string;
+    purposeLabel: string;
+    reason?: string;
+    employeeName: string;
+  }): Promise<boolean> {
+    try {
+      const { error } = await supabase.from("consent_withdrawals" as any).insert({
+        employee_id: params.employeeId,
+        user_id: params.userId,
+        purpose_key: params.purposeKey,
+        reason: params.reason ?? null,
+      });
+
+      if (error) {
+        console.error("ConsentService: failed to insert consent withdrawal", error);
+        return false;
+      }
+
+      // Audit log — silent failure
+      await AuditService.log({
+        action: "consent.withdrawn",
+        entityType: "consent_withdrawal",
+        entityId: params.employeeId,
+        metadata: {
+          purpose_key: params.purposeKey,
+          purpose_label: params.purposeLabel,
+          reason: params.reason ?? null,
+        },
+      });
+
+      // Self-notification: withdrawal acknowledgement to employee
+      await supabase.from("notifications" as any).insert({
+        user_id: params.userId,
+        type: "CONSENT_WITHDRAWAL",
+        title: "Consent Withdrawal Recorded",
+        message: `Your consent for "${params.purposeLabel}" has been withdrawn. HR and DPO have been notified.`,
+      });
+
+      // Notify HR/DPO via SECURITY DEFINER RPC (bypasses RLS)
+      await supabase.rpc("notify_hr_dpo_consent_withdrawal" as any, {
+        p_employee_name: params.employeeName,
+        p_purpose_label: params.purposeLabel,
+        p_purpose_key: params.purposeKey,
+      });
+
+      return true;
+    } catch (err) {
+      console.error("ConsentService: unexpected error during withdrawal", err);
+      return false;
+    }
+  },
+
+  /**
+   * Re-grants consent for a previously withdrawn purpose.
+   * Inserts a new consent_purpose_records row (immutable, append-only).
+   * Does NOT delete any withdrawal records — history is fully preserved.
+   */
+  async reGrantConsent(params: {
+    employeeId: string;
+    userId: string;
+    purposeKey: string;
+    purposeLabel: string;
+    templateId: string;
+    templateVersion: string;
+    isMandatory: boolean;
+    employeeName: string;
+  }): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from("consent_purpose_records" as any)
+        .insert({
+          employee_id: params.employeeId,
+          user_id: params.userId,
+          template_id: params.templateId,
+          template_version: params.templateVersion,
+          purpose_key: params.purposeKey,
+          consented: true,
+          is_mandatory: params.isMandatory,
+          esign_name: params.employeeName,
+        });
+
+      if (error) {
+        console.error("ConsentService: failed to insert re-grant record", error);
+        return false;
+      }
+
+      // Audit log
+      await AuditService.log({
+        action: "consent.granted",
+        entityType: "consent_purpose_records",
+        entityId: params.employeeId,
+        metadata: {
+          purpose_key: params.purposeKey,
+          purpose_label: params.purposeLabel,
+          template_version: params.templateVersion,
+          re_consent: true,
+        },
+      });
+
+      // Self-notification: re-consent acknowledgement
+      await supabase.from("notifications" as any).insert({
+        user_id: params.userId,
+        type: "CONSENT_GRANTED",
+        title: "Consent Re-Granted",
+        message: `Your consent for "${params.purposeLabel}" has been recorded.`,
+      });
+
+      return true;
+    } catch (err) {
+      console.error("ConsentService: unexpected error during re-grant", err);
       return false;
     }
   },

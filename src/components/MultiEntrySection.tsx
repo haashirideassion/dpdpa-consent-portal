@@ -434,8 +434,8 @@ export function MultiEntrySection({
 
       {/* ── Add / Edit / Correction Sheet ── */}
       <Sheet open={sheetOpen} onOpenChange={(open) => { if (!open) closeSheet(); else setSheetOpen(true); }}>
-        <SheetContent className="w-full sm:max-w-lg overflow-y-auto flex flex-col">
-          <SheetHeader className="mb-5 shrink-0">
+        <SheetContent className="flex w-full flex-col overflow-y-auto sm:max-w-[520px]">
+          <SheetHeader className="mb-4 shrink-0">
             <SheetTitle className="text-base font-semibold">{sheetTitle()}</SheetTitle>
             {correctionMode && (
               <p className="text-xs text-muted-foreground leading-relaxed">
@@ -448,7 +448,7 @@ export function MultiEntrySection({
 
           {/* Current record summary (correction-edit only) */}
           {correctionMode && editTarget && (
-            <div className="mb-5 rounded-lg border border-border bg-muted/30 px-4 py-3 text-xs text-muted-foreground shrink-0">
+            <div className="mb-4 shrink-0 rounded-lg border border-border bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
               <p className="font-medium text-foreground mb-2 text-[11px] uppercase tracking-wide">
                 Current record
               </p>
@@ -456,10 +456,10 @@ export function MultiEntrySection({
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
+          <div className="grid grid-cols-1 content-start gap-x-3 gap-y-2.5 sm:grid-cols-2">
             {fields.map((field) => (
               <div key={field.key} className={field.fullWidth ? "sm:col-span-2" : ""}>
-                <label className="block text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+                <label className="mb-0.5 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                   {field.label}
                   {field.required && <span className="text-destructive ml-0.5">*</span>}
                 </label>
@@ -482,7 +482,7 @@ export function MultiEntrySection({
             ))}
           </div>
 
-          <SheetFooter className="mt-6 gap-2 shrink-0 border-t pt-4">
+          <SheetFooter className="mt-auto shrink-0 gap-2 border-t pt-3">
             <SheetClose asChild>
               <Button variant="outline" size="sm" disabled={isBusy}>
                 Cancel
@@ -536,7 +536,7 @@ function EntryInput({
   onChange: (val: any) => void;
   error?: string;
 }) {
-  const baseClass = `text-sm h-8 ${error ? "border-destructive ring-destructive/30 ring-1" : ""}`;
+  const baseClass = `h-[30px] text-sm ${error ? "border-destructive ring-destructive/30 ring-1" : ""}`;
 
   if (field.type === "textarea") {
     return (
@@ -557,7 +557,7 @@ function EntryInput({
     return (
       <>
         <Select value={value} onValueChange={onChange}>
-          <SelectTrigger className={`text-sm h-8 ${error ? "border-destructive" : ""}`}>
+          <SelectTrigger className={`h-[30px] text-sm ${error ? "border-destructive" : ""}`}>
             <SelectValue placeholder="Select…" />
           </SelectTrigger>
           <SelectContent>

@@ -226,7 +226,11 @@ function EmployeePortal() {
 
         {/* ── Tab 2: My Consents History ── */}
         <TabsContent value="history" className="mt-0">
-          <MyConsentsView employeeId={employee.id} />
+          <MyConsentsView
+            employeeId={employee.id}
+            employeeName={`${employee.first_name ?? ""} ${employee.last_name ?? ""}`.trim()}
+            userId={user?.id}
+          />
         </TabsContent>
 
         {/* ── Tab 3: DPDPA Act ── */}

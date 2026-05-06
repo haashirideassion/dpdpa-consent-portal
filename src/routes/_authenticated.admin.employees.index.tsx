@@ -254,39 +254,39 @@ function EmployeeList() {
         </Select>
       </div>
 
-      <div className="rounded-xl border bg-card overflow-hidden">
-        <Table>
+      <div className="overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm">
+        <Table className="table-fixed">
           <TableHeader>
-            <TableRow>
-              <TableHead>Employee</TableHead>
-              <TableHead className="hidden sm:table-cell">Code</TableHead>
-              <TableHead className="hidden md:table-cell">Department</TableHead>
-              <TableHead className="hidden lg:table-cell">Designation</TableHead>
-              <TableHead>Consent</TableHead>
-              <TableHead className="hidden sm:table-cell">Consented At</TableHead>
-              <TableHead className="w-10"></TableHead>
+            <TableRow className="bg-muted/30 hover:bg-muted/30">
+              <TableHead className="w-[28%] sm:w-[30%]">Employee</TableHead>
+              <TableHead className="hidden w-[15%] sm:table-cell">Code</TableHead>
+              <TableHead className="hidden w-[16%] md:table-cell">Department</TableHead>
+              <TableHead className="hidden w-[16%] lg:table-cell">Designation</TableHead>
+              <TableHead className="w-[12%]">Consent</TableHead>
+              <TableHead className="hidden w-[11%] sm:table-cell">Consented At</TableHead>
+              <TableHead className="w-12"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.map((emp) => (
-              <TableRow key={emp.id}>
-                <TableCell className="font-medium">
-                  <div>{emp.first_name} {emp.last_name}</div>
-                  <div className="text-xs text-muted-foreground">{emp.email}</div>
+              <TableRow key={emp.id} className="h-16">
+                <TableCell className="py-3 font-medium">
+                  <div className="truncate">{emp.first_name} {emp.last_name}</div>
+                  <div className="truncate text-xs text-muted-foreground">{emp.email}</div>
                 </TableCell>
-                <TableCell className="hidden sm:table-cell text-muted-foreground text-xs">
+                <TableCell className="hidden py-3 text-xs text-muted-foreground sm:table-cell">
                   {emp.employee_code}
                 </TableCell>
-                <TableCell className="hidden md:table-cell text-sm">
-                  {emp.department ?? "—"}
+                <TableCell className="hidden py-3 text-sm md:table-cell">
+                  <span className="block truncate">{emp.department ?? "—"}</span>
                 </TableCell>
-                <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
-                  {emp.designation ?? "—"}
+                <TableCell className="hidden py-3 text-sm text-muted-foreground lg:table-cell">
+                  <span className="block truncate">{emp.designation ?? "—"}</span>
                 </TableCell>
-                <TableCell>
+                <TableCell className="py-3">
                   <ConsentBadge status={emp.consent_status} />
                 </TableCell>
-                <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
+                <TableCell className="hidden py-3 text-xs text-muted-foreground sm:table-cell">
                   {emp.consent_signed_at
                     ? new Date(emp.consent_signed_at).toLocaleDateString("en-IN", {
                         day: "numeric",
@@ -295,7 +295,7 @@ function EmployeeList() {
                       })
                     : "—"}
                 </TableCell>
-                <TableCell>
+                <TableCell className="py-3">
                   {/* Eye icon → navigates to the detailed employee view */}
                   <Button variant="ghost" size="icon" asChild title="View employee details">
                     <Link to="/admin/employees/$id" params={{ id: emp.id }}>
