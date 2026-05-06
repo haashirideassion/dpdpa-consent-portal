@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,9 @@ import {
 } from "solar-icon-set";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
+  beforeLoad: () => {
+    throw redirect({ to: "/admin/employees", replace: true });
+  },
   head: () => ({
     meta: [
       { title: "Admin Dashboard — DPDPA Consent Portal" },

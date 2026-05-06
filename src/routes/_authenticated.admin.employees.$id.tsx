@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { EmployeeDataView } from "@/components/EmployeeDataView";
 import { EmployeeService } from "@/services/employee.service";
 import { DpdpaLegend } from "@/components/DpdpaLegend";
+import { ProfileSidebar } from "@/components/ProfileSidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,7 +38,6 @@ function EmployeeDetail() {
   useEffect(() => {
     async function fetch() {
       const [fullEmployee, logsRes] = await Promise.all([
-        // getById fetches from all normalized tables and aliases fields for the UI
         EmployeeService.getById(id),
         supabase
           .from("consent_logs")
@@ -57,9 +57,14 @@ function EmployeeDetail() {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-48" />
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-32 w-full rounded-xl" />
-        ))}
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
+          <Skeleton className="h-[420px] rounded-xl" />
+          <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-32 w-full rounded-xl" />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -76,80 +81,89 @@ function EmployeeDetail() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
+    <div className="space-y-5">
+      {/* ── Back + page title ── */}
+      <div className="flex items-center gap-3 mb-1">
+        <Button variant="ghost" size="icon" asChild className="shrink-0 mb-2">
           <Link to="/admin/employees">
             <ArrowLeftBoldDuotone size={18} />
           </Link>
         </Button>
-        <div>
-          <h1 className="text-2xl font-bold">
-            {(employee as any).first_name} {(employee as any).last_name}
+        <div className="page-header pb-0">
+          <h1 className="truncate">
+            {[(employee as any).first_name, (employee as any).last_name]
+              .filter(Boolean)
+              .join(" ") || "Employee"}
           </h1>
-          <p className="text-sm text-muted-foreground">
-            {(employee as any).employee_code ?? (employee as any).employee_id}
-            {(employee as any).department ? ` • ${(employee as any).department}` : ""}
-            {(employee as any).designation ? ` • ${(employee as any).designation}` : ""}
-          </p>
+          <p>Viewing and editing employee data as admin</p>
         </div>
       </div>
 
-      <DpdpaLegend />
+      {/* ── Two-column profile layout ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6 items-start">
 
-      <EmployeeDataView
-        employee={employee}
-        isAdmin={true}
-        onEmployeeUpdated={async () => {
-          // Re-fetch the full normalized record so admin sees the updated values
-          const updated = await EmployeeService.getById(id);
-          if (updated) setEmployee(updated as any);
-        }}
-      />
+        {/* Left: sticky profile sidebar */}
+        <ProfileSidebar employee={employee} role="employee" />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Consent History</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {consentLogs.length === 0 ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-              <ClockCircleBoldDuotone size={16} />
-              <span>No consent records found for this employee.</span>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {consentLogs.map((log) => (
-                <div key={log.id} className="flex items-start gap-3 rounded-lg border p-3">
-                  <CheckCircleBoldDuotone size={18} color="var(--success)" className="mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge
-                        variant="default"
-                        className="bg-success text-success-foreground text-xs"
-                      >
-                        {log.consent_status}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        Version: {log.consent_version}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(log.created_at).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "long",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
-                  </div>
+        {/* Right: fields + consent history */}
+        <div className="space-y-5 min-w-0">
+          <DpdpaLegend />
+
+          <EmployeeDataView
+            employee={employee}
+            isAdmin={true}
+            onEmployeeUpdated={async () => {
+              const updated = await EmployeeService.getById(id);
+              if (updated) setEmployee(updated as any);
+            }}
+          />
+
+          {/* Consent History */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Consent History</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {consentLogs.length === 0 ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                  <ClockCircleBoldDuotone size={16} />
+                  <span>No consent records found for this employee.</span>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              ) : (
+                <div className="space-y-3">
+                  {consentLogs.map((log) => (
+                    <div key={log.id} className="flex items-start gap-3 rounded-lg border p-3">
+                      <CheckCircleBoldDuotone size={18} color="var(--success)" className="mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge
+                            variant="default"
+                            className="bg-success text-success-foreground text-xs"
+                          >
+                            {log.consent_status}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            Version: {log.consent_version}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {new Date(log.created_at).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

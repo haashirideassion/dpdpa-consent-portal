@@ -49,8 +49,8 @@ export function DpdpaInfo({ onDismiss }: DpdpaInfoProps) {
             ))}
           </div>
 
-          <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 p-3">
-            <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+          <div className="rounded-lg bg-warning/10 border border-warning/30 p-3">
+            <p className="text-xs text-warning-foreground leading-relaxed">
               <span className="font-semibold">Your right to withdraw: </span>
               You may revoke consent at any time by contacting your HR or Compliance team.
               Withdrawal does not affect data processed on other lawful bases (e.g., legal

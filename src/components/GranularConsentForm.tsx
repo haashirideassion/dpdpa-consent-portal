@@ -37,17 +37,15 @@ export function GranularConsentForm({
 
   if (hasConsented) {
     return (
-      <Card className="border-success/30 bg-success/5 mt-6">
-        <CardContent className="flex items-center gap-3 py-6">
-          <CheckCircleBoldDuotone size={24} color="var(--success)" />
-          <div>
-            <p className="font-semibold text-foreground">Consent Submitted</p>
-            <p className="text-sm text-muted-foreground">
-              Your granular consent for {template.name} ({template.version}) was successfully recorded.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex items-center gap-3 p-4 rounded-xl border border-success/20 bg-success/5 mt-4">
+        <CheckCircleBoldDuotone size={20} color="var(--success)" className="shrink-0" />
+        <div>
+          <p className="text-sm font-semibold text-foreground">Consent Submitted</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Granular consent for {template.name} ({template.version}) was recorded.
+          </p>
+        </div>
+      </div>
     );
   }
 
@@ -86,40 +84,40 @@ export function GranularConsentForm({
   };
 
   return (
-    <div className="space-y-6 mt-6">
+    <div className="space-y-5 mt-4">
       <div>
-        <h2 className="text-xl font-bold tracking-tight">Data Processing Consent</h2>
+        <h2 className="text-lg font-semibold tracking-tight">Data Processing Consent</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Please review the purposes for which we process your data. 
-          Mandatory purposes are required for your employment. You may opt out of optional purposes.
+          Review the purposes for which we process your data.
+          Mandatory purposes are required for your employment.
         </p>
       </div>
 
-      <div className="grid gap-4">
+      <div className="grid gap-3">
         {template.purposes.map((purpose) => (
-          <Card key={purpose.id} className={purpose.is_mandatory ? "bg-muted/30" : ""}>
-            <CardHeader className="py-4">
+          <Card key={purpose.id} className={purpose.is_mandatory ? "bg-muted/30 border-border" : "border-border"}>
+            <CardHeader className="py-3.5 px-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <CardTitle className="text-base">{purpose.label}</CardTitle>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <CardTitle className="text-sm font-semibold">{purpose.label}</CardTitle>
                     {purpose.is_mandatory && (
-                      <span className="text-[10px] uppercase font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full tracking-wider">
+                      <span className="text-[10px] uppercase font-semibold badge-warning border rounded-full px-2 py-0.5 tracking-wider">
                         Mandatory
                       </span>
                     )}
                   </div>
-                  <CardDescription className="mt-1.5 text-sm leading-relaxed text-foreground/80">
+                  <CardDescription className="mt-1.5 text-xs leading-relaxed text-foreground/80">
                     {purpose.description}
                   </CardDescription>
-                  <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                    <InfoCircleBoldDuotone size={14} className="opacity-70" />
+                  <div className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <InfoCircleBoldDuotone size={12} className="opacity-70" />
                     Legal Basis: {purpose.legal_basis}
                   </div>
                   {(purpose.data_categories || purpose.third_parties || purpose.retention_period) && (
-                    <details className="mt-3 text-xs text-muted-foreground group cursor-pointer">
-                      <summary className="font-medium outline-none">View detailed processing information</summary>
-                      <div className="mt-2 pl-2 border-l-2 border-muted space-y-2 py-1">
+                    <details className="mt-2.5 text-xs text-muted-foreground group cursor-pointer">
+                      <summary className="font-medium outline-none">View detailed information</summary>
+                      <div className="mt-2 pl-2 border-l-2 border-muted space-y-1.5 py-1">
                         {purpose.data_categories && (
                           <p><strong className="text-foreground/80">Data Categories:</strong> {purpose.data_categories}</p>
                         )}
@@ -134,15 +132,15 @@ export function GranularConsentForm({
                   )}
                 </div>
                 
-                <div className="pt-1 flex items-center gap-2">
+                <div className="pt-0.5 flex items-center gap-2 shrink-0">
                   <Checkbox 
                     id={`purpose-${purpose.id}`}
                     checked={toggles[purpose.purpose_key]}
                     disabled={purpose.is_mandatory}
                     onCheckedChange={(val) => handleToggle(purpose.purpose_key, val === true)}
-                    className="h-5 w-5"
+                    className="h-4 w-4"
                   />
-                  <label htmlFor={`purpose-${purpose.id}`} className="text-sm font-medium sr-only">
+                  <label htmlFor={`purpose-${purpose.id}`} className="text-xs font-medium sr-only">
                     Consent to {purpose.label}
                   </label>
                 </div>
@@ -152,40 +150,39 @@ export function GranularConsentForm({
         ))}
       </div>
 
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="pt-6 space-y-4">
-          <p className="text-sm leading-relaxed font-medium">
-            By typing my name below and clicking "Submit Consent", I acknowledge that I have read and 
-            understood the purposes for data processing as defined under the Digital Personal Data Protection Act, 2023.
-          </p>
-          
-          <div className="space-y-2">
-            <Label htmlFor="esign">Digital Signature (Type your full name)</Label>
-            <Input 
-              id="esign" 
-              placeholder="e.g. John Doe" 
-              value={esignName}
-              onChange={(e) => setEsignName(e.target.value)}
-              className="max-w-xs bg-background"
-            />
-          </div>
+      <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+        <p className="text-xs leading-relaxed text-foreground/90">
+          By typing my name below and clicking &ldquo;Submit Consent&rdquo;, I acknowledge that I have read and
+          understood the purposes for data processing as defined under the Digital Personal Data
+          Protection Act, 2023.
+        </p>
 
-          <Button 
-            size="lg" 
-            onClick={handleSubmit} 
-            disabled={submitting || !esignName.trim()}
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Recording Consent...
-              </>
-            ) : (
-              "Submit Consent"
-            )}
-          </Button>
-        </CardContent>
-      </Card>
+        <div className="space-y-1.5">
+          <Label htmlFor="esign" className="text-xs font-medium">Digital Signature (Type your full name)</Label>
+          <Input
+            id="esign"
+            placeholder="e.g. John Doe"
+            value={esignName}
+            onChange={(e) => setEsignName(e.target.value)}
+            className="max-w-xs bg-background h-9 text-sm"
+          />
+        </div>
+
+        <Button
+          onClick={handleSubmit}
+          disabled={submitting || !esignName.trim()}
+          className="gap-2"
+        >
+          {submitting ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Recording Consent…
+            </>
+          ) : (
+            "Submit Consent"
+          )}
+        </Button>
+      </div>
     </div>
   );
 }

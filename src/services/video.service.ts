@@ -132,7 +132,7 @@ export const VideoService = {
   async createVideoVersion(payload: {
     title: string;
     url: string;
-    caption_url: string;
+    caption_url?: string;
     language: string;
     version: string;
     duration_seconds: number;
@@ -141,13 +141,10 @@ export const VideoService = {
     if (payload.duration_seconds < 45 || payload.duration_seconds > 90) {
       throw new Error("Duration must be between 45 and 90 seconds.");
     }
-    if (!payload.caption_url) {
-      throw new Error("Captions are strictly required for DPDPA compliance.");
-    }
 
     const { data, error } = await supabase
       .from("video_versions")
-      .insert({ ...payload, status: "draft", is_active: false })
+      .insert({ ...payload, caption_url: payload.caption_url || null, status: "draft", is_active: false })
       .select()
       .single();
 

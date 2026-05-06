@@ -100,6 +100,21 @@ const FIELD_MAP: Record<string, FieldMapping> = {
   certifications: { table: "employee_additional_details", column: "certifications" },
   languages:      { table: "employee_additional_details", column: "languages" },
   notes:          { table: "employee_additional_details", column: "notes" },
+
+  // ── employee_personal_details — PRD additions ───────────────────────────
+  father_name: { table: "employee_personal_details", column: "father_name" },
+  mother_name: { table: "employee_personal_details", column: "mother_name" },
+
+  // ── employee_financial_details — PRD additions ──────────────────────────
+  bank_branch:  { table: "employee_financial_details", column: "bank_branch" },
+  upi_id:       { table: "employee_financial_details", column: "upi_id" },
+  pf_account:   { table: "employee_financial_details", column: "pf_account" },
+  esic_number:  { table: "employee_financial_details", column: "esic_number" },
+
+  // ── employee_health_info ────────────────────────────────────────────────
+  disability_status:  { table: "employee_health_info", column: "disability_status" },
+  chronic_conditions: { table: "employee_health_info", column: "chronic_conditions" },
+  allergies:          { table: "employee_health_info", column: "allergies" },
 };
 
 // ---------------------------------------------------------------------------
@@ -367,5 +382,157 @@ export const EmployeeService = {
     });
 
     if (logError) throw logError;
+  },
+
+  // ── Multi-entry section CRUD ─────────────────────────────────────────────
+
+  async getEducation(employeeId: string) {
+    const { data, error } = await supabase
+      .from("employee_education" as any)
+      .select("*")
+      .eq("employee_id", employeeId)
+      .order("year_of_passing", { ascending: false });
+    if (error) throw error;
+    return (data ?? []) as any[];
+  },
+  async addEducation(employeeId: string, record: Record<string, any>) {
+    const { error } = await supabase
+      .from("employee_education" as any)
+      .insert({ ...record, employee_id: employeeId });
+    if (error) throw error;
+  },
+  async updateEducation(id: string, record: Record<string, any>) {
+    const { error } = await supabase
+      .from("employee_education" as any)
+      .update({ ...record, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) throw error;
+  },
+  async deleteEducation(id: string) {
+    const { error } = await supabase
+      .from("employee_education" as any)
+      .delete()
+      .eq("id", id);
+    if (error) throw error;
+  },
+
+  async getCertifications(employeeId: string) {
+    const { data, error } = await supabase
+      .from("employee_certifications_v2" as any)
+      .select("*")
+      .eq("employee_id", employeeId)
+      .order("issue_date", { ascending: false });
+    if (error) throw error;
+    return (data ?? []) as any[];
+  },
+  async addCertification(employeeId: string, record: Record<string, any>) {
+    const { error } = await supabase
+      .from("employee_certifications_v2" as any)
+      .insert({ ...record, employee_id: employeeId });
+    if (error) throw error;
+  },
+  async updateCertification(id: string, record: Record<string, any>) {
+    const { error } = await supabase
+      .from("employee_certifications_v2" as any)
+      .update({ ...record, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) throw error;
+  },
+  async deleteCertification(id: string) {
+    const { error } = await supabase
+      .from("employee_certifications_v2" as any)
+      .delete()
+      .eq("id", id);
+    if (error) throw error;
+  },
+
+  async getEmploymentHistory(employeeId: string) {
+    const { data, error } = await supabase
+      .from("employee_employment_history" as any)
+      .select("*")
+      .eq("employee_id", employeeId)
+      .order("end_date", { ascending: false });
+    if (error) throw error;
+    return (data ?? []) as any[];
+  },
+  async addEmploymentHistory(employeeId: string, record: Record<string, any>) {
+    const { error } = await supabase
+      .from("employee_employment_history" as any)
+      .insert({ ...record, employee_id: employeeId });
+    if (error) throw error;
+  },
+  async updateEmploymentHistory(id: string, record: Record<string, any>) {
+    const { error } = await supabase
+      .from("employee_employment_history" as any)
+      .update({ ...record, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) throw error;
+  },
+  async deleteEmploymentHistory(id: string) {
+    const { error } = await supabase
+      .from("employee_employment_history" as any)
+      .delete()
+      .eq("id", id);
+    if (error) throw error;
+  },
+
+  async getNominees(employeeId: string) {
+    const { data, error } = await supabase
+      .from("employee_nominees" as any)
+      .select("*")
+      .eq("employee_id", employeeId)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    return (data ?? []) as any[];
+  },
+  async addNominee(employeeId: string, record: Record<string, any>) {
+    const { error } = await supabase
+      .from("employee_nominees" as any)
+      .insert({ ...record, employee_id: employeeId });
+    if (error) throw error;
+  },
+  async updateNominee(id: string, record: Record<string, any>) {
+    const { error } = await supabase
+      .from("employee_nominees" as any)
+      .update({ ...record, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) throw error;
+  },
+  async deleteNominee(id: string) {
+    const { error } = await supabase
+      .from("employee_nominees" as any)
+      .delete()
+      .eq("id", id);
+    if (error) throw error;
+  },
+
+  async getDependents(employeeId: string) {
+    const { data, error } = await supabase
+      .from("employee_dependents" as any)
+      .select("*")
+      .eq("employee_id", employeeId)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    return (data ?? []) as any[];
+  },
+  async addDependent(employeeId: string, record: Record<string, any>) {
+    const { error } = await supabase
+      .from("employee_dependents" as any)
+      .insert({ ...record, employee_id: employeeId });
+    if (error) throw error;
+  },
+  async updateDependent(id: string, record: Record<string, any>) {
+    const { error } = await supabase
+      .from("employee_dependents" as any)
+      .update({ ...record, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) throw error;
+  },
+  async deleteDependent(id: string) {
+    const { error } = await supabase
+      .from("employee_dependents" as any)
+      .delete()
+      .eq("id", id);
+    if (error) throw error;
   },
 };

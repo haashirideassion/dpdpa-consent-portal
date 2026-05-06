@@ -69,6 +69,16 @@ const STEP_LABELS: Record<UploadStep, string> = {
 
 const STEP_PCT: Record<UploadStep, number> = {
   idle: 0,
+  video: captionFile => captionFile ? 30 : 50, // dynamic — filled in handler
+  caption: 65,
+  saving: 85,
+  done: 100,
+  error: 0,
+} as unknown as Record<UploadStep, number>;
+
+// Static pct for display purposes
+const STEP_PCT_DISPLAY: Record<UploadStep, number> = {
+  idle: 0,
   video: 30,
   caption: 65,
   saving: 85,
@@ -154,8 +164,8 @@ function AdminVideosPage() {
 
   // ── Upload handler ───────────────────────────────────────────────────────
   const handleUpload = async () => {
-    if (!title || !videoFile || !captionFile || !duration) {
-      toast.error("Please fill all fields and select both video and caption files.");
+    if (!title || !videoFile || !duration) {
+      toast.error("Please fill in all required fields and select a video file.");
       return;
     }
 
@@ -169,12 +179,26 @@ function AdminVideosPage() {
     setUploadStep("video");
 
     try {
-      await VideoService.createVideoVersionFromFiles(
-        videoFile,
-        captionFile,
-        { title, version, language, duration_seconds: durationNum, resolution },
-        (step) => setUploadStep(step)
-      );
+      // Upload video file first
+      const videoUrl = await VideoService.uploadVideoFile(videoFile, language, version);
+
+      // Upload caption file only if provided (optional)
+      let captionUrl = "";
+      if (captionFile) {
+        setUploadStep("caption");
+        captionUrl = await VideoService.uploadCaptionFile(captionFile, language, version);
+      }
+
+      setUploadStep("saving");
+      await VideoService.createVideoVersion({
+        title,
+        version,
+        language,
+        duration_seconds: durationNum,
+        resolution,
+        url: videoUrl,
+        caption_url: captionUrl,
+      });
 
       setUploadStep("done");
       toast.success("Video version saved as draft!");
@@ -221,15 +245,14 @@ function AdminVideosPage() {
   };
 
   const isUploading = ["video", "caption", "saving"].includes(uploadStep);
+  const uploadPct = STEP_PCT_DISPLAY[uploadStep] ?? 0;
 
   return (
     <div className="space-y-8">
-      {/* ── Page header ─────────────────────────────────────────────────── */}
-      <div>
-        <h1 className="text-2xl font-bold">DPDPA Intro Video Management</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Upload and manage compliance introduction videos per language. (US-HR-009)
-        </p>
+      {/* ── Page header ────────────────────────────────────────────── */}
+      <div className="page-header">
+        <h1>DPDPA Intro Video Management</h1>
+        <p>Upload and manage compliance introduction videos per language. (US-HR-009)</p>
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════
@@ -242,8 +265,7 @@ function AdminVideosPage() {
             <CardTitle>Create New Video Version</CardTitle>
           </div>
           <CardDescription>
-            Upload an MP4 file (H.264, max 25 MB, 720p–1080p, 45–90 s) and a mandatory
-            captions file (.vtt or .srt).
+            Upload an MP4 file (H.264, max 25 MB, 720p–1080p, 45–90 s). A captions file (.vtt or .srt) is optional but recommended for accessibility.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -364,8 +386,7 @@ function AdminVideosPage() {
             <div className="space-y-2">
               <Label htmlFor="cap-file">
                 Captions File{" "}
-                <span className="text-destructive font-medium text-xs">* Required</span>{" "}
-                <span className="text-muted-foreground font-normal">(.vtt or .srt)</span>
+                <span className="text-muted-foreground font-normal text-xs">(Optional — .vtt or .srt)</span>
               </Label>
               <div
                 className={`
@@ -413,11 +434,11 @@ function AdminVideosPage() {
                   {STEP_LABELS[uploadStep]}
                 </span>
                 {uploadStep !== "error" && (
-                  <span className="text-muted-foreground text-xs">{STEP_PCT[uploadStep]}%</span>
+                  <span className="text-muted-foreground text-xs">{uploadPct}%</span>
                 )}
               </div>
               {uploadStep !== "error" && (
-                <Progress value={STEP_PCT[uploadStep]} className="h-2" />
+                <Progress value={uploadPct} className="h-2" />
               )}
               {uploadStep === "error" && uploadError && (
                 <p className="text-xs text-destructive flex items-center gap-1">
@@ -431,7 +452,7 @@ function AdminVideosPage() {
           <div className="flex justify-end">
             <Button
               onClick={handleUpload}
-              disabled={isUploading || !videoFile || !captionFile || !title}
+              disabled={isUploading || !videoFile || !title}
               className="gap-2"
             >
               <UploadMinimalisticBoldDuotone size={16} />

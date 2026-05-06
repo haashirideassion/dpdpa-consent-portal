@@ -19,6 +19,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircleBoldDuotone, CloseCircleBoldDuotone, DocumentBoldDuotone } from "solar-icon-set";
 import { format } from "date-fns";
+import { toast } from "sonner";
 
 interface ConsentRecord {
   id: string;
@@ -81,12 +82,12 @@ export function MyConsentsView({ employeeId }: { employeeId: string }) {
     setDprSubmitting(false);
     if (!error) {
       setDprOpen(false);
-      alert("Your request has been submitted successfully to the DPO.");
+      toast.success("Your DPDPA request has been submitted to the DPO.");
       setDprType("");
       setDprDesc("");
     } else {
       console.error("DPR submission error", error);
-      alert("Failed to submit request. Please try again.");
+      toast.error("Failed to submit request. Please try again.");
     }
   };
 
@@ -101,15 +102,15 @@ export function MyConsentsView({ employeeId }: { employeeId: string }) {
 
   if (records.length === 0) {
     return (
-      <Card className="mt-6">
-        <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-          <DocumentBoldDuotone size={48} className="text-muted-foreground/30 mb-4" />
-          <p className="text-lg font-medium">No Consent History</p>
-          <p className="text-sm text-muted-foreground">
-            You have not submitted any DPDPA granular consent records yet.
+      <div className="py-14 flex flex-col items-center gap-3 text-center">
+        <DocumentBoldDuotone size={40} className="text-muted-foreground/25" />
+        <div>
+          <p className="text-sm font-semibold text-foreground">No Consent History</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            You haven’t submitted any DPDPA consent records yet.
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 

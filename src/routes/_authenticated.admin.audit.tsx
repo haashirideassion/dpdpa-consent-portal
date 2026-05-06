@@ -136,15 +136,15 @@ function AuditAdminPage() {
 
   const getBadge = (action: string) => {
     if (ADMIN_ACTIONS.includes(action)) {
-      return "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 border-orange-200 dark:border-orange-800";
+      return "badge-warning border";
     }
     if (action === "USER_LOGIN" || action === "login" || action === "logout") {
-      return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800";
+      return "badge-info border";
     }
     if (action.includes("consent")) {
-      return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800";
+      return "badge-success border";
     }
-    return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700";
+    return "badge-neutral border";
   };
 
   const renderMetadata = (log: AuditLog) => {
@@ -188,12 +188,10 @@ function AuditAdminPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Immutable Audit Trail</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          System-wide immutable record of consents, access, and modifications.
-        </p>
+    <div className="space-y-5">
+      <div className="page-header">
+        <h1>Immutable Audit Trail</h1>
+        <p>System-wide immutable record of consents, access, and modifications.</p>
       </div>
 
       <Card>
@@ -242,9 +240,10 @@ function AuditAdminPage() {
               ))}
             </div>
           ) : logs.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground text-sm flex flex-col items-center">
-              <FileTextBoldDuotone size={48} className="text-muted-foreground/30 mb-2" />
-              No audit activity found yet.
+            <div className="py-14 flex flex-col items-center gap-2 text-center">
+              <FileTextBoldDuotone size={40} className="text-muted-foreground/25" />
+              <p className="text-sm font-medium text-foreground">No audit activity found</p>
+              <p className="text-xs text-muted-foreground">Try adjusting your filters or date range.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">

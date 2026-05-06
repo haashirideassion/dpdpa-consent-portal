@@ -98,7 +98,7 @@ export function DataField({
   return (
     <div className="flex flex-col gap-1 py-2">
       <div className="flex items-center gap-2">
-        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+        <span className="field-label">
           {label}
         </span>
         {sensitive && <DpdpaBadge />}
@@ -107,11 +107,6 @@ export function DataField({
             locked
           </span>
         )}
-        {/* {editMode && locked && isAdmin && (
-          <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-1.5 py-0.5 rounded font-medium">
-            Admin Editable
-          </span>
-        )} */}
       </div>
 
       {editMode && !effectivelyLocked ? (
@@ -148,7 +143,7 @@ export function DataField({
       ) : (
         <div className="flex items-center gap-2">
           <span
-            className={`text-sm font-medium ${sensitive ? "text-dpdpa-foreground" : "text-foreground"}`}
+            className={`field-value ${sensitive ? "text-dpdpa-foreground" : ""}`}
           >
             {getDisplayValue()}
           </span>

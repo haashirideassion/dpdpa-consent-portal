@@ -179,17 +179,22 @@ function EmployeeList() {
   ).length;
 
   if (loading) {
-    return <div className="py-8 text-center text-muted-foreground">Loading employees...</div>;
+    return (
+      <div className="py-12 text-center">
+        <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          Loading employees…
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Employee Records</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {employees.length} employees • {consentedCount} consented
-          </p>
+        <div className="page-header">
+          <h1>Employee Records</h1>
+          <p>{employees.length} employees &bull; {consentedCount} consented</p>
         </div>
         <div>
           <Input
@@ -302,8 +307,16 @@ function EmployeeList() {
             ))}
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                  No employees match the current filters.
+                <TableCell colSpan={7} className="py-14">
+                  <div className="flex flex-col items-center gap-2 text-center">
+                    <MinimalisticMagniferBoldDuotone size={32} className="text-muted-foreground/25" />
+                    <p className="text-sm font-medium text-foreground">No employees found</p>
+                    <p className="text-xs text-muted-foreground">
+                      {search || deptFilter !== "all" || statusFilter !== "all"
+                        ? "Try adjusting your filters or search query."
+                        : "Import employees using the CSV upload button above."}
+                    </p>
+                  </div>
                 </TableCell>
               </TableRow>
             )}
@@ -318,19 +331,19 @@ function ConsentBadge({ status }: { status: string }) {
   switch (status) {
     case "consented":
       return (
-        <Badge className="bg-success text-success-foreground text-xs">
+        <Badge variant="outline" className="badge-success text-xs font-medium">
           Consented
         </Badge>
       );
     case "submitted":
       return (
-        <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs">
+        <Badge variant="outline" className="badge-info text-xs font-medium">
           Submitted
         </Badge>
       );
     default:
       return (
-        <Badge variant="outline" className="text-warning-foreground border-warning text-xs">
+        <Badge variant="outline" className="badge-warning text-xs font-medium">
           Pending
         </Badge>
       );

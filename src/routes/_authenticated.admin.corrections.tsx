@@ -23,6 +23,94 @@ export const Route = createFileRoute("/_authenticated/admin/corrections")({
   component: CorrectionsQueue,
 });
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+type SectionType = "field" | "section_edit" | "section_add" | "section_legacy";
+
+function getSectionType(req: CorrectionRequest): SectionType {
+  if (req.field_name === "__section_edit__") return "section_edit";
+  if (req.field_name === "__section_add__") return "section_add";
+  if (req.field_name === "__section__") return "section_legacy";
+  return "field";
+}
+
+/** Parse the JSON stored in old_value / new_value for section records */
+function parseSectionJson(raw: string | null): { section?: string; recordId?: string; values?: Record<string, any> } {
+  try { return JSON.parse(raw ?? "{}"); } catch { return {}; }
+}
+
+/** Render a compact diff of old → new values for a section record correction */
+function SectionRecordDiff({ req }: { req: CorrectionRequest }) {
+  const old = parseSectionJson(req.old_value);
+  const next = parseSectionJson(req.new_value);
+  const sectionLabel = old.section ?? next.section ?? req.table_name ?? "Section";
+  const oldVals = old.values ?? {};
+  const newVals = next.values ?? {};
+
+  const changedKeys = Object.keys(newVals).filter(
+    (k) => String(newVals[k] ?? "").trim() !== "" && String(newVals[k]) !== String(oldVals[k] ?? "")
+  );
+  const unchangedKeys = Object.keys(newVals).filter(
+    (k) => String(newVals[k] ?? "").trim() !== "" && String(newVals[k]) === String(oldVals[k] ?? "")
+  );
+
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground mb-1.5">
+        <span className="font-medium text-foreground">{sectionLabel}</span>
+        {old.recordId ? " · Edit existing record" : " · Add new record"}
+        {changedKeys.length > 0 && (
+          <span> · <span className="text-primary">{changedKeys.length} field{changedKeys.length !== 1 ? "s" : ""} changed</span></span>
+        )}
+      </p>
+      {changedKeys.length > 0 && (
+        <div className="space-y-0.5">
+          {changedKeys.map((k) => (
+            <p key={k} className="text-xs text-muted-foreground">
+              <span className="font-medium text-foreground capitalize">{k.replace(/_/g, " ")}</span>
+              {": "}
+              {oldVals[k] ? (
+                <><span className="line-through">{String(oldVals[k])}</span>{" → "}</>
+              ) : null}
+              <span className="text-primary font-medium">{String(newVals[k])}</span>
+            </p>
+          ))}
+        </div>
+      )}
+      {changedKeys.length === 0 && unchangedKeys.length > 0 && (
+        <p className="text-xs text-muted-foreground italic">No changes detected vs original values.</p>
+      )}
+    </div>
+  );
+}
+
+/** Render a section-add correction (all new values) */
+function SectionAddDiff({ req }: { req: CorrectionRequest }) {
+  const next = parseSectionJson(req.new_value);
+  const sectionLabel = next.section ?? req.table_name ?? "Section";
+  const vals = next.values ?? {};
+  const filled = Object.entries(vals).filter(([, v]) => String(v ?? "").trim() !== "");
+
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground mb-1.5">
+        <span className="font-medium text-foreground">{sectionLabel}</span>
+        {" · Add new record"}
+      </p>
+      <div className="space-y-0.5">
+        {filled.map(([k, v]) => (
+          <p key={k} className="text-xs text-muted-foreground">
+            <span className="font-medium text-foreground capitalize">{k.replace(/_/g, " ")}</span>
+            {": "}
+            <span className="text-primary font-medium">{String(v)}</span>
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 function CorrectionsQueue() {
   const [requests, setRequests] = useState<CorrectionRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +125,7 @@ function CorrectionsQueue() {
     try {
       const data = await CorrectionService.getAllRequests();
       setRequests(data);
-    } catch (err) {
+    } catch {
       toast.error("Failed to load correction requests.");
     } finally {
       setLoading(false);
@@ -50,7 +138,12 @@ function CorrectionsQueue() {
     setProcessing(req.id);
     try {
       await CorrectionService.approve(req.id);
-      toast.success(`Correction approved — ${req.field_name} updated.`);
+      const type = getSectionType(req);
+      if (type === "section_edit" || type === "section_add" || type === "section_legacy") {
+        toast.success("Section correction approved — apply the changes manually in the employee profile.");
+      } else {
+        toast.success(`Correction approved — ${req.field_name} updated.`);
+      }
       fetchRequests();
     } catch (err: any) {
       toast.error(err?.message ?? "Approval failed.");
@@ -82,20 +175,39 @@ function CorrectionsQueue() {
   const filtered = requests.filter((r) => filter === "all" || r.status === filter);
 
   const statusBadge = (status: string) => {
-    if (status === "pending")  return <Badge variant="outline" className="border-amber-500 text-amber-600">Pending</Badge>;
-    if (status === "approved") return <Badge variant="outline" className="border-green-500 text-green-600">Approved</Badge>;
-    return <Badge variant="outline" className="border-red-500 text-red-600">Rejected</Badge>;
+    if (status === "pending")  return <Badge variant="outline" className="badge-warning text-xs">Pending</Badge>;
+    if (status === "approved") return <Badge variant="outline" className="badge-success text-xs">Approved</Badge>;
+    return <Badge variant="outline" className="badge-danger text-xs">Rejected</Badge>;
   };
+
+  const typeBadge = (req: CorrectionRequest) => {
+    const type = getSectionType(req);
+    if (type === "section_edit") return <Badge variant="outline" className="badge-info text-[10px]">Section Edit</Badge>;
+    if (type === "section_add") return <Badge variant="outline" className="badge-info text-[10px]">Section Add</Badge>;
+    if (type === "section_legacy") return <Badge variant="outline" className="badge-neutral text-[10px]">Section</Badge>;
+    return null;
+  };
+
+  /** Reject dialog preview text */
+  function rejectPreviewText(req: CorrectionRequest): string {
+    const type = getSectionType(req);
+    if (type === "section_edit" || type === "section_add") {
+      const parsed = parseSectionJson(type === "section_edit" ? req.old_value : req.new_value);
+      return `${parsed.section ?? req.table_name ?? "Section"} correction`;
+    }
+    if (type === "section_legacy") {
+      try { return `${JSON.parse(req.old_value ?? "{}").section ?? "Section"} — ${req.new_value}`; } catch { return req.new_value ?? ""; }
+    }
+    return `${req.field_name}: ${req.old_value || "—"} → ${req.new_value}`;
+  }
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Corrections Queue</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Review employee data correction requests submitted after consent.
-          </p>
+        <div className="page-header">
+          <h1>Corrections Queue</h1>
+          <p>Review employee data correction requests submitted after consent.</p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
           {(["pending", "approved", "rejected", "all"] as const).map((f) => (
@@ -108,7 +220,7 @@ function CorrectionsQueue() {
             >
               {f}
               {f === "pending" && requests.filter((r) => r.status === "pending").length > 0 && (
-                <span className="ml-1.5 bg-amber-500 text-white rounded-full px-1.5 text-[10px]">
+                <span className="ml-1.5 bg-warning text-warning-foreground rounded-full px-1.5 text-[10px] font-semibold">
                   {requests.filter((r) => r.status === "pending").length}
                 </span>
               )}
@@ -117,91 +229,140 @@ function CorrectionsQueue() {
         </div>
       </div>
 
-      {/* Table */}
+      {/* List */}
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="py-16 text-center text-sm text-muted-foreground">
-          No {filter === "all" ? "" : filter} correction requests found.
+        <div className="py-14 flex flex-col items-center gap-2 text-center">
+          <CheckCircleBoldDuotone size={36} className="text-muted-foreground/25" />
+          <p className="text-sm font-medium text-foreground">
+            {filter === "pending" ? "No pending corrections" : `No ${filter === "all" ? "" : filter} corrections`}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {filter === "pending" ? "All correction requests have been reviewed." : "No records match this filter."}
+          </p>
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map((req) => (
-            <div
-              key={req.id}
-              className="border border-border rounded-xl px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4"
-            >
-              {/* Info */}
-              <div className="flex-1 min-w-0 space-y-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  {statusBadge(req.status)}
-                  <span className="text-sm font-semibold truncate">
-                    {req.employee
-                      ? `${req.employee.first_name} ${req.employee.last_name}`
-                      : "Unknown Employee"}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {req.employee?.employee_code}
-                  </span>
+          {filtered.map((req) => {
+            const type = getSectionType(req);
+            return (
+              <div
+                key={req.id}
+                className="border border-border rounded-xl px-5 py-4 flex flex-col sm:flex-row sm:items-start gap-4"
+              >
+                {/* Info */}
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  {/* Employee + status badges */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {statusBadge(req.status)}
+                    {typeBadge(req)}
+                    <span className="text-sm font-semibold truncate">
+                      {req.employee
+                        ? `${req.employee.first_name} ${req.employee.last_name}`
+                        : "Unknown Employee"}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {req.employee?.employee_code}
+                    </span>
+                  </div>
+
+                  {/* Content diff */}
+                  {type === "section_edit" && <SectionRecordDiff req={req} />}
+                  {type === "section_add"  && <SectionAddDiff req={req} />}
+                  {type === "section_legacy" && (() => {
+                    let sectionLabel = req.table_name ?? "Section";
+                    let entryCount = 0;
+                    try {
+                      const parsed = JSON.parse(req.old_value ?? "{}");
+                      sectionLabel = parsed.section ?? sectionLabel;
+                      entryCount = Array.isArray(parsed.entries) ? parsed.entries.length : 0;
+                    } catch {}
+                    return (
+                      <p className="text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">{sectionLabel}</span>
+                        {" · "}{entryCount} current record{entryCount !== 1 ? "s" : ""}
+                        {" · "}<span className="text-primary font-medium">{req.new_value}</span>
+                      </p>
+                    );
+                  })()}
+                  {type === "field" && (
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">{req.field_name}</span>
+                      {" · "}
+                      {req.old_value ? <><span className="line-through">{req.old_value}</span>{" → "}</> : null}
+                      <span className="text-primary font-medium">{req.new_value}</span>
+                    </p>
+                  )}
+
+                  {/* Meta */}
+                  <p className="text-xs text-muted-foreground">
+                    Submitted {new Date(req.created_at).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                    {req.comments && ` · "${req.comments}"`}
+                  </p>
+
+                  {req.attachment_url && (
+                    <a
+                      href={req.attachment_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      <PaperclipBoldDuotone size={12} />
+                      View Proof Document
+                    </a>
+                  )}
+
+                  {/* Section corrections require manual update reminder */}
+                  {(type === "section_edit" || type === "section_add") && req.status === "pending" && (
+                    <p className="text-[11px] text-warning-foreground bg-warning/10 dark:bg-warning/10 rounded px-2 py-1 mt-1">
+                      After approving, update this record manually in the employee’s profile.
+                    </p>
+                  )}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">{req.field_name}</span>
-                  {" · "}
-                  <span className="line-through">{req.old_value || "—"}</span>
-                  {" → "}
-                  <span className="text-primary font-medium">{req.new_value}</span>
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Submitted {new Date(req.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                  {req.comments && ` · "${req.comments}"`}
-                </p>
-                {req.attachment_url && (
-                  <a
-                    href={req.attachment_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1"
-                  >
-                    <PaperclipBoldDuotone size={12} />
-                    View Proof Document
-                  </a>
+
+                {/* Actions — pending only */}
+                {req.status === "pending" && (
+                  <div className="flex items-center gap-2 shrink-0 sm:pt-0.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 text-xs h-8 badge-success border"
+                      disabled={processing === req.id}
+                      onClick={() => handleApprove(req)}
+                    >
+                      <CheckCircleBoldDuotone size={14} />
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 text-xs h-8 badge-danger border"
+                      disabled={processing === req.id}
+                      onClick={() => { setRejectTarget(req); setRejectComment(""); }}
+                    >
+                      <CloseCircleBoldDuotone size={14} />
+                      Reject
+                    </Button>
+                  </div>
                 )}
               </div>
-
-              {/* Actions — only for pending */}
-              {req.status === "pending" && (
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5 text-xs h-8 border-green-500 text-green-600 hover:bg-green-50"
-                    disabled={processing === req.id}
-                    onClick={() => handleApprove(req)}
-                  >
-                    <CheckCircleBoldDuotone size={14} />
-                    Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5 text-xs h-8 border-red-400 text-red-500 hover:bg-red-50"
-                    disabled={processing === req.id}
-                    onClick={() => { setRejectTarget(req); setRejectComment(""); }}
-                  >
-                    <CloseCircleBoldDuotone size={14} />
-                    Reject
-                  </Button>
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       {/* Reject Dialog */}
-      <Dialog open={!!rejectTarget} onOpenChange={(o) => { if (!o) { setRejectTarget(null); setRejectComment(""); } }}>
+      <Dialog
+        open={!!rejectTarget}
+        onOpenChange={(o) => { if (!o) { setRejectTarget(null); setRejectComment(""); } }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Reject Correction Request</DialogTitle>
@@ -212,7 +373,7 @@ function CorrectionsQueue() {
           <div className="py-2 space-y-2">
             {rejectTarget && (
               <p className="text-xs text-muted-foreground bg-muted rounded-md px-3 py-2">
-                <strong>{rejectTarget.field_name}</strong>: {rejectTarget.old_value || "—"} → {rejectTarget.new_value}
+                {rejectPreviewText(rejectTarget)}
               </p>
             )}
             <Textarea
@@ -223,7 +384,11 @@ function CorrectionsQueue() {
             />
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" size="sm" onClick={() => { setRejectTarget(null); setRejectComment(""); }}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setRejectTarget(null); setRejectComment(""); }}
+            >
               Cancel
             </Button>
             <Button

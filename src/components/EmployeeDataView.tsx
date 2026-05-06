@@ -3,29 +3,27 @@ import { DataSection } from "./DataSection";
 import type { FieldDef } from "./DataField";
 import {
   UserBoldDuotone,
-  PhoneBoldDuotone,
   CaseMinimalisticBoldDuotone,
   CardBoldDuotone,
   PassportBoldDuotone,
   HospitalBoldDuotone,
   DocumentTextBoldDuotone,
+  HeartBoldDuotone,
 } from "solar-icon-set";
 import { EmployeeService } from "@/services/employee.service";
 import { useAuth } from "@/hooks/use-auth";
+import { EducationSection } from "./sections/EducationSection";
+import { CertificationsSection } from "./sections/CertificationsSection";
+import { EmploymentHistorySection } from "./sections/EmploymentHistorySection";
+import { NomineesSection } from "./sections/NomineesSection";
+import { DependentsSection } from "./sections/DependentsSection";
 
 type Employee = any;
 
 interface EmployeeDataViewProps {
   employee: Employee;
-  /** Called after a successful save. May optionally receive the optimistic update. */
   onEmployeeUpdated: (updated?: Employee) => void;
-  /** When true, all sections are locked and "Request Correction" replaces "Edit" */
   hasConsented?: boolean;
-  /**
-   * When true (admin context):
-   * - Locked fields are editable
-   * - Saves go through adminOverride() which writes audit logs per field
-   */
   isAdmin?: boolean;
 }
 
@@ -41,7 +39,6 @@ export function EmployeeDataView({
 
   async function saveSection(updates: Record<string, string>) {
     if (isAdmin) {
-      // Build old-values snapshot from current employee state for audit diff
       const oldValues: Record<string, string> = {};
       for (const key of Object.keys(updates)) {
         oldValues[key] = e[key] ?? "";
@@ -53,9 +50,13 @@ export function EmployeeDataView({
     onEmployeeUpdated({ ...e, ...updates, id: e.id });
   }
 
-  const personalFields: FieldDef[] = [
+  // ── Personal & Contact (merged, with PRD additions) ────────────────────────
+  const personalContactFields: FieldDef[] = [
+    // Personal
     { label: "First Name", key: "first_name", value: e.first_name },
     { label: "Last Name", key: "last_name", value: e.last_name },
+    { label: "Father's Name", key: "father_name", value: e.father_name },
+    { label: "Mother's Name", key: "mother_name", value: e.mother_name },
     { label: "Date of Birth", key: "date_of_birth", value: e.date_of_birth, type: "date" },
     {
       label: "Gender",
@@ -79,9 +80,7 @@ export function EmployeeDataView({
       options: ["Single", "Married", "Divorced", "Widowed", "Separated"],
     },
     { label: "Nationality", key: "nationality", value: e.nationality },
-  ];
-
-  const contactFields: FieldDef[] = [
+    // Contact
     { label: "Work Email", key: "work_email", value: e.work_email, type: "email", locked: true, uncorrectable: true },
     { label: "Personal Email", key: "personal_email", value: e.personal_email, type: "email" },
     { label: "Phone Number", key: "phone_number", value: e.phone_number, type: "tel" },
@@ -93,10 +92,9 @@ export function EmployeeDataView({
     { label: "Pincode", key: "pincode", value: e.pincode },
   ];
 
+  // ── Employment ─────────────────────────────────────────────────────────────
   const employmentFields: FieldDef[] = [
-    // Employee ID — system-assigned, never editable by anyone
     { label: "Employee ID", key: "employee_code", value: e.employee_code, locked: true, uncorrectable: true },
-    // HR-managed fields: locked for employees, editable for admin
     { label: "Department", key: "department", value: e.department, locked: true },
     { label: "Designation", key: "designation", value: e.designation, locked: true },
     { label: "Date of Joining", key: "date_of_joining", value: e.date_of_joining, type: "date", locked: true },
@@ -120,14 +118,20 @@ export function EmployeeDataView({
     },
   ];
 
+  // ── Payroll & Banking (with PRD additions) ─────────────────────────────────
   const payrollFields: FieldDef[] = [
     { label: "Bank Name", key: "bank_name", value: e.bank_name },
+    { label: "Bank Branch", key: "bank_branch", value: e.bank_branch },
     { label: "Bank Account Number", key: "bank_account_number", value: e.bank_account_number },
     { label: "IFSC Code", key: "ifsc_code", value: e.ifsc_code },
+    { label: "UPI ID", key: "upi_id", value: e.upi_id },
+    { label: "PF Account Number", key: "pf_account", value: e.pf_account },
+    { label: "ESIC Number", key: "esic_number", value: e.esic_number },
     { label: "PAN Number", key: "pan_number", value: e.pan_number },
     { label: "CTC", key: "ctc", value: e.ctc },
   ];
 
+  // ── Government IDs ─────────────────────────────────────────────────────────
   const govtFields: FieldDef[] = [
     { label: "Aadhaar Number", key: "aadhaar_number", value: e.aadhaar_number },
     { label: "UAN Number", key: "uan_number", value: e.uan_number },
@@ -137,6 +141,7 @@ export function EmployeeDataView({
     { label: "Voter ID", key: "voter_id", value: e.voter_id },
   ];
 
+  // ── Emergency Contact ──────────────────────────────────────────────────────
   const emergencyFields: FieldDef[] = [
     { label: "Contact Name", key: "emergency_contact_name", value: e.emergency_contact_name },
     { label: "Relation", key: "emergency_contact_relation", value: e.emergency_contact_relation },
@@ -144,11 +149,27 @@ export function EmployeeDataView({
     { label: "Contact Email", key: "emergency_contact_email", value: e.emergency_contact_email, type: "email" },
   ];
 
-  const metadataFields: FieldDef[] = [
-    { label: "Qualifications", key: "qualifications", value: e.qualifications, type: "textarea" },
-    { label: "Certifications", key: "certifications", value: e.certifications, type: "textarea" },
-    { label: "Languages", key: "languages", value: e.languages },
-    { label: "Notes", key: "notes", value: e.notes, type: "textarea" },
+  // ── Health Information (optional, voluntary) ───────────────────────────────
+  const healthFields: FieldDef[] = [
+    {
+      label: "Disability Status",
+      key: "disability_status",
+      value: e.disability_status,
+      type: "select",
+      options: ["None", "Physical", "Visual", "Hearing", "Cognitive", "Other"],
+    },
+    {
+      label: "Chronic Conditions",
+      key: "chronic_conditions",
+      value: e.chronic_conditions,
+      type: "textarea",
+    },
+    {
+      label: "Allergies (relevant for travel)",
+      key: "allergies",
+      value: e.allergies,
+      type: "textarea",
+    },
   ];
 
   const sharedSectionProps = {
@@ -159,15 +180,71 @@ export function EmployeeDataView({
     onSave: hasConsented ? undefined : saveSection,
   };
 
+  const sharedMultiProps = {
+    employeeId: e.id as string,
+    isAdmin,
+    hasConsented,
+  };
+
   return (
     <div className="space-y-4">
-      <DataSection title="Personal Information" icon={<UserBoldDuotone size={20} />} fields={personalFields} {...sharedSectionProps} />
-      <DataSection title="Contact Information" icon={<PhoneBoldDuotone size={20} />} fields={contactFields} {...sharedSectionProps} />
-      <DataSection title="Employment Information" icon={<CaseMinimalisticBoldDuotone size={20} />} fields={employmentFields} {...sharedSectionProps} />
-      <DataSection title="Payroll & Banking" icon={<CardBoldDuotone size={20} />} fields={payrollFields} {...sharedSectionProps} />
-      <DataSection title="Government Identification" icon={<PassportBoldDuotone size={20} />} fields={govtFields} {...sharedSectionProps} />
-      <DataSection title="Emergency Contact" icon={<HospitalBoldDuotone size={20} />} fields={emergencyFields} {...sharedSectionProps} />
-      <DataSection title="Additional Information" icon={<DocumentTextBoldDuotone size={20} />} fields={metadataFields} defaultOpen={false} {...sharedSectionProps} />
+      {/* ── Flat sections ── */}
+      <DataSection
+        title="Personal & Contact Information"
+        icon={<UserBoldDuotone size={18} />}
+        fields={personalContactFields}
+        {...sharedSectionProps}
+      />
+      <DataSection
+        title="Employment Information"
+        icon={<CaseMinimalisticBoldDuotone size={18} />}
+        fields={employmentFields}
+        {...sharedSectionProps}
+      />
+      <DataSection
+        title="Payroll & Banking"
+        icon={<CardBoldDuotone size={18} />}
+        fields={payrollFields}
+        {...sharedSectionProps}
+      />
+      <DataSection
+        title="Government Identification"
+        icon={<PassportBoldDuotone size={18} />}
+        fields={govtFields}
+        {...sharedSectionProps}
+      />
+      <DataSection
+        title="Emergency Contact"
+        icon={<HospitalBoldDuotone size={18} />}
+        fields={emergencyFields}
+        {...sharedSectionProps}
+      />
+      <DataSection
+        title="Health Information (Optional)"
+        icon={<HeartBoldDuotone size={18} />}
+        fields={healthFields}
+        defaultOpen={false}
+        {...sharedSectionProps}
+      />
+
+      {/* ── Multi-entry sections ── */}
+      <EducationSection {...sharedMultiProps} />
+      <CertificationsSection {...sharedMultiProps} />
+      <EmploymentHistorySection {...sharedMultiProps} />
+      <NomineesSection {...sharedMultiProps} />
+      <DependentsSection {...sharedMultiProps} />
+
+      {/* ── Additional notes ── */}
+      <DataSection
+        title="Additional Notes"
+        icon={<DocumentTextBoldDuotone size={18} />}
+        fields={[
+          { label: "Languages", key: "languages", value: e.languages },
+          { label: "Notes", key: "notes", value: e.notes, type: "textarea" },
+        ]}
+        defaultOpen={false}
+        {...sharedSectionProps}
+      />
     </div>
   );
 }

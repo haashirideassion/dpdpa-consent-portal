@@ -7,8 +7,8 @@ import { EmployeeDataView } from "@/components/EmployeeDataView";
 import { GranularConsentForm } from "@/components/GranularConsentForm";
 import { MyConsentsView } from "@/components/MyConsentsView";
 import { DpdpaLegend } from "@/components/DpdpaLegend";
-import { DpdpaInfo } from "@/components/DpdpaInfo";
 import { DpdpaActContent } from "@/components/DpdpaActContent";
+import { ProfileSidebar } from "@/components/ProfileSidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UserBoldDuotone } from "solar-icon-set";
@@ -34,7 +34,6 @@ function AdminMyData() {
 
   const [activeTemplate, setActiveTemplate] = useState<ConsentTemplate | null>(null);
   const [hasConsented, setHasConsented] = useState(false);
-  const [dpdpaInfoDismissed, setDpdpaInfoDismissed] = useState(false);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -46,12 +45,14 @@ function AdminMyData() {
           setNotLinked(true);
         } else {
           setEmployee(record);
-          
-          // Fetch consent data
+
           const activeTemplateData = await ConsentService.getActiveTemplate().catch(() => null);
           let consentedToActive = false;
           if (activeTemplateData) {
-            consentedToActive = await ConsentService.hasConsentedToVersion(record.id, activeTemplateData.version).catch(() => false);
+            consentedToActive = await ConsentService.hasConsentedToVersion(
+              record.id,
+              activeTemplateData.version
+            ).catch(() => false);
           }
           setActiveTemplate(activeTemplateData);
           setHasConsented(consentedToActive);
@@ -72,9 +73,14 @@ function AdminMyData() {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-48" />
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-32 w-full rounded-xl" />
-        ))}
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
+          <Skeleton className="h-[420px] rounded-xl" />
+          <div className="space-y-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-32 w-full rounded-xl" />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -93,66 +99,65 @@ function AdminMyData() {
     );
   }
 
-  // ── Full editable profile with Consent Tabs ─────────────────────────────
   const isOwnData = employee.user_id === user?.id;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      {/* ── Page header ── */}
+      <div className="page-header">
+        <h1>My Profile</h1>
+        <p>View and update your personal employee profile, and manage DPDPA consent.</p>
+      </div>
+
       <Tabs defaultValue="my-data">
-        <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold">My Data</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              View and update your personal employee profile, and manage DPDPA consent.
-              {employee?.employee_code && (
-                <span className="ml-2 font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
-                  {employee.employee_code}
-                </span>
-              )}
-            </p>
-          </div>
-          <TabsList className="shrink-0">
-            <TabsTrigger value="my-data">My Data & Consent</TabsTrigger>
-            <TabsTrigger value="history">My Consents History</TabsTrigger>
-            <TabsTrigger value="dpdpa-act">DPDPA Act</TabsTrigger>
-          </TabsList>
-        </div>
+        <TabsList className="mb-5">
+          <TabsTrigger value="my-data">My Data &amp; Consent</TabsTrigger>
+          <TabsTrigger value="history">My Consents</TabsTrigger>
+          <TabsTrigger value="dpdpa-act">DPDPA Act</TabsTrigger>
+        </TabsList>
 
         {/* ── Tab 1: My Data & Consent ── */}
-        <TabsContent value="my-data" className="space-y-6 mt-0">
-          {!dpdpaInfoDismissed && <DpdpaInfo onDismiss={() => setDpdpaInfoDismissed(true)} />}
+        <TabsContent value="my-data" className="mt-0">
+          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6 items-start">
 
-          <DpdpaLegend />
+            {/* Left: sticky profile sidebar — no DPDPA banner for admin */}
+            <ProfileSidebar employee={employee} role="admin" />
 
-          {/* Full employee profile with edit enabled (hasConsented determines if locked) */}
-          <EmployeeDataView
-            employee={employee}
-            hasConsented={hasConsented}
-            isAdmin={true}
-            onEmployeeUpdated={async (updated) => {
-              if (updated) {
-                setEmployee(updated);
-              } else {
-                // Re-fetch fresh data from DB
-                const fresh = await EmployeeService.getByUserId(user!.id);
-                if (fresh) setEmployee(fresh);
-              }
-            }}
-          />
+            {/* Right: profile fields + consent */}
+            <div className="space-y-5 min-w-0">
+              <DpdpaLegend />
 
-          {isOwnData && user && activeTemplate && (
-            <GranularConsentForm
-              employeeId={employee.id}
-              userId={user.id}
-              template={activeTemplate}
-              hasConsented={hasConsented}
-              onConsentSubmitted={async () => {
-                // Refresh consent state
-                const consentedToActive = await ConsentService.hasConsentedToVersion(employee.id, activeTemplate.version).catch(() => false);
-                setHasConsented(consentedToActive);
-              }}
-            />
-          )}
+              <EmployeeDataView
+                employee={employee}
+                hasConsented={hasConsented}
+                isAdmin={true}
+                onEmployeeUpdated={async (updated) => {
+                  if (updated) {
+                    setEmployee(updated);
+                  } else {
+                    const fresh = await EmployeeService.getByUserId(user!.id);
+                    if (fresh) setEmployee(fresh);
+                  }
+                }}
+              />
+
+              {isOwnData && user && activeTemplate && (
+                <GranularConsentForm
+                  employeeId={employee.id}
+                  userId={user.id}
+                  template={activeTemplate}
+                  hasConsented={hasConsented}
+                  onConsentSubmitted={async () => {
+                    const consentedToActive = await ConsentService.hasConsentedToVersion(
+                      employee.id,
+                      activeTemplate.version
+                    ).catch(() => false);
+                    setHasConsented(consentedToActive);
+                  }}
+                />
+              )}
+            </div>
+          </div>
         </TabsContent>
 
         {/* ── Tab 2: My Consents History ── */}

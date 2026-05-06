@@ -3,6 +3,8 @@ import { ArrowDownBoldDuotone, ArrowUpBoldDuotone } from "solar-icon-set";
 import { PenBoldDuotone, LockKeyholeMinimalisticBoldDuotone } from "solar-icon-set";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { DataField, type FieldDef } from "./DataField";
 import { CorrectionRequestModal } from "./CorrectionRequestModal";
 import { toast } from "sonner";
@@ -23,14 +25,32 @@ interface DataSectionProps {
   isOwner?: boolean;
 }
 
-export function DataSection({ title, icon, fields, defaultOpen = true, onSave, hasConsented = false, employeeId, isAdmin = false, isOwner = false }: DataSectionProps) {
+export function DataSection({
+  title,
+  icon,
+  fields,
+  defaultOpen = true,
+  onSave,
+  hasConsented = false,
+  employeeId,
+  isAdmin = false,
+  isOwner = false,
+}: DataSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>({});
 
+  // Address sync — copies current_address → permanent_address while checked
+  const [addressSync, setAddressSync] = useState(false);
+
   // Correction modal state
   const [correctionField, setCorrectionField] = useState<FieldDef | null>(null);
+
+  // Whether this section has both address fields (enables sync feature)
+  const hasCurrentAddress = fields.some((f) => f.key === "current_address");
+  const hasPermanentAddress = fields.some((f) => f.key === "permanent_address");
+  const showAddressSync = hasCurrentAddress && hasPermanentAddress;
 
   function startEdit() {
     const initial: Record<string, string> = {};
@@ -38,12 +58,14 @@ export function DataSection({ title, icon, fields, defaultOpen = true, onSave, h
       initial[f.key] = f.value ?? "";
     });
     setDraft(initial);
+    setAddressSync(false);
     setEditMode(true);
     if (!open) setOpen(true);
   }
 
   function cancelEdit() {
     setDraft({});
+    setAddressSync(false);
     setEditMode(false);
   }
 
@@ -53,6 +75,7 @@ export function DataSection({ title, icon, fields, defaultOpen = true, onSave, h
     try {
       await onSave(draft);
       setEditMode(false);
+      setAddressSync(false);
       setDraft({});
       toast.success(`${title} updated successfully`);
     } catch {
@@ -62,12 +85,34 @@ export function DataSection({ title, icon, fields, defaultOpen = true, onSave, h
     }
   }
 
+  /** Draft change handler — propagates current_address to permanent_address when sync is on */
+  function handleDraftChange(key: string, val: string) {
+    setDraft((prev) => {
+      const next = { ...prev, [key]: val };
+      if (key === "current_address" && addressSync) {
+        next["permanent_address"] = val;
+      }
+      return next;
+    });
+  }
+
+  /** Toggle address sync — immediately copies current → permanent when enabled */
+  function toggleAddressSync(checked: boolean) {
+    setAddressSync(checked);
+    if (checked) {
+      setDraft((prev) => ({
+        ...prev,
+        permanent_address: prev["current_address"] ?? "",
+      }));
+    }
+  }
+
   // The header action button differs based on consent state
   function renderHeaderAction() {
-    // Locked after consent — show "Request Correction" per field (triggered from DataField)
+    // Locked after consent — show "Locked" pill (corrections are per-field)
     if (hasConsented) {
       return (
-        <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 font-medium">
+        <div className="flex items-center gap-1.5 text-xs text-warning-foreground font-medium">
           <LockKeyholeMinimalisticBoldDuotone size={13} />
           Locked
         </div>
@@ -106,9 +151,9 @@ export function DataSection({ title, icon, fields, defaultOpen = true, onSave, h
   return (
     <>
       <Card className="border border-border shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between py-4 px-6">
+        <CardHeader className="flex flex-row items-center justify-between py-3.5 px-5">
           <div
-            className="flex items-center gap-3 cursor-pointer select-none flex-1"
+            className="flex items-center gap-2.5 cursor-pointer select-none flex-1"
             onClick={() => !editMode && setOpen(!open)}
           >
             <span className="text-primary">{icon}</span>
@@ -126,35 +171,62 @@ export function DataSection({ title, icon, fields, defaultOpen = true, onSave, h
         </CardHeader>
 
         {open && (
-          <CardContent className="px-6 pb-6 pt-0">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8">
-              {fields.map((f) => (
-                <div key={f.key} className="relative flex flex-col gap-1 py-2">
-                  <DataField
-                    label={f.label}
-                    value={f.value}
-                    type={f.type}
-                    options={f.options}
-                    locked={hasConsented || f.locked}
-                    fieldKey={f.key}
-                    editMode={!hasConsented && editMode}
-                    draft={draft[f.key]}
-                    onDraftChange={(k, val) => setDraft((prev) => ({ ...prev, [k]: val }))}
-                    isAdmin={isAdmin}
-                    isOwner={isOwner}
-                  />
-                  {/* Always-visible correction pill — shown post-consent for correctable fields */}
-                  {hasConsented && !f.uncorrectable && employeeId && (
-                    <button
-                      type="button"
-                      onClick={() => setCorrectionField(f)}
-                      className="self-start mt-0.5 inline-flex items-center gap-1 text-[10px] font-medium text-primary border border-primary/30 bg-primary/5 hover:bg-primary/15 rounded-full px-2 py-0.5 transition-colors"
-                    >
-                      Request Correction
-                    </button>
-                  )}
-                </div>
-              ))}
+          <CardContent className="px-5 pb-5 pt-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6">
+              {fields.map((f) => {
+                const isPermanentAddress = f.key === "permanent_address";
+                // When address sync is on, permanent_address shows as locked read-only
+                const syncLocked = isPermanentAddress && addressSync && editMode;
+
+                return (
+                  <div
+                    key={f.key}
+                    className="relative flex flex-col gap-1 py-2"
+                  >
+                    {/* Address sync checkbox — above the Permanent Address field, in edit mode only */}
+                    {isPermanentAddress && editMode && showAddressSync && (
+                      <div className="flex items-center gap-2 mb-1">
+                        <Checkbox
+                          id="address-sync"
+                          checked={addressSync}
+                          onCheckedChange={(checked) => toggleAddressSync(!!checked)}
+                        />
+                        <Label
+                          htmlFor="address-sync"
+                          className="text-[11px] text-muted-foreground cursor-pointer select-none"
+                        >
+                          Same as Current Address
+                        </Label>
+                      </div>
+                    )}
+
+                    <DataField
+                      label={f.label}
+                      value={syncLocked ? draft["permanent_address"] ?? f.value : f.value}
+                      type={f.type}
+                      options={f.options}
+                      locked={hasConsented || f.locked || syncLocked}
+                      fieldKey={f.key}
+                      editMode={!hasConsented && editMode}
+                      draft={syncLocked ? draft["permanent_address"] ?? "" : draft[f.key]}
+                      onDraftChange={handleDraftChange}
+                      isAdmin={isAdmin}
+                      isOwner={isOwner}
+                    />
+
+                    {/* Per-field correction pill — shown post-consent for correctable fields */}
+                    {hasConsented && !f.uncorrectable && employeeId && (
+                      <button
+                        type="button"
+                        onClick={() => setCorrectionField(f)}
+                        className="self-start mt-0.5 inline-flex items-center gap-1 text-[10px] font-medium text-primary border border-primary/30 bg-primary/5 hover:bg-primary/15 rounded-full px-2 py-0.5 transition-colors"
+                      >
+                        Request Correction
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         )}

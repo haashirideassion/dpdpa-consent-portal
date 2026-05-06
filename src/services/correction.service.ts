@@ -175,4 +175,69 @@ export const CorrectionService = {
 
     return !!data;
   },
+
+  /**
+   * Submits a structured record-level correction request for a multi-entry section.
+   * - type "edit": employee is requesting a change to an existing record
+   * - type "add":  employee is requesting to add a missing record
+   *
+   * Stores:
+   *   field_name = "__section_edit__" | "__section_add__"
+   *   table_name = sectionKey (e.g. "employee_education")
+   *   old_value  = JSON { section, recordId, values: originalFields }
+   *   new_value  = JSON { section, values: editedFields }
+   *
+   * Original data is NOT touched — admin reviews and applies manually.
+   */
+  async submitSectionRecordCorrection(params: {
+    employeeId: string;
+    sectionKey: string;
+    sectionLabel: string;
+    type: "edit" | "add";
+    recordId?: string;
+    oldValues: Record<string, any>;
+    newValues: Record<string, any>;
+    attachmentUrl?: string;
+  }): Promise<void> {
+    const fieldName = params.type === "edit" ? "__section_edit__" : "__section_add__";
+
+    const { error } = await (supabase.from("correction_requests") as any).insert({
+      employee_id:    params.employeeId,
+      field_name:     fieldName,
+      table_name:     params.sectionKey,
+      old_value:      JSON.stringify({
+        section:  params.sectionLabel,
+        recordId: params.recordId ?? null,
+        values:   params.oldValues,
+      }),
+      new_value:      JSON.stringify({
+        section: params.sectionLabel,
+        values:  params.newValues,
+      }),
+      status:         "pending",
+      attachment_url: params.attachmentUrl ?? null,
+    });
+
+    if (error) throw error;
+  },
+
+  /**
+   * Returns true if the employee already has a pending section record correction
+   * for the given section (any record), to prevent duplicate submissions.
+   */
+  async hasPendingSectionRecordCorrection(
+    employeeId: string,
+    sectionKey: string
+  ): Promise<boolean> {
+    const { data } = await (supabase.from("correction_requests") as any)
+      .select("id")
+      .eq("employee_id", employeeId)
+      .in("field_name", ["__section_edit__", "__section_add__"])
+      .eq("table_name", sectionKey)
+      .eq("status", "pending")
+      .limit(1)
+      .maybeSingle();
+
+    return !!data;
+  },
 };
