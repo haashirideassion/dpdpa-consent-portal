@@ -139,8 +139,14 @@ function CorrectionsQueue() {
     try {
       await CorrectionService.approve(req.id);
       const type = getSectionType(req);
-      if (type === "section_edit" || type === "section_add" || type === "section_legacy") {
-        toast.success("Section correction approved — apply the changes manually in the employee profile.");
+      if (type === "section_edit" || type === "section_legacy") {
+        const parsed = parseSectionJson(req.old_value);
+        const label = parsed.section ?? req.table_name ?? "Section";
+        toast.success(`${label} correction approved — record updated.`);
+      } else if (type === "section_add") {
+        const parsed = parseSectionJson(req.new_value);
+        const label = parsed.section ?? req.table_name ?? "Section";
+        toast.success(`${label} correction approved — new record added.`);
       } else {
         toast.success(`Correction approved — ${req.field_name} updated.`);
       }
@@ -319,10 +325,10 @@ function CorrectionsQueue() {
                     </a>
                   )}
 
-                  {/* Section corrections require manual update reminder */}
+                  {/* Section corrections are auto-applied on approval */}
                   {(type === "section_edit" || type === "section_add") && req.status === "pending" && (
-                    <p className="text-[11px] text-warning-foreground bg-warning/10 dark:bg-warning/10 rounded px-2 py-1 mt-1">
-                      After approving, update this record manually in the employee’s profile.
+                    <p className="text-[11px] text-muted-foreground bg-muted/60 rounded px-2 py-1 mt-1">
+                      Approving will automatically apply this change to the employee record.
                     </p>
                   )}
                 </div>

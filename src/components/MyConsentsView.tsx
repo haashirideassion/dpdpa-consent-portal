@@ -38,6 +38,7 @@ import {
   LockKeyholeMinimalisticBoldDuotone,
   RefreshBoldDuotone,
   ArrowDownBoldDuotone,
+  AddCircleBoldDuotone,
 } from "solar-icon-set";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -176,11 +177,13 @@ function ConsentCard({
   canAct,
   onWithdraw,
   onReConsent,
+  onGiveConsent,
 }: {
   item: PurposeConsentStatus;
   canAct: boolean;
   onWithdraw: (item: PurposeConsentStatus) => void;
   onReConsent: (item: PurposeConsentStatus) => void;
+  onGiveConsent: (item: PurposeConsentStatus) => void;
 }) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const hasHistory = item.grantHistory.length + item.withdrawalHistory.length > 0;
@@ -240,6 +243,17 @@ function ConsentCard({
 
             {canAct && !item.purpose.is_mandatory && (
               <>
+                {item.currentStatus === "pending" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50 gap-1"
+                    onClick={() => onGiveConsent(item)}
+                  >
+                    <AddCircleBoldDuotone size={13} />
+                    Give Consent
+                  </Button>
+                )}
                 {item.currentStatus === "active" && (
                   <Button
                     variant="outline"
@@ -422,6 +436,69 @@ function WithdrawDialog({
   );
 }
 
+// ── Give Consent dialog (first-time, pending optional purpose) ────────────────
+function GiveConsentDialog({
+  item,
+  onClose,
+  onConfirm,
+  loading,
+}: {
+  item: PurposeConsentStatus | null;
+  onClose: () => void;
+  onConfirm: () => void;
+  loading: boolean;
+}) {
+  if (!item) return null;
+
+  return (
+    <Dialog open={!!item} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <AddCircleBoldDuotone size={20} className="text-emerald-600" />
+            Give Consent
+          </DialogTitle>
+          <DialogDescription className="text-sm">
+            You are consenting to{" "}
+            <span className="font-semibold text-foreground">
+              {item.purpose.label}
+            </span>
+            .
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-2 text-sm text-muted-foreground">
+          <p className="leading-relaxed">{item.purpose.description}</p>
+          {item.purpose.legal_basis && (
+            <p className="text-xs bg-muted/50 rounded px-3 py-2">
+              <span className="font-medium text-foreground">Legal basis:</span>{" "}
+              {item.purpose.legal_basis}
+            </p>
+          )}
+        </div>
+
+        <p className="text-xs text-muted-foreground bg-emerald-50 border border-emerald-100 rounded-md p-3">
+          A timestamped consent record will be created. You may withdraw this
+          consent at any time.
+        </p>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose} className="text-sm">
+            Cancel
+          </Button>
+          <Button
+            onClick={onConfirm}
+            disabled={loading}
+            className="text-sm gap-1 bg-emerald-600 hover:bg-emerald-700"
+          >
+            {loading ? "Processing..." : "Confirm Consent"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Re-consent confirmation dialog ───────────────────────────────────────────
 function ReConsentDialog({
   item,
@@ -595,6 +672,7 @@ export function MyConsentsView({
   // Dialog state
   const [withdrawTarget, setWithdrawTarget] = useState<PurposeConsentStatus | null>(null);
   const [reConsentTarget, setReConsentTarget] = useState<PurposeConsentStatus | null>(null);
+  const [giveConsentTarget, setGiveConsentTarget] = useState<PurposeConsentStatus | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [dprOpen, setDprOpen] = useState(false);
 
@@ -653,6 +731,29 @@ export function MyConsentsView({
     }
   };
 
+  const handleGiveConsentConfirm = async () => {
+    if (!giveConsentTarget || !userId) return;
+    setActionLoading(true);
+    const ok = await ConsentService.reGrantConsent({
+      employeeId,
+      userId,
+      purposeKey: giveConsentTarget.purpose.purpose_key,
+      purposeLabel: giveConsentTarget.purpose.label,
+      templateId: giveConsentTarget.purpose.templateId,
+      templateVersion: giveConsentTarget.purpose.templateVersion,
+      isMandatory: giveConsentTarget.purpose.is_mandatory,
+      employeeName: employeeName ?? "Employee",
+    });
+    setActionLoading(false);
+    if (ok) {
+      toast.success(`Consent given for "${giveConsentTarget.purpose.label}".`);
+      setGiveConsentTarget(null);
+      fetchStatuses();
+    } else {
+      toast.error("Failed to record consent. Please try again.");
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-3 mt-4">
@@ -672,6 +773,7 @@ export function MyConsentsView({
 
   const activeCount = statuses.filter((s) => s.currentStatus === "active").length;
   const withdrawnCount = statuses.filter((s) => s.currentStatus === "withdrawn").length;
+  const pendingOptionalCount = optional.filter((s) => s.currentStatus === "pending").length;
   const canAct = !!userId;
 
   return (
@@ -690,6 +792,11 @@ export function MyConsentsView({
             {withdrawnCount > 0 && (
               <span className="text-xs text-muted-foreground">
                 <span className="font-semibold text-red-600">{withdrawnCount}</span> withdrawn
+              </span>
+            )}
+            {pendingOptionalCount > 0 && (
+              <span className="text-xs text-muted-foreground">
+                <span className="font-semibold text-amber-600">{pendingOptionalCount}</span> pending
               </span>
             )}
             <span className="text-xs text-muted-foreground">
@@ -725,6 +832,7 @@ export function MyConsentsView({
                 canAct={canAct}
                 onWithdraw={setWithdrawTarget}
                 onReConsent={setReConsentTarget}
+                onGiveConsent={setGiveConsentTarget}
               />
             ))}
           </div>
@@ -748,6 +856,7 @@ export function MyConsentsView({
                 canAct={canAct}
                 onWithdraw={setWithdrawTarget}
                 onReConsent={setReConsentTarget}
+                onGiveConsent={setGiveConsentTarget}
               />
             ))}
           </div>
@@ -772,6 +881,12 @@ export function MyConsentsView({
         item={reConsentTarget}
         onClose={() => setReConsentTarget(null)}
         onConfirm={handleReConsentConfirm}
+        loading={actionLoading}
+      />
+      <GiveConsentDialog
+        item={giveConsentTarget}
+        onClose={() => setGiveConsentTarget(null)}
+        onConfirm={handleGiveConsentConfirm}
         loading={actionLoading}
       />
       <DprDialog

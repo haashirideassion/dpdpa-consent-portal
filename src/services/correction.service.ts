@@ -1,42 +1,75 @@
 import { supabase } from "@/integrations/supabase/client";
 
-// Maps UI field keys to their actual DB table + column
-// Mirrors the mapping in employee.service.ts
+// Maps UI field keys to their actual DB table + column.
+// Must stay in sync with employee.service.ts FIELD_MAP.
 const FIELD_MAP: Record<string, { table: string; column: string }> = {
-  first_name:                  { table: "employees",                    column: "first_name" },
-  last_name:                   { table: "employees",                    column: "last_name" },
-  date_of_birth:               { table: "employee_personal_details",    column: "dob" },
-  gender:                      { table: "employee_personal_details",    column: "gender" },
-  blood_group:                 { table: "employee_personal_details",    column: "blood_group" },
-  marital_status:              { table: "employee_personal_details",    column: "marital_status" },
-  nationality:                 { table: "employee_personal_details",    column: "nationality" },
-  personal_email:              { table: "employee_contact_details",     column: "personal_email" },
-  phone_number:                { table: "employee_contact_details",     column: "phone" },
-  alternate_phone:             { table: "employee_contact_details",     column: "alternate_phone" },
-  current_address:             { table: "employee_contact_details",     column: "current_address" },
-  permanent_address:           { table: "employee_contact_details",     column: "permanent_address" },
-  city:                        { table: "employee_contact_details",     column: "city" },
-  state:                       { table: "employee_contact_details",     column: "state" },
-  pincode:                     { table: "employee_contact_details",     column: "pincode" },
-  bank_name:                   { table: "employee_financial_details",   column: "bank_name" },
-  bank_account_number:         { table: "employee_financial_details",   column: "bank_account_number" },
-  ifsc_code:                   { table: "employee_financial_details",   column: "ifsc" },
-  pan_number:                  { table: "employee_financial_details",   column: "pan" },
-  ctc:                         { table: "employee_financial_details",   column: "ctc" },
-  aadhaar_number:              { table: "employee_govt_ids",            column: "aadhaar" },
-  uan_number:                  { table: "employee_govt_ids",            column: "uan" },
-  passport_number:             { table: "employee_govt_ids",            column: "passport" },
-  passport_expiry:             { table: "employee_govt_ids",            column: "passport_expiry" },
-  driving_license:             { table: "employee_govt_ids",            column: "driving_license" },
-  voter_id:                    { table: "employee_govt_ids",            column: "voter_id" },
-  emergency_contact_name:      { table: "employee_emergency_contacts",  column: "contact_name" },
-  emergency_contact_relation:  { table: "employee_emergency_contacts",  column: "relation" },
-  emergency_contact_phone:     { table: "employee_emergency_contacts",  column: "contact_phone" },
-  emergency_contact_email:     { table: "employee_emergency_contacts",  column: "contact_email" },
-  qualifications:              { table: "employee_additional_details",  column: "qualifications" },
-  certifications:              { table: "employee_additional_details",  column: "certifications" },
-  languages:                   { table: "employee_additional_details",  column: "languages" },
-  notes:                       { table: "employee_additional_details",  column: "notes" },
+  // ── employees (master) ────────────────────────────────────────────────────
+  first_name:                  { table: "employees",                     column: "first_name" },
+  last_name:                   { table: "employees",                     column: "last_name" },
+
+  // ── employee_personal_details ─────────────────────────────────────────────
+  date_of_birth:               { table: "employee_personal_details",     column: "dob" },
+  gender:                      { table: "employee_personal_details",     column: "gender" },
+  blood_group:                 { table: "employee_personal_details",     column: "blood_group" },
+  marital_status:              { table: "employee_personal_details",     column: "marital_status" },
+  nationality:                 { table: "employee_personal_details",     column: "nationality" },
+  father_name:                 { table: "employee_personal_details",     column: "father_name" },
+  mother_name:                 { table: "employee_personal_details",     column: "mother_name" },
+
+  // ── employee_contact_details ──────────────────────────────────────────────
+  personal_email:              { table: "employee_contact_details",      column: "personal_email" },
+  phone_number:                { table: "employee_contact_details",      column: "phone" },
+  alternate_phone:             { table: "employee_contact_details",      column: "alternate_phone" },
+  current_address:             { table: "employee_contact_details",      column: "current_address" },
+  permanent_address:           { table: "employee_contact_details",      column: "permanent_address" },
+  city:                        { table: "employee_contact_details",      column: "city" },
+  state:                       { table: "employee_contact_details",      column: "state" },
+  pincode:                     { table: "employee_contact_details",      column: "pincode" },
+
+  // ── employee_employment_details ───────────────────────────────────────────
+  department:                  { table: "employee_employment_details",   column: "department" },
+  designation:                 { table: "employee_employment_details",   column: "designation" },
+  date_of_joining:             { table: "employee_employment_details",   column: "joining_date" },
+  employment_type:             { table: "employee_employment_details",   column: "employment_type" },
+  reporting_manager:           { table: "employee_employment_details",   column: "manager" },
+  work_location:               { table: "employee_employment_details",   column: "work_location" },
+  employee_status:             { table: "employee_employment_details",   column: "status" },
+
+  // ── employee_financial_details ────────────────────────────────────────────
+  bank_name:                   { table: "employee_financial_details",    column: "bank_name" },
+  bank_account_number:         { table: "employee_financial_details",    column: "bank_account_number" },
+  ifsc_code:                   { table: "employee_financial_details",    column: "ifsc" },
+  pan_number:                  { table: "employee_financial_details",    column: "pan" },
+  ctc:                         { table: "employee_financial_details",    column: "ctc" },
+  bank_branch:                 { table: "employee_financial_details",    column: "bank_branch" },
+  upi_id:                      { table: "employee_financial_details",    column: "upi_id" },
+  pf_account:                  { table: "employee_financial_details",    column: "pf_account" },
+  esic_number:                 { table: "employee_financial_details",    column: "esic_number" },
+
+  // ── employee_govt_ids ─────────────────────────────────────────────────────
+  aadhaar_number:              { table: "employee_govt_ids",             column: "aadhaar" },
+  uan_number:                  { table: "employee_govt_ids",             column: "uan" },
+  passport_number:             { table: "employee_govt_ids",             column: "passport" },
+  passport_expiry:             { table: "employee_govt_ids",             column: "passport_expiry" },
+  driving_license:             { table: "employee_govt_ids",             column: "driving_license" },
+  voter_id:                    { table: "employee_govt_ids",             column: "voter_id" },
+
+  // ── employee_emergency_contacts ───────────────────────────────────────────
+  emergency_contact_name:      { table: "employee_emergency_contacts",   column: "contact_name" },
+  emergency_contact_relation:  { table: "employee_emergency_contacts",   column: "relation" },
+  emergency_contact_phone:     { table: "employee_emergency_contacts",   column: "contact_phone" },
+  emergency_contact_email:     { table: "employee_emergency_contacts",   column: "contact_email" },
+
+  // ── employee_additional_details ───────────────────────────────────────────
+  qualifications:              { table: "employee_additional_details",   column: "qualifications" },
+  certifications:              { table: "employee_additional_details",   column: "certifications" },
+  languages:                   { table: "employee_additional_details",   column: "languages" },
+  notes:                       { table: "employee_additional_details",   column: "notes" },
+
+  // ── employee_health_info ──────────────────────────────────────────────────
+  disability_status:           { table: "employee_health_info",          column: "disability_status" },
+  chronic_conditions:          { table: "employee_health_info",          column: "chronic_conditions" },
+  allergies:                   { table: "employee_health_info",          column: "allergies" },
 };
 
 export interface CorrectionRequest {
