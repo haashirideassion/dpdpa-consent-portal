@@ -172,69 +172,96 @@ export function EmployeeDataView({
     },
   ];
 
-  const sharedSectionProps = {
+  /**
+   * Flat sections that employees can NEVER directly edit.
+   * Admins retain full edit capability via adminOverride.
+   * No "Update" correction buttons shown (allowCorrection=false).
+   */
+  const readOnlySectionProps = {
     hasConsented,
     isAdmin,
     isOwner,
     employeeId: e.id as string,
-    onSave: hasConsented ? undefined : saveSection,
+    // Only admin can save these sections; employees cannot edit them at all
+    onSave: isAdmin ? saveSection : undefined,
+    allowCorrection: false,
   };
 
-  const sharedMultiProps = {
+  /**
+   * Multi-entry sections that employees CAN update after consent.
+   * All changes (add/edit/delete) go through the update request (correction_requests)
+   * approval workflow — employees NEVER directly modify production records post-consent.
+   * Admins (isAdmin=true) bypass the lock and can edit directly.
+   */
+  const editableMultiProps = {
+    employeeId: e.id as string,
+    isAdmin,
+    hasConsented,  // Use actual value; MultiEntrySection routes locked changes through approval flow
+  };
+
+  /**
+   * Multi-entry sections that are purely read-only for employees
+   * (Employment History). allowUpdate=false hides all action buttons.
+   * Admins can still edit normally.
+   */
+  const lockedMultiProps = {
     employeeId: e.id as string,
     isAdmin,
     hasConsented,
+    allowUpdate: false,
   };
 
   return (
     <div className="space-y-4">
-      {/* ── Flat sections ── */}
+      {/* ── Read-only flat sections (employees cannot edit) ── */}
       <DataSection
         title="Personal & Contact Information"
         icon={<UserBoldDuotone size={18} />}
         fields={personalContactFields}
-        {...sharedSectionProps}
+        {...readOnlySectionProps}
       />
       <DataSection
         title="Employment Information"
         icon={<CaseMinimalisticBoldDuotone size={18} />}
         fields={employmentFields}
-        {...sharedSectionProps}
+        {...readOnlySectionProps}
       />
       <DataSection
         title="Payroll & Banking"
         icon={<CardBoldDuotone size={18} />}
         fields={payrollFields}
-        {...sharedSectionProps}
+        {...readOnlySectionProps}
       />
       <DataSection
         title="Government Identification"
         icon={<PassportBoldDuotone size={18} />}
         fields={govtFields}
-        {...sharedSectionProps}
+        {...readOnlySectionProps}
       />
       <DataSection
         title="Emergency Contact"
         icon={<HospitalBoldDuotone size={18} />}
         fields={emergencyFields}
-        {...sharedSectionProps}
+        {...readOnlySectionProps}
       />
       <DataSection
         title="Health Information (Optional)"
         icon={<HeartBoldDuotone size={18} />}
         fields={healthFields}
         defaultOpen={false}
-        {...sharedSectionProps}
+        {...readOnlySectionProps}
       />
 
-      {/* ── Multi-entry sections ── */}
-      <EducationSection {...sharedMultiProps} />
-      <CertificationsSection {...sharedMultiProps} />
-      <EmploymentHistorySection {...sharedMultiProps} />
-      <NomineesSection {...sharedMultiProps} />
-      <DependentsSection {...sharedMultiProps} />
+      {/* ── Editable multi-entry sections (employees can always edit directly) ── */}
+      <EducationSection {...editableMultiProps} />
+      <CertificationsSection {...editableMultiProps} />
+      <DependentsSection {...editableMultiProps} />
+      <NomineesSection {...editableMultiProps} />
 
-      {/* ── Additional notes ── */}
+      {/* ── Read-only multi-entry sections (employees cannot edit) ── */}
+      <EmploymentHistorySection {...lockedMultiProps} />
+
+      {/* ── Additional notes (read-only for employees) ── */}
       <DataSection
         title="Additional Notes"
         icon={<DocumentTextBoldDuotone size={18} />}
@@ -243,7 +270,7 @@ export function EmployeeDataView({
           { label: "Notes", key: "notes", value: e.notes, type: "textarea" },
         ]}
         defaultOpen={false}
-        {...sharedSectionProps}
+        {...readOnlySectionProps}
       />
     </div>
   );

@@ -24,7 +24,11 @@ export interface FieldDef {
   uncorrectable?: boolean;
 }
 
-interface DataFieldProps extends FieldDef {
+// Omit 'key' from FieldDef because React's JSX treats 'key' as a special
+// reconciliation hint and never forwards it to the component as a prop.
+// The field identifier is passed separately as 'fieldKey'.
+interface DataFieldProps extends Omit<FieldDef, "key"> {
+  fieldKey: string;
   editMode?: boolean;
   draft?: string;
   onDraftChange?: (key: string, value: string) => void;
@@ -52,7 +56,7 @@ export function DataField({
   onDraftChange,
   isAdmin = false,
   isOwner = false,
-}: DataFieldProps & { fieldKey: string }) {
+}: DataFieldProps) {
   const sensitive = isDpdpaField(fieldKey);
 
   const SENSITIVE_FIELDS = [

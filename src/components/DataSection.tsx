@@ -23,6 +23,12 @@ interface DataSectionProps {
   isAdmin?: boolean;
   /** When true, indicates the user is viewing their own data */
   isOwner?: boolean;
+  /**
+   * When false, suppresses per-field "Update" buttons even after consent.
+   * Use for sections employees are never allowed to update (e.g. Personal, Employment).
+   * Defaults to true.
+   */
+  allowCorrection?: boolean;
 }
 
 export function DataSection({
@@ -35,6 +41,7 @@ export function DataSection({
   employeeId,
   isAdmin = false,
   isOwner = false,
+  allowCorrection = true,
 }: DataSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [editMode, setEditMode] = useState(false);
@@ -107,10 +114,10 @@ export function DataSection({
     }
   }
 
-  // The header action button differs based on consent state
+  // The header action button differs based on consent state and role
   function renderHeaderAction() {
-    // Locked after consent — show "Locked" pill (corrections are per-field)
-    if (hasConsented) {
+    // Locked after consent for non-admin employees — show "Locked" pill only
+    if (hasConsented && !isAdmin) {
       return (
         <div className="flex items-center gap-1.5 text-xs text-warning-foreground font-medium">
           <LockKeyholeMinimalisticBoldDuotone size={13} />
@@ -119,7 +126,7 @@ export function DataSection({
       );
     }
 
-    // Normal edit mode
+    // No onSave provided — section is read-only (no edit button)
     if (!onSave) return null;
 
     if (editMode) {
@@ -205,7 +212,7 @@ export function DataSection({
                       value={syncLocked ? draft["permanent_address"] ?? f.value : f.value}
                       type={f.type}
                       options={f.options}
-                      locked={hasConsented || f.locked || syncLocked}
+                      locked={(hasConsented && !isAdmin) || f.locked || syncLocked}
                       fieldKey={f.key}
                       editMode={!hasConsented && editMode}
                       draft={syncLocked ? draft["permanent_address"] ?? "" : draft[f.key]}
@@ -214,14 +221,14 @@ export function DataSection({
                       isOwner={isOwner}
                     />
 
-                    {/* Per-field correction pill — shown post-consent for correctable fields */}
-                    {hasConsented && !f.uncorrectable && employeeId && (
+                    {/* Per-field update pill — shown post-consent only for correctable+allowed sections */}
+                    {hasConsented && !f.uncorrectable && employeeId && allowCorrection && (
                       <button
                         type="button"
                         onClick={() => setCorrectionField(f)}
                         className="self-start mt-0.5 inline-flex items-center gap-1 text-[10px] font-medium text-primary border border-primary/30 bg-primary/5 hover:bg-primary/15 rounded-full px-2 py-0.5 transition-colors"
                       >
-                        Request Correction
+                        Update
                       </button>
                     )}
                   </div>

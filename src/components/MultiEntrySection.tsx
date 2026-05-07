@@ -78,6 +78,13 @@ interface MultiEntrySectionProps {
   fields: EntryField[];
   renderCard: (entry: any, index: number) => React.ReactNode;
   emptyMessage?: string;
+  /**
+   * When false, hides all action buttons for non-admin locked state
+   * (no Update pill, no "+ Request to add" link).
+   * Use for sections employees are never allowed to update.
+   * Defaults to true.
+   */
+  allowUpdate?: boolean;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -95,6 +102,7 @@ export function MultiEntrySection({
   fields,
   renderCard,
   emptyMessage,
+  allowUpdate = true,
 }: MultiEntrySectionProps) {
   const [entries, setEntries] = useState<any[]>([]);
   const [loadingEntries, setLoadingEntries] = useState(true);
@@ -116,6 +124,8 @@ export function MultiEntrySection({
 
   const isLocked = hasConsented && !isAdmin;
   const canEdit = !isLocked;
+  // Show update (correction) action buttons only when locked AND the section allows it
+  const showUpdateButtons = isLocked && allowUpdate;
 
   // ── Data loading ─────────────────────────────────────────────────────────────
   const fetchEntries = useCallback(async () => {
@@ -242,13 +252,13 @@ export function MultiEntrySection({
 
     setSubmittingCorrection(true);
     try {
-      const alreadyPending = await CorrectionService.hasPendingSectionRecordCorrection(
-        employeeId,
-        sectionKey
-      );
+      // Per-record duplicate check: only block if this specific record already has a pending request
+      const alreadyPending = editTarget
+        ? await CorrectionService.hasPendingEditForRecord(employeeId, sectionKey, editTarget.id)
+        : false;
       if (alreadyPending) {
         toast.warning(
-          "You already have a pending correction request for this section. Please wait for HR to review it."
+          "You already have a pending update request for this record. Please wait for HR to review it."
         );
         return;
       }
@@ -268,7 +278,7 @@ export function MultiEntrySection({
         newValues: { ...draft },
       });
 
-      toast.success("Correction request submitted. HR will review it shortly.");
+      toast.success("Update request submitted. HR will review it shortly.");
       closeSheet();
     } catch (err: any) {
       toast.error(err?.message ?? "Failed to submit correction. Please try again.");
@@ -282,12 +292,39 @@ export function MultiEntrySection({
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await onDelete(deleteTarget.id);
-      toast.success("Record deleted");
+      if (isLocked && sectionKey) {
+        // Locked: check for existing pending delete request for this record
+        const alreadyPending = await CorrectionService.hasPendingDeleteForRecord(
+          employeeId,
+          sectionKey,
+          deleteTarget.id
+        );
+        if (alreadyPending) {
+          toast.warning("You already have a pending delete request for this record.");
+          setDeleteTarget(null);
+          return;
+        }
+
+        // Build current record values snapshot from entry fields
+        const recordValues: Record<string, any> = {};
+        fields.forEach((f) => { recordValues[f.key] = deleteTarget[f.key] ?? ""; });
+
+        await CorrectionService.submitSectionDeleteRequest({
+          employeeId,
+          sectionKey,
+          sectionLabel: title,
+          recordId: deleteTarget.id,
+          recordValues,
+        });
+        toast.success("Delete request submitted. HR will review it shortly.");
+      } else {
+        await onDelete(deleteTarget.id);
+        toast.success("Record deleted");
+        await fetchEntries();
+      }
       setDeleteTarget(null);
-      await fetchEntries();
     } catch {
-      toast.error("Failed to delete. Please try again.");
+      toast.error("Failed to process. Please try again.");
     } finally {
       setDeleting(false);
     }
@@ -297,8 +334,8 @@ export function MultiEntrySection({
   function sheetTitle() {
     if (correctionMode) {
       return editTarget
-        ? `Request Correction — ${title}`
-        : `Request to Add — ${title}`;
+        ? `Update — ${title}`
+        : `Add Request — ${title}`;
     }
     return editTarget ? `Edit ${title}` : `Add ${title}`;
   }
@@ -306,7 +343,7 @@ export function MultiEntrySection({
   // ── Submit button label ───────────────────────────────────────────────────────
   function submitLabel() {
     if (correctionMode) {
-      return submittingCorrection ? "Submitting…" : "Submit Correction Request";
+      return submittingCorrection ? "Submitting…" : "Submit Update";
     }
     if (saving) return "Saving…";
     return editTarget ? "Update" : "Add";
@@ -371,7 +408,7 @@ export function MultiEntrySection({
                   + Add {title.toLowerCase()}
                 </button>
               )}
-              {isLocked && sectionKey && (
+              {showUpdateButtons && sectionKey && (
                 <button
                   type="button"
                   onClick={openCorrectionAdd}
@@ -415,15 +452,24 @@ export function MultiEntrySection({
                     )}
                   </div>
 
-                  {/* Always-visible Request Correction pill — locked state only */}
-                  {isLocked && sectionKey && (
-                    <button
-                      type="button"
-                      onClick={() => openCorrectionEdit(entry)}
-                      className="mt-2 inline-flex items-center gap-1 text-[10px] font-medium text-primary border border-primary/30 bg-primary/5 hover:bg-primary/10 rounded-full px-2 py-0.5 transition-colors"
-                    >
-                      Request Correction
-                    </button>
+                  {/* Update / Delete pills — shown in locked state only when updates are allowed */}
+                  {showUpdateButtons && sectionKey && (
+                    <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => openCorrectionEdit(entry)}
+                        className="inline-flex items-center gap-1 text-[10px] font-medium text-primary border border-primary/30 bg-primary/5 hover:bg-primary/10 rounded-full px-2 py-0.5 transition-colors"
+                      >
+                        Update
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(entry)}
+                        className="inline-flex items-center gap-1 text-[10px] font-medium text-destructive border border-destructive/30 bg-destructive/5 hover:bg-destructive/10 rounded-full px-2 py-0.5 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -440,7 +486,7 @@ export function MultiEntrySection({
             {correctionMode && (
               <p className="text-xs text-muted-foreground leading-relaxed">
                 {editTarget
-                  ? "Edit the values below and submit — your request will be reviewed by HR before any changes are applied."
+                  ? "Edit the values below and submit your update request — HR will review before applying changes."
                   : "Fill in the details of the record you’d like to add — HR will review and apply it."}
               </p>
             )}
@@ -503,9 +549,13 @@ export function MultiEntrySection({
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this record?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {isLocked ? "Request to delete this record?" : "Delete this record?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone.
+              {isLocked
+                ? "A delete request will be submitted for HR review. The record will not be removed until approved."
+                : "This action cannot be undone."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -515,7 +565,9 @@ export function MultiEntrySection({
               disabled={deleting}
               className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
             >
-              {deleting ? "Deleting…" : "Delete"}
+              {deleting
+                ? isLocked ? "Submitting…" : "Deleting…"
+                : isLocked ? "Submit Request" : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

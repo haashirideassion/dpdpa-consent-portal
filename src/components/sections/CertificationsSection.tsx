@@ -35,7 +35,7 @@ export function CertificationsSection({ employeeId, isAdmin, hasConsented }: Pro
       employeeId={employeeId}
       isAdmin={isAdmin}
       hasConsented={hasConsented}
-      sectionKey="employee_certifications"
+      sectionKey="employee_certifications_v2"
       loader={EmployeeService.getCertifications.bind(EmployeeService)}
       onAdd={EmployeeService.addCertification.bind(EmployeeService)}
       onUpdate={EmployeeService.updateCertification.bind(EmployeeService)}

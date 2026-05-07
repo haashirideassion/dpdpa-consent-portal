@@ -210,9 +210,9 @@ export const CorrectionService = {
   },
 
   /**
-   * Submits a structured record-level correction request for a multi-entry section.
+   * Submits a structured record-level update request for a multi-entry section.
    * - type "edit": employee is requesting a change to an existing record
-   * - type "add":  employee is requesting to add a missing record
+   * - type "add":  employee is requesting to add a new record
    *
    * Stores:
    *   field_name = "__section_edit__" | "__section_add__"
@@ -220,7 +220,7 @@ export const CorrectionService = {
    *   old_value  = JSON { section, recordId, values: originalFields }
    *   new_value  = JSON { section, values: editedFields }
    *
-   * Original data is NOT touched — admin reviews and applies manually.
+   * Original data is NOT touched — admin reviews and applies on approval.
    */
   async submitSectionRecordCorrection(params: {
     employeeId: string;
@@ -255,8 +255,99 @@ export const CorrectionService = {
   },
 
   /**
-   * Returns true if the employee already has a pending section record correction
-   * for the given section (any record), to prevent duplicate submissions.
+   * Submits a delete request for an existing multi-entry section record.
+   * The record is NOT deleted immediately — admin must approve first.
+   *
+   * Stores:
+   *   field_name = "__section_delete__"
+   *   table_name = sectionKey
+   *   old_value  = JSON { section, recordId, values: currentFields }
+   *   new_value  = null
+   */
+  async submitSectionDeleteRequest(params: {
+    employeeId: string;
+    sectionKey: string;
+    sectionLabel: string;
+    recordId: string;
+    recordValues: Record<string, any>;
+  }): Promise<void> {
+    const { error } = await (supabase.from("correction_requests") as any).insert({
+      employee_id: params.employeeId,
+      field_name:  "__section_delete__",
+      table_name:  params.sectionKey,
+      old_value:   JSON.stringify({
+        section:  params.sectionLabel,
+        recordId: params.recordId,
+        values:   params.recordValues,
+      }),
+      new_value:   null,
+      status:      "pending",
+    });
+
+    if (error) throw error;
+  },
+
+  /**
+   * Returns true if the employee already has a pending EDIT request for the
+   * specific record (identified by recordId).  Prevents duplicate edit requests
+   * for the same record while allowing edits to other records in the same section.
+   */
+  async hasPendingEditForRecord(
+    employeeId: string,
+    sectionKey: string,
+    recordId: string
+  ): Promise<boolean> {
+    const { data } = await (supabase.from("correction_requests") as any)
+      .select("id, old_value")
+      .eq("employee_id", employeeId)
+      .eq("field_name", "__section_edit__")
+      .eq("table_name", sectionKey)
+      .eq("status", "pending");
+
+    if (!data || data.length === 0) return false;
+
+    return data.some((req: any) => {
+      try {
+        const parsed = JSON.parse(req.old_value ?? "{}");
+        return parsed.recordId === recordId;
+      } catch {
+        return false;
+      }
+    });
+  },
+
+  /**
+   * Returns true if the employee already has a pending DELETE request for the
+   * specific record.
+   */
+  async hasPendingDeleteForRecord(
+    employeeId: string,
+    sectionKey: string,
+    recordId: string
+  ): Promise<boolean> {
+    const { data } = await (supabase.from("correction_requests") as any)
+      .select("id, old_value")
+      .eq("employee_id", employeeId)
+      .eq("field_name", "__section_delete__")
+      .eq("table_name", sectionKey)
+      .eq("status", "pending");
+
+    if (!data || data.length === 0) return false;
+
+    return data.some((req: any) => {
+      try {
+        const parsed = JSON.parse(req.old_value ?? "{}");
+        return parsed.recordId === recordId;
+      } catch {
+        return false;
+      }
+    });
+  },
+
+  /**
+   * @deprecated Use hasPendingEditForRecord for per-record precision.
+   * Kept for backward compatibility — checks if ANY pending edit/add exists
+   * for the given section.
    */
   async hasPendingSectionRecordCorrection(
     employeeId: string,

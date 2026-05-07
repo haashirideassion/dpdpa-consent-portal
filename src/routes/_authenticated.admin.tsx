@@ -65,7 +65,7 @@ function AdminLayout() {
                 activeProps={{ className: "bg-primary/10 text-primary hover:bg-primary/15" }}
               >
                 <CheckCircleBoldDuotone size={16} />
-                Corrections
+                Updates
               </Link>
               <Link
                 to="/admin/videos"

@@ -48,7 +48,7 @@ export function CorrectionRequestModal({
       // Check if there's already a pending request for this field
       const alreadyPending = await CorrectionService.hasPendingRequest(employeeId, fieldKey);
       if (alreadyPending) {
-        toast.warning("You already have a pending correction request for this field. Please wait for HR to review it.");
+        toast.warning("You already have a pending update request for this field. Please wait for HR to review it.");
         return;
       }
 
@@ -66,7 +66,7 @@ export function CorrectionRequestModal({
         attachmentUrl,
       });
 
-      toast.success("Correction request submitted! HR will review it shortly.");
+      toast.success("Update request submitted! HR will review it shortly.");
       setNewValue("");
       setFile(null);
       onClose();
@@ -90,9 +90,9 @@ export function CorrectionRequestModal({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Request Data Correction</DialogTitle>
+          <DialogTitle>Update Data</DialogTitle>
           <DialogDescription>
-            Your data is locked after consent. Submit a correction request and HR will review it.
+            Your data is locked after consent. Submit an update request and HR will review it.
           </DialogDescription>
         </DialogHeader>
 
@@ -113,7 +113,7 @@ export function CorrectionRequestModal({
 
           {/* New Value */}
           <div className="space-y-1.5">
-            <Label htmlFor="new-value" className="text-xs">Corrected Value <span className="text-destructive">*</span></Label>
+            <Label htmlFor="new-value" className="text-xs">Updated Value <span className="text-destructive">*</span></Label>
             <Textarea
               id="new-value"
               placeholder="Enter the correct value..."
@@ -166,7 +166,7 @@ export function CorrectionRequestModal({
             Cancel
           </Button>
           <Button size="sm" onClick={handleSubmit} disabled={submitting}>
-            {submitting ? "Submitting…" : "Submit Request"}
+            {submitting ? "Submitting…" : "Submit Update"}
           </Button>
         </DialogFooter>
       </DialogContent>

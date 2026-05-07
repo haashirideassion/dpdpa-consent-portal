@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/use-auth";
 import {
   Table,
@@ -20,7 +22,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MinimalisticMagniferBoldDuotone, EyeBoldDuotone } from "solar-icon-set";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { MinimalisticMagniferBoldDuotone, EyeBoldDuotone, AddSquareBoldDuotone } from "solar-icon-set";
 
 export const Route = createFileRoute("/_authenticated/admin/employees/")({
   head: () => ({
@@ -32,6 +44,491 @@ export const Route = createFileRoute("/_authenticated/admin/employees/")({
   component: EmployeeList,
 });
 
+// ── Add New Employee form shape ───────────────────────────────────────────────
+interface AddEmployeeForm {
+  first_name: string;
+  last_name: string;
+  employee_code: string;
+  work_email: string;
+  phone_number: string;
+  personal_email: string;
+  alternate_phone: string;
+  gender: string;
+  date_of_birth: string;
+  marital_status: string;
+  nationality: string;
+  blood_group: string;
+  current_address: string;
+  permanent_address: string;
+  city: string;
+  state: string;
+  pincode: string;
+}
+
+const EMPTY_FORM: AddEmployeeForm = {
+  first_name: "",
+  last_name: "",
+  employee_code: "",
+  work_email: "",
+  phone_number: "",
+  personal_email: "",
+  alternate_phone: "",
+  gender: "",
+  date_of_birth: "",
+  marital_status: "",
+  nationality: "",
+  blood_group: "",
+  current_address: "",
+  permanent_address: "",
+  city: "",
+  state: "",
+  pincode: "",
+};
+
+// ── Validation ─────────────────────────────────────────────────────────────────
+function validateAddForm(form: AddEmployeeForm): Record<string, string> {
+  const errors: Record<string, string> = {};
+  if (!form.first_name.trim()) errors.first_name = "First name is required";
+  if (!form.last_name.trim()) errors.last_name = "Last name is required";
+  if (!form.employee_code.trim()) errors.employee_code = "Employee code is required";
+  if (!form.work_email.trim()) {
+    errors.work_email = "Work email is required";
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.work_email)) {
+    errors.work_email = "Enter a valid email address";
+  }
+  if (!form.phone_number.trim()) {
+    errors.phone_number = "Phone number is required";
+  } else if (!/^\+?[\d\s\-()]{7,15}$/.test(form.phone_number)) {
+    errors.phone_number = "Enter a valid phone number";
+  }
+  if (form.personal_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.personal_email)) {
+    errors.personal_email = "Enter a valid email address";
+  }
+  if (form.alternate_phone && !/^\+?[\d\s\-()]{7,15}$/.test(form.alternate_phone)) {
+    errors.alternate_phone = "Enter a valid phone number";
+  }
+  if (form.pincode && !/^\d{4,10}$/.test(form.pincode)) {
+    errors.pincode = "Enter a valid pincode";
+  }
+  return errors;
+}
+
+// ── Add Employee Modal ─────────────────────────────────────────────────────────
+function AddEmployeeModal({
+  open,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [form, setForm] = useState<AddEmployeeForm>(EMPTY_FORM);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [sameAddress, setSameAddress] = useState(false);
+
+  function handleClose() {
+    if (saving) return;
+    setForm(EMPTY_FORM);
+    setErrors({});
+    setSameAddress(false);
+    onClose();
+  }
+
+  function set(key: keyof AddEmployeeForm, value: string) {
+    setForm((prev) => {
+      const next = { ...prev, [key]: value };
+      if (key === "current_address" && sameAddress) {
+        next.permanent_address = value;
+      }
+      return next;
+    });
+    if (errors[key]) setErrors((prev) => { const n = { ...prev }; delete n[key]; return n; });
+  }
+
+  function toggleSameAddress(checked: boolean) {
+    setSameAddress(checked);
+    if (checked) {
+      setForm((prev) => ({ ...prev, permanent_address: prev.current_address }));
+    }
+  }
+
+  async function handleSave() {
+    const validationErrors = validateAddForm(form);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      toast.error("Please fix the highlighted fields.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Cast to `any` throughout — generated types are out of sync with the
+      // live normalized schema (same pattern used across the codebase).
+
+      // 1. Check for duplicate employee_code
+      const { data: existingCode } = await (supabase as any)
+        .from("employees")
+        .select("id")
+        .eq("employee_code", form.employee_code.trim())
+        .maybeSingle();
+      if (existingCode) {
+        setErrors((prev) => ({ ...prev, employee_code: "This employee code is already in use" }));
+        toast.error("Employee code already exists.");
+        return;
+      }
+
+      // 2. Check for duplicate work email
+      const { data: existingEmail } = await (supabase as any)
+        .from("employees")
+        .select("id")
+        .eq("email", form.work_email.trim().toLowerCase())
+        .maybeSingle();
+      if (existingEmail) {
+        setErrors((prev) => ({ ...prev, work_email: "This email is already registered" }));
+        toast.error("Work email already exists.");
+        return;
+      }
+
+      // 3. Insert master employee record
+      const { data: newEmp, error: empError } = await (supabase as any)
+        .from("employees")
+        .insert({
+          first_name: form.first_name.trim(),
+          last_name: form.last_name.trim(),
+          employee_code: form.employee_code.trim(),
+          email: form.work_email.trim().toLowerCase(),
+          role: "employee",
+        })
+        .select("id")
+        .single();
+
+      if (empError) throw empError;
+      const empId = (newEmp as any).id;
+
+      // 4. Insert personal details (optional fields)
+      const hasPersonal = form.gender || form.date_of_birth || form.blood_group ||
+        form.marital_status || form.nationality;
+      if (hasPersonal) {
+        await (supabase as any).from("employee_personal_details").insert({
+          employee_id: empId,
+          gender: form.gender || null,
+          dob: form.date_of_birth || null,
+          blood_group: form.blood_group || null,
+          marital_status: form.marital_status || null,
+          nationality: form.nationality || null,
+        });
+      }
+
+      // 5. Insert contact details
+      await (supabase as any).from("employee_contact_details").insert({
+        employee_id: empId,
+        work_email: form.work_email.trim().toLowerCase(),
+        personal_email: form.personal_email.trim() || null,
+        phone: form.phone_number.trim() || null,
+        alternate_phone: form.alternate_phone.trim() || null,
+        current_address: form.current_address.trim() || null,
+        permanent_address: form.permanent_address.trim() || null,
+        city: form.city.trim() || null,
+        state: form.state.trim() || null,
+        pincode: form.pincode.trim() || null,
+      });
+
+      toast.success(`Employee ${form.first_name} ${form.last_name} added successfully.`);
+      handleClose();
+      onCreated();
+    } catch (err: any) {
+      console.error("Add employee error:", err);
+      toast.error(err?.message ?? "Failed to create employee. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function fieldClass(key: keyof AddEmployeeForm) {
+    return errors[key] ? "border-destructive ring-destructive/20 ring-1" : "";
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold">Add New Employee</DialogTitle>
+          <DialogDescription className="text-xs">
+            Fill in the employee's details. Fields marked <span className="text-destructive">*</span> are required.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-5 py-1">
+          {/* Personal Information */}
+          <section>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+              Personal Information
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+              {/* First Name */}
+              <div>
+                <Label className="text-xs mb-1 block">
+                  First Name <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  value={form.first_name}
+                  onChange={(e) => set("first_name", e.target.value)}
+                  placeholder="e.g. Ravi"
+                  className={`h-8 text-sm ${fieldClass("first_name")}`}
+                />
+                {errors.first_name && <p className="text-[10px] text-destructive mt-0.5">{errors.first_name}</p>}
+              </div>
+
+              {/* Last Name */}
+              <div>
+                <Label className="text-xs mb-1 block">
+                  Last Name <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  value={form.last_name}
+                  onChange={(e) => set("last_name", e.target.value)}
+                  placeholder="e.g. Sharma"
+                  className={`h-8 text-sm ${fieldClass("last_name")}`}
+                />
+                {errors.last_name && <p className="text-[10px] text-destructive mt-0.5">{errors.last_name}</p>}
+              </div>
+
+              {/* Employee Code */}
+              <div>
+                <Label className="text-xs mb-1 block">
+                  Employee Code <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  value={form.employee_code}
+                  onChange={(e) => set("employee_code", e.target.value)}
+                  placeholder="e.g. EMP-001"
+                  className={`h-8 text-sm ${fieldClass("employee_code")}`}
+                />
+                {errors.employee_code && <p className="text-[10px] text-destructive mt-0.5">{errors.employee_code}</p>}
+              </div>
+
+              {/* Date of Birth */}
+              <div>
+                <Label className="text-xs mb-1 block">Date of Birth</Label>
+                <Input
+                  type="date"
+                  value={form.date_of_birth}
+                  onChange={(e) => set("date_of_birth", e.target.value)}
+                  className="h-8 text-sm"
+                />
+              </div>
+
+              {/* Gender */}
+              <div>
+                <Label className="text-xs mb-1 block">Gender</Label>
+                <Select value={form.gender} onValueChange={(v) => set("gender", v)}>
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="Select gender" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["Male", "Female", "Non-binary", "Prefer not to say"].map((g) => (
+                      <SelectItem key={g} value={g}>{g}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Blood Group */}
+              <div>
+                <Label className="text-xs mb-1 block">Blood Group</Label>
+                <Select value={form.blood_group} onValueChange={(v) => set("blood_group", v)}>
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="Select blood group" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((bg) => (
+                      <SelectItem key={bg} value={bg}>{bg}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Marital Status */}
+              <div>
+                <Label className="text-xs mb-1 block">Marital Status</Label>
+                <Select value={form.marital_status} onValueChange={(v) => set("marital_status", v)}>
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["Single", "Married", "Divorced", "Widowed", "Separated"].map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Nationality */}
+              <div>
+                <Label className="text-xs mb-1 block">Nationality</Label>
+                <Input
+                  value={form.nationality}
+                  onChange={(e) => set("nationality", e.target.value)}
+                  placeholder="e.g. Indian"
+                  className="h-8 text-sm"
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* Contact Information */}
+          <section>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+              Contact Information
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+              {/* Work Email */}
+              <div>
+                <Label className="text-xs mb-1 block">
+                  Work Email <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  type="email"
+                  value={form.work_email}
+                  onChange={(e) => set("work_email", e.target.value)}
+                  placeholder="ravi@company.com"
+                  className={`h-8 text-sm ${fieldClass("work_email")}`}
+                />
+                {errors.work_email && <p className="text-[10px] text-destructive mt-0.5">{errors.work_email}</p>}
+              </div>
+
+              {/* Personal Email */}
+              <div>
+                <Label className="text-xs mb-1 block">Personal Email</Label>
+                <Input
+                  type="email"
+                  value={form.personal_email}
+                  onChange={(e) => set("personal_email", e.target.value)}
+                  placeholder="ravi@gmail.com"
+                  className={`h-8 text-sm ${fieldClass("personal_email")}`}
+                />
+                {errors.personal_email && <p className="text-[10px] text-destructive mt-0.5">{errors.personal_email}</p>}
+              </div>
+
+              {/* Phone Number */}
+              <div>
+                <Label className="text-xs mb-1 block">
+                  Phone Number <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  type="tel"
+                  value={form.phone_number}
+                  onChange={(e) => set("phone_number", e.target.value)}
+                  placeholder="+91 9876543210"
+                  className={`h-8 text-sm ${fieldClass("phone_number")}`}
+                />
+                {errors.phone_number && <p className="text-[10px] text-destructive mt-0.5">{errors.phone_number}</p>}
+              </div>
+
+              {/* Alternate Phone */}
+              <div>
+                <Label className="text-xs mb-1 block">Alternate Phone</Label>
+                <Input
+                  type="tel"
+                  value={form.alternate_phone}
+                  onChange={(e) => set("alternate_phone", e.target.value)}
+                  placeholder="+91 9876543210"
+                  className={`h-8 text-sm ${fieldClass("alternate_phone")}`}
+                />
+                {errors.alternate_phone && <p className="text-[10px] text-destructive mt-0.5">{errors.alternate_phone}</p>}
+              </div>
+            </div>
+          </section>
+
+          {/* Address */}
+          <section>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+              Address
+            </p>
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs mb-1 block">Current Address</Label>
+                <Textarea
+                  value={form.current_address}
+                  onChange={(e) => set("current_address", e.target.value)}
+                  placeholder="Enter current address"
+                  rows={2}
+                  className="text-sm resize-none"
+                />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Label className="text-xs">Permanent Address</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Checkbox
+                      id="same-addr"
+                      checked={sameAddress}
+                      onCheckedChange={(c) => toggleSameAddress(!!c)}
+                    />
+                    <label htmlFor="same-addr" className="text-[11px] text-muted-foreground cursor-pointer select-none">
+                      Same as current
+                    </label>
+                  </div>
+                </div>
+                <Textarea
+                  value={form.permanent_address}
+                  onChange={(e) => set("permanent_address", e.target.value)}
+                  placeholder="Enter permanent address"
+                  rows={2}
+                  disabled={sameAddress}
+                  className="text-sm resize-none"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
+                <div>
+                  <Label className="text-xs mb-1 block">City</Label>
+                  <Input
+                    value={form.city}
+                    onChange={(e) => set("city", e.target.value)}
+                    placeholder="e.g. Mumbai"
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs mb-1 block">State</Label>
+                  <Input
+                    value={form.state}
+                    onChange={(e) => set("state", e.target.value)}
+                    placeholder="e.g. Maharashtra"
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs mb-1 block">Pincode</Label>
+                  <Input
+                    value={form.pincode}
+                    onChange={(e) => set("pincode", e.target.value)}
+                    placeholder="e.g. 400001"
+                    className={`h-8 text-sm ${fieldClass("pincode")}`}
+                  />
+                  {errors.pincode && <p className="text-[10px] text-destructive mt-0.5">{errors.pincode}</p>}
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <DialogFooter className="gap-2 pt-2 border-t mt-2">
+          <Button variant="outline" size="sm" onClick={handleClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={handleSave} disabled={saving}>
+            {saving ? "Creating…" : "Add Employee"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Employee row shape ────────────────────────────────────────────────────────
 /** Shape returned after flattening the joined query */
 interface EmployeeRow {
   id: string;
@@ -52,61 +549,64 @@ function EmployeeList() {
   const [deptFilter, setDeptFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [uploading, setUploading] = useState(false);
+  const [addModalOpen, setAddModalOpen] = useState(false);
   const { user } = useAuth();
 
-  useEffect(() => {
-    async function loadEmployees() {
-      /**
-       * FIX 1 — Ambiguous FK: PostgREST found two FK constraints between
-       *   employees ↔ consent_records (the old and new migration both created one).
-       *   We disambiguate by naming the FK explicitly:
-       *     consent_records!consent_records_employee_id_fkey(status,signed_at)
-       *
-       * FIX 2 — New normalized schema: employees master table no longer contains
-       *   department/designation — those live in employee_employment_details.
-       *   We JOIN that table too.
-       */
-      const { data, error } = await supabase
-        .from("employees")
-        .select(`
-          id,
-          employee_code,
-          first_name,
-          last_name,
-          email,
-          employee_employment_details ( department, designation ),
-          consent_records!consent_records_employee_id_fkey ( status, signed_at )
-        `)
-        .order("employee_code");
+  async function loadEmployees() {
+    /**
+     * FIX 1 — Ambiguous FK: PostgREST found two FK constraints between
+     *   employees ↔ consent_records (the old and new migration both created one).
+     *   We disambiguate by naming the FK explicitly:
+     *     consent_records!consent_records_employee_id_fkey(status,signed_at)
+     *
+     * FIX 2 — New normalized schema: employees master table no longer contains
+     *   department/designation — those live in employee_employment_details.
+     *   We JOIN that table too.
+     */
+    const { data, error } = await supabase
+      .from("employees")
+      .select(`
+        id,
+        employee_code,
+        first_name,
+        last_name,
+        email,
+        employee_employment_details ( department, designation ),
+        consent_records!consent_records_employee_id_fkey ( status, signed_at )
+      `)
+      .order("employee_code");
 
-      if (error) {
-        console.error("Failed to fetch employees:", error);
-        setLoading(false);
-        return;
-      }
-
-      // Flatten the nested objects into a flat EmployeeRow
-      const rows: EmployeeRow[] = (data ?? []).map((emp: any) => ({
-        id: emp.id,
-        employee_code: emp.employee_code,
-        first_name: emp.first_name,
-        last_name: emp.last_name,
-        email: emp.email,
-        department: emp.employee_employment_details?.department ?? null,
-        designation: emp.employee_employment_details?.designation ?? null,
-        // PostgREST returns one-to-many as an ARRAY — must access [0]
-        consent_status: (Array.isArray(emp.consent_records)
-          ? emp.consent_records[0]?.status
-          : emp.consent_records?.status) ?? "pending",
-        consent_signed_at: (Array.isArray(emp.consent_records)
-          ? emp.consent_records[0]?.signed_at
-          : emp.consent_records?.signed_at) ?? null,
-      }));
-
-      setEmployees(rows);
+    if (error) {
+      console.error("Failed to fetch employees:", error);
       setLoading(false);
+      return;
     }
+
+    // Flatten the nested objects into a flat EmployeeRow
+    const rows: EmployeeRow[] = (data ?? []).map((emp: any) => ({
+      id: emp.id,
+      employee_code: emp.employee_code,
+      first_name: emp.first_name,
+      last_name: emp.last_name,
+      email: emp.email,
+      department: emp.employee_employment_details?.department ?? null,
+      designation: emp.employee_employment_details?.designation ?? null,
+      // PostgREST returns one-to-many as an ARRAY — must access [0]
+      consent_status: (Array.isArray(emp.consent_records)
+        ? emp.consent_records[0]?.status
+        : emp.consent_records?.status) ?? "pending",
+      consent_signed_at: (Array.isArray(emp.consent_records)
+        ? emp.consent_records[0]?.signed_at
+        : emp.consent_records?.signed_at) ?? null,
+    }));
+
+    setEmployees(rows);
+    setLoading(false);
+  }
+
+  useEffect(() => {
     loadEmployees();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const departments = useMemo(
@@ -196,7 +696,7 @@ function EmployeeList() {
           <h1>Employee Records</h1>
           <p>{employees.length} employees &bull; {consentedCount} consented</p>
         </div>
-        <div>
+        <div className="flex items-center gap-2 flex-wrap">
           <Input
             type="file"
             accept=".csv"
@@ -206,14 +706,32 @@ function EmployeeList() {
           />
           <Button
             variant="outline"
-            className="gap-2"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
             onClick={() => document.getElementById("csv-upload")?.click()}
             disabled={uploading}
           >
-            {uploading ? "Uploading..." : "Bulk Import (CSV)"}
+            {uploading ? "Uploading…" : "Bulk Import (CSV)"}
+          </Button>
+          <Button
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            onClick={() => setAddModalOpen(true)}
+          >
+            <AddSquareBoldDuotone size={13} />
+            Add New Employee
           </Button>
         </div>
       </div>
+
+      <AddEmployeeModal
+        open={addModalOpen}
+        onClose={() => setAddModalOpen(false)}
+        onCreated={() => {
+          setLoading(true);
+          loadEmployees();
+        }}
+      />
 
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px]">

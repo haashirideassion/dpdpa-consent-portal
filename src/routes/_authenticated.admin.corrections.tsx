@@ -18,18 +18,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/_authenticated/admin/corrections")({
   head: () => ({
-    meta: [{ title: "Corrections Queue — DPDPA Admin" }],
+    meta: [{ title: "Updates Queue — DPDPA Admin" }],
   }),
   component: CorrectionsQueue,
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-type SectionType = "field" | "section_edit" | "section_add" | "section_legacy";
+type SectionType = "field" | "section_edit" | "section_add" | "section_delete" | "section_legacy";
 
 function getSectionType(req: CorrectionRequest): SectionType {
   if (req.field_name === "__section_edit__") return "section_edit";
   if (req.field_name === "__section_add__") return "section_add";
+  if (req.field_name === "__section_delete__") return "section_delete";
   if (req.field_name === "__section__") return "section_legacy";
   return "field";
 }
@@ -110,6 +111,33 @@ function SectionAddDiff({ req }: { req: CorrectionRequest }) {
   );
 }
 
+/** Render a section-delete request — shows the record to be deleted */
+function SectionDeleteDisplay({ req }: { req: CorrectionRequest }) {
+  const old = parseSectionJson(req.old_value);
+  const sectionLabel = old.section ?? req.table_name ?? "Section";
+  const vals = old.values ?? {};
+  const filled = Object.entries(vals).filter(([, v]) => String(v ?? "").trim() !== "");
+
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground mb-1.5">
+        <span className="font-medium text-foreground">{sectionLabel}</span>
+        {" · "}
+        <span className="text-destructive font-medium">Delete record</span>
+      </p>
+      <div className="space-y-0.5">
+        {filled.map(([k, v]) => (
+          <p key={k} className="text-xs text-muted-foreground">
+            <span className="font-medium text-foreground capitalize">{k.replace(/_/g, " ")}</span>
+            {": "}
+            <span className="line-through text-muted-foreground/70">{String(v)}</span>
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 function CorrectionsQueue() {
   const [requests, setRequests] = useState<CorrectionRequest[]>([]);
@@ -126,7 +154,7 @@ function CorrectionsQueue() {
       const data = await CorrectionService.getAllRequests();
       setRequests(data);
     } catch {
-      toast.error("Failed to load correction requests.");
+      toast.error("Failed to load update requests.");
     } finally {
       setLoading(false);
     }
@@ -142,13 +170,17 @@ function CorrectionsQueue() {
       if (type === "section_edit" || type === "section_legacy") {
         const parsed = parseSectionJson(req.old_value);
         const label = parsed.section ?? req.table_name ?? "Section";
-        toast.success(`${label} correction approved — record updated.`);
+        toast.success(`${label} update approved — record updated.`);
       } else if (type === "section_add") {
         const parsed = parseSectionJson(req.new_value);
         const label = parsed.section ?? req.table_name ?? "Section";
-        toast.success(`${label} correction approved — new record added.`);
+        toast.success(`${label} update approved — new record added.`);
+      } else if (type === "section_delete") {
+        const parsed = parseSectionJson(req.old_value);
+        const label = parsed.section ?? req.table_name ?? "Section";
+        toast.success(`${label} delete approved — record removed.`);
       } else {
-        toast.success(`Correction approved — ${req.field_name} updated.`);
+        toast.success(`Update approved — ${req.field_name} updated.`);
       }
       fetchRequests();
     } catch (err: any) {
@@ -167,7 +199,7 @@ function CorrectionsQueue() {
     setProcessing(rejectTarget.id);
     try {
       await CorrectionService.reject(rejectTarget.id, rejectComment.trim());
-      toast.success("Correction request rejected.");
+      toast.success("Update request rejected.");
       setRejectTarget(null);
       setRejectComment("");
       fetchRequests();
@@ -190,6 +222,7 @@ function CorrectionsQueue() {
     const type = getSectionType(req);
     if (type === "section_edit") return <Badge variant="outline" className="badge-info text-[10px]">Section Edit</Badge>;
     if (type === "section_add") return <Badge variant="outline" className="badge-info text-[10px]">Section Add</Badge>;
+    if (type === "section_delete") return <Badge variant="outline" className="badge-danger text-[10px]">Section Delete</Badge>;
     if (type === "section_legacy") return <Badge variant="outline" className="badge-neutral text-[10px]">Section</Badge>;
     return null;
   };
@@ -199,7 +232,11 @@ function CorrectionsQueue() {
     const type = getSectionType(req);
     if (type === "section_edit" || type === "section_add") {
       const parsed = parseSectionJson(type === "section_edit" ? req.old_value : req.new_value);
-      return `${parsed.section ?? req.table_name ?? "Section"} correction`;
+      return `${parsed.section ?? req.table_name ?? "Section"} update request`;
+    }
+    if (type === "section_delete") {
+      const parsed = parseSectionJson(req.old_value);
+      return `${parsed.section ?? req.table_name ?? "Section"} — delete record request`;
     }
     if (type === "section_legacy") {
       try { return `${JSON.parse(req.old_value ?? "{}").section ?? "Section"} — ${req.new_value}`; } catch { return req.new_value ?? ""; }
@@ -212,8 +249,8 @@ function CorrectionsQueue() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="page-header">
-          <h1>Corrections Queue</h1>
-          <p>Review employee data correction requests submitted after consent.</p>
+          <h1>Updates Queue</h1>
+          <p>Review employee data update requests submitted after consent.</p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
           {(["pending", "approved", "rejected", "all"] as const).map((f) => (
@@ -244,10 +281,10 @@ function CorrectionsQueue() {
         <div className="py-14 flex flex-col items-center gap-2 text-center">
           <CheckCircleBoldDuotone size={36} className="text-muted-foreground/25" />
           <p className="text-sm font-medium text-foreground">
-            {filter === "pending" ? "No pending corrections" : `No ${filter === "all" ? "" : filter} corrections`}
+            {filter === "pending" ? "No pending updates" : `No ${filter === "all" ? "" : filter} updates`}
           </p>
           <p className="text-xs text-muted-foreground">
-            {filter === "pending" ? "All correction requests have been reviewed." : "No records match this filter."}
+            {filter === "pending" ? "All update requests have been reviewed." : "No records match this filter."}
           </p>
         </div>
       ) : (
@@ -276,8 +313,9 @@ function CorrectionsQueue() {
                   </div>
 
                   {/* Content diff */}
-                  {type === "section_edit" && <SectionRecordDiff req={req} />}
-                  {type === "section_add"  && <SectionAddDiff req={req} />}
+                  {type === "section_edit"   && <SectionRecordDiff req={req} />}
+                  {type === "section_add"    && <SectionAddDiff req={req} />}
+                  {type === "section_delete" && <SectionDeleteDisplay req={req} />}
                   {type === "section_legacy" && (() => {
                     let sectionLabel = req.table_name ?? "Section";
                     let entryCount = 0;
@@ -325,10 +363,15 @@ function CorrectionsQueue() {
                     </a>
                   )}
 
-                  {/* Section corrections are auto-applied on approval */}
+                  {/* Section updates are auto-applied on approval */}
                   {(type === "section_edit" || type === "section_add") && req.status === "pending" && (
                     <p className="text-[11px] text-muted-foreground bg-muted/60 rounded px-2 py-1 mt-1">
-                      Approving will automatically apply this change to the employee record.
+                      Approving will automatically apply this update to the employee record.
+                    </p>
+                  )}
+                  {type === "section_delete" && req.status === "pending" && (
+                    <p className="text-[11px] text-destructive/70 bg-destructive/5 rounded px-2 py-1 mt-1">
+                      Approving will permanently delete this record from the employee profile.
                     </p>
                   )}
                 </div>
@@ -371,7 +414,7 @@ function CorrectionsQueue() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Reject Correction Request</DialogTitle>
+            <DialogTitle>Reject Update Request</DialogTitle>
             <DialogDescription>
               Please provide a reason. The employee will see this message.
             </DialogDescription>

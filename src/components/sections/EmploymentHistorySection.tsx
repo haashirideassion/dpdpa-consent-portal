@@ -29,9 +29,10 @@ interface Props {
   employeeId: string;
   isAdmin?: boolean;
   hasConsented?: boolean;
+  allowUpdate?: boolean;
 }
 
-export function EmploymentHistorySection({ employeeId, isAdmin, hasConsented }: Props) {
+export function EmploymentHistorySection({ employeeId, isAdmin, hasConsented, allowUpdate }: Props) {
   return (
     <MultiEntrySection
       title="Previous Employment"
@@ -39,6 +40,7 @@ export function EmploymentHistorySection({ employeeId, isAdmin, hasConsented }: 
       employeeId={employeeId}
       isAdmin={isAdmin}
       hasConsented={hasConsented}
+      allowUpdate={allowUpdate}
       sectionKey="employee_employment_history"
       loader={EmployeeService.getEmploymentHistory.bind(EmployeeService)}
       onAdd={EmployeeService.addEmploymentHistory.bind(EmployeeService)}
