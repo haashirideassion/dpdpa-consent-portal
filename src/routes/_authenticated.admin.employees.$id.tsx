@@ -112,6 +112,7 @@ function EmployeeDetail() {
           <EmployeeDataView
             employee={employee}
             isAdmin={true}
+            adminReview={true}
             onEmployeeUpdated={async () => {
               const updated = await EmployeeService.getById(id);
               if (updated) setEmployee(updated as any);

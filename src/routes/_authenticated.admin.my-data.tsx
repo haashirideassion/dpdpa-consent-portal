@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { EmployeeService } from "@/services/employee.service";
 import { ConsentService, type ConsentTemplate } from "@/services/consent.service";
@@ -34,6 +34,21 @@ function AdminMyData() {
 
   const [activeTemplate, setActiveTemplate] = useState<ConsentTemplate | null>(null);
   const [hasConsented, setHasConsented] = useState(false);
+  const [toggles, setToggles] = useState<Record<string, boolean>>({});
+
+  const handleToggle = useCallback((key: string, val: boolean) => {
+    setToggles((prev) => ({ ...prev, [key]: val }));
+  }, []);
+
+  useEffect(() => {
+    if (!activeTemplate) return;
+    const init: Record<string, boolean> = {};
+    activeTemplate.purposes.forEach((p) => {
+      const type = p.purpose_type ?? (p.is_mandatory ? "mandatory" : "optional");
+      init[p.purpose_key] = type === "mandatory";
+    });
+    setToggles(init);
+  }, [activeTemplate]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -131,6 +146,9 @@ function AdminMyData() {
                 employee={employee}
                 hasConsented={hasConsented}
                 isAdmin={true}
+                template={activeTemplate}
+                toggles={toggles}
+                onToggle={handleToggle}
                 onEmployeeUpdated={async (updated) => {
                   if (updated) {
                     setEmployee(updated);
@@ -147,6 +165,8 @@ function AdminMyData() {
                   userId={user.id}
                   template={activeTemplate}
                   hasConsented={hasConsented}
+                  toggles={toggles}
+                  onToggle={handleToggle}
                   onConsentSubmitted={async () => {
                     const consentedToActive = await ConsentService.hasConsentedToVersion(
                       employee.id,

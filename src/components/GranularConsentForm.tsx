@@ -1,16 +1,13 @@
 import { useState } from "react";
 import {
   CheckCircleBoldDuotone,
-  InfoCircleBoldDuotone,
   ShieldWarningBoldDuotone,
   LockKeyholeMinimalisticBoldDuotone,
-  GlobalBoldDuotone,
   ArrowDownBoldDuotone,
 } from "solar-icon-set";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +20,6 @@ import {
   ConsentService,
   type ConsentTemplate,
   type ConsentPurpose,
-  type ConsentSection,
   type PurposeType,
 } from "@/services/consent.service";
 import { CONSENT_STATEMENT } from "@/lib/dpdpa";
@@ -35,6 +31,10 @@ interface GranularConsentFormProps {
   template: ConsentTemplate;
   hasConsented: boolean;
   onConsentSubmitted: () => void;
+  /** Toggle state lifted from parent — one entry per purpose_key. */
+  toggles: Record<string, boolean>;
+  /** Callback to flip a single toggle. */
+  onToggle: (key: string, val: boolean) => void;
 }
 
 // ── Purpose type badge ────────────────────────────────────────────────────────
@@ -59,204 +59,6 @@ function PurposeTypeBadge({ type }: { type: PurposeType }) {
     <Badge className="gap-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-50 text-[10px] font-semibold px-2 py-0.5 uppercase tracking-wider">
       Optional
     </Badge>
-  );
-}
-
-// ── Disclosure table ──────────────────────────────────────────────────────────
-function DisclosureTable({ purpose }: { purpose: ConsentPurpose }) {
-  // Support both v1.0 (data_categories / third_parties) and v2.0 (data_used / shared_with) fields
-  const dataUsed     = purpose.data_used     ?? purpose.data_categories;
-  const sharedWith   = purpose.shared_with   ?? purpose.third_parties;
-  const retention    = purpose.retention_period;
-  const crossBorder  = purpose.cross_border;
-  const cbDetails    = purpose.cross_border_details ?? (crossBorder ? "Yes" : "No");
-
-  const rows: Array<{ label: string; value: string }> = [];
-  if (dataUsed)  rows.push({ label: "Data used",            value: dataUsed });
-  if (sharedWith) rows.push({ label: "Shared with",         value: sharedWith });
-  if (retention) rows.push({ label: "Retention",            value: retention });
-  rows.push({
-    label: "Cross-border transfer",
-    value: crossBorder ? cbDetails : "No",
-  });
-
-  if (rows.length === 0) return null;
-
-  return (
-    <div className="mt-2.5 overflow-hidden rounded-md border border-border/50">
-      <table className="w-full text-xs">
-        <tbody>
-          {rows.map((row, i) => (
-            <tr key={i} className={i % 2 === 0 ? "bg-muted/20" : "bg-transparent"}>
-              <td className="py-1.5 px-3 font-medium text-foreground/70 whitespace-nowrap w-40 align-top">
-                {row.label}
-              </td>
-              <td className="py-1.5 px-3 text-foreground/80">
-                {row.label === "Cross-border transfer" && crossBorder ? (
-                  <span className="flex items-center gap-1">
-                    <GlobalBoldDuotone size={11} className="text-amber-500 shrink-0" />
-                    {row.value}
-                  </span>
-                ) : (
-                  row.value
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-// ── Single purpose card ───────────────────────────────────────────────────────
-function PurposeCard({
-  purpose,
-  checked,
-  onToggle,
-}: {
-  purpose: ConsentPurpose;
-  checked: boolean;
-  onToggle: (key: string, val: boolean) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const type = purpose.purpose_type ?? (purpose.is_mandatory ? "mandatory" : "optional");
-  const isSelectable = type !== "mandatory";
-
-  return (
-    <Card
-      className={
-        type === "mandatory"
-          ? "bg-muted/20 border-border/50 shadow-none"
-          : type === "conditional"
-          ? "border-amber-200/60 shadow-none"
-          : "border-border/60 shadow-none"
-      }
-    >
-      <CardHeader className="py-3.5 px-4 pb-0">
-        <div className="flex items-start justify-between gap-4">
-          {/* Left: meta */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-semibold text-foreground">{purpose.label}</span>
-              <PurposeTypeBadge type={type} />
-            </div>
-            <p className="mt-1.5 text-xs text-foreground/75 leading-relaxed">
-              {purpose.description}
-            </p>
-            <p className="mt-1 text-[11px] text-muted-foreground flex items-center gap-1">
-              <InfoCircleBoldDuotone size={11} className="opacity-60 shrink-0" />
-              {purpose.legal_basis}
-            </p>
-          </div>
-
-          {/* Right: checkbox or lock icon */}
-          <div className="pt-0.5 shrink-0">
-            {isSelectable ? (
-              <Checkbox
-                id={`p-${purpose.id}`}
-                checked={checked}
-                onCheckedChange={(val) => onToggle(purpose.purpose_key, val === true)}
-                className="h-4 w-4"
-              />
-            ) : (
-              <div className="h-4 w-4 rounded-sm border-2 border-slate-300 bg-slate-100 flex items-center justify-center">
-                <LockKeyholeMinimalisticBoldDuotone size={9} className="text-slate-400" />
-              </div>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-
-      <CardContent className="px-4 pb-3.5 pt-2.5">
-        {/* Conditional: consequence warning */}
-        {type === "conditional" && purpose.consequence_of_declining && (
-          <div className="flex items-start gap-2 rounded-md bg-amber-50 border border-amber-200/70 p-2.5 mb-2.5">
-            <AlertTriangle className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
-            <p className="text-[11px] text-amber-800 leading-relaxed">
-              <span className="font-semibold">If you decline: </span>
-              {purpose.consequence_of_declining}
-            </p>
-          </div>
-        )}
-
-        {/* Mandatory: required notice */}
-        {type === "mandatory" && (
-          <p className="text-[11px] text-muted-foreground italic mb-2.5">
-            Required by law — cannot be declined.
-          </p>
-        )}
-
-        {/* Disclosure table (collapsible) */}
-        <Collapsible open={open} onOpenChange={setOpen}>
-          <CollapsibleTrigger asChild>
-            <button className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors">
-              <ArrowDownBoldDuotone
-                size={10}
-                className={`transition-transform ${open ? "rotate-180" : ""}`}
-              />
-              {open ? "Hide" : "View"} disclosure details
-            </button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <DisclosureTable purpose={purpose} />
-          </CollapsibleContent>
-        </Collapsible>
-
-        {/* Consent action label (for selectable purposes) */}
-        {isSelectable && purpose.consent_action_label && (
-          <label
-            htmlFor={`p-${purpose.id}`}
-            className="mt-2.5 flex items-center gap-2 text-[11px] font-medium text-foreground/70 cursor-pointer select-none"
-          >
-            <Checkbox
-              id={`p-label-${purpose.id}`}
-              checked={checked}
-              onCheckedChange={(val) => onToggle(purpose.purpose_key, val === true)}
-              className="h-3.5 w-3.5"
-            />
-            {purpose.consent_action_label}
-          </label>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// ── Section block (v2.0) ──────────────────────────────────────────────────────
-function SectionBlock({
-  section,
-  toggles,
-  onToggle,
-}: {
-  section: ConsentSection;
-  toggles: Record<string, boolean>;
-  onToggle: (key: string, val: boolean) => void;
-}) {
-  return (
-    <div className="space-y-2.5">
-      {/* Section header */}
-      <div className="pt-2">
-        <h3 className="text-sm font-semibold text-foreground tracking-tight">
-          {section.section_number}. {section.section_name}
-        </h3>
-        {section.section_header_text && (
-          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-            {section.section_header_text}
-          </p>
-        )}
-      </div>
-      <div className="space-y-2 pl-0">
-        {section.purposes.map((p) => (
-          <PurposeCard
-            key={p.id}
-            purpose={p}
-            checked={toggles[p.purpose_key] ?? false}
-            onToggle={onToggle}
-          />
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -346,24 +148,12 @@ export function GranularConsentForm({
   template,
   hasConsented,
   onConsentSubmitted,
+  toggles,
+  onToggle,
 }: GranularConsentFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const [esignName, setEsignName] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
-
-  // Initialize toggles: mandatory purposes ON (locked), others OFF
-  const [toggles, setToggles] = useState<Record<string, boolean>>(() => {
-    const init: Record<string, boolean> = {};
-    template.purposes.forEach((p) => {
-      const type = p.purpose_type ?? (p.is_mandatory ? "mandatory" : "optional");
-      init[p.purpose_key] = type === "mandatory";
-    });
-    return init;
-  });
-
-  const handleToggle = (key: string, val: boolean) => {
-    setToggles((prev) => ({ ...prev, [key]: val }));
-  };
 
   const canSubmit = esignName.trim().length > 0 && acknowledged && !submitting;
 
@@ -409,17 +199,13 @@ export function GranularConsentForm({
     );
   }
 
-  const hasSections = template.sections.length > 0;
-
   return (
     <div className="space-y-6 mt-4">
-      {/* Title */}
+      {/* Legend — explains purpose types; purposes themselves are inline per section above */}
       <div>
-        <h2 className="text-lg font-semibold tracking-tight">Data Processing Consent</h2>
+        <h2 className="text-lg font-semibold tracking-tight">Review &amp; Submit Consent</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Review the purposes for which we process your personal data.
-          Mandatory purposes are required by law. Conditional purposes affect certain
-          benefits or assignments. Optional purposes are entirely your choice.
+          Review your consent choices for each section above, then confirm below.
         </p>
         <div className="flex flex-wrap gap-2 mt-3">
           <PurposeTypeBadge type="mandatory" />
@@ -431,31 +217,6 @@ export function GranularConsentForm({
           <PurposeTypeBadge type="optional" />
           <span className="text-[11px] text-muted-foreground self-center">No employment impact if declined</span>
         </div>
-      </div>
-
-      {/* Purposes — section-grouped (v2.0) or flat list (v1.0) */}
-      <div className="space-y-6 divide-y divide-border/40">
-        {hasSections ? (
-          template.sections.map((section) => (
-            <SectionBlock
-              key={section.id}
-              section={section}
-              toggles={toggles}
-              onToggle={handleToggle}
-            />
-          ))
-        ) : (
-          <div className="space-y-2.5">
-            {template.purposes.map((p) => (
-              <PurposeCard
-                key={p.id}
-                purpose={p}
-                checked={toggles[p.purpose_key] ?? false}
-                onToggle={handleToggle}
-              />
-            ))}
-          </div>
-        )}
       </div>
 
       {/* ── Review summary (collapsible, shown before declaration) ── */}

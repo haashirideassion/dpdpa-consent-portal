@@ -1,6 +1,7 @@
 import { MultiEntrySection, type EntryField } from "@/components/MultiEntrySection";
 import { EmployeeService } from "@/services/employee.service";
 import { UserHeartRoundedBoldDuotone } from "solar-icon-set";
+import type { SectionConsentStatus } from "@/lib/section-consent";
 
 const FIELDS: EntryField[] = [
   { key: "full_name", label: "Nominee Full Name", required: true },
@@ -29,9 +30,13 @@ interface Props {
   employeeId: string;
   isAdmin?: boolean;
   hasConsented?: boolean;
+  hideAdd?: boolean;
+  viewOnly?: boolean;
+  consentStatus?: SectionConsentStatus;
+  consentArea?: React.ReactNode;
 }
 
-export function NomineesSection({ employeeId, isAdmin, hasConsented }: Props) {
+export function NomineesSection({ employeeId, isAdmin, hasConsented, hideAdd, viewOnly, consentStatus, consentArea }: Props) {
   return (
     <MultiEntrySection
       title="Insurance Nominees"
@@ -39,6 +44,10 @@ export function NomineesSection({ employeeId, isAdmin, hasConsented }: Props) {
       employeeId={employeeId}
       isAdmin={isAdmin}
       hasConsented={hasConsented}
+      hideAdd={hideAdd}
+      viewOnly={viewOnly}
+      consentStatus={consentStatus}
+      consentArea={consentArea}
       sectionKey="employee_nominees"
       loader={EmployeeService.getNominees.bind(EmployeeService)}
       onAdd={EmployeeService.addNominee.bind(EmployeeService)}

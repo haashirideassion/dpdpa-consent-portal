@@ -1,4 +1,5 @@
 // Employee type now uses 'any' to support both flat and normalized schemas
+import { useState, useEffect, useCallback } from "react";
 import { DataSection } from "./DataSection";
 import type { FieldDef } from "./DataField";
 import { maskValue } from "@/lib/dpdpa";
@@ -11,13 +12,17 @@ import {
   DocumentTextBoldDuotone,
   HeartBoldDuotone,
 } from "solar-icon-set";
-import { EmployeeService } from "@/services/employee.service";
+import { ConsentService } from "@/services/consent.service";
+import type { ConsentSection, PurposeConsentStatus, ConsentTemplate } from "@/services/consent.service";
 import { useAuth } from "@/hooks/use-auth";
 import { EducationSection } from "./sections/EducationSection";
 import { CertificationsSection } from "./sections/CertificationsSection";
 import { EmploymentHistorySection } from "./sections/EmploymentHistorySection";
 import { NomineesSection } from "./sections/NomineesSection";
 import { DependentsSection } from "./sections/DependentsSection";
+import { computeSectionConsentStatus, UI_SECTION_CONSENT_MAP } from "@/lib/section-consent";
+import type { SectionConsentStatus } from "@/lib/section-consent";
+import { SectionConsentArea } from "./SectionConsentArea";
 
 type Employee = any;
 
@@ -25,30 +30,122 @@ interface EmployeeDataViewProps {
   employee: Employee;
   onEmployeeUpdated: (updated?: Employee) => void;
   hasConsented?: boolean;
+  /**
+   * When true the viewer has admin privileges — sensitive fields are shown
+   * unmasked. Does NOT imply read-only mode; use `adminReview` for that.
+   */
   isAdmin?: boolean;
+  /**
+   * When true the admin is reviewing *another* employee's profile (read-only:
+   * no consent interactions, no edit/add/delete).
+   * When false (default) the viewer is managing their own profile
+   * (employee self-service or admin viewing their own data — fully interactive).
+   */
+  adminReview?: boolean;
+  /** Active consent template — required for inline pre-consent checkboxes. */
+  template?: ConsentTemplate | null;
+  /** Shared toggle state for all purposes (lifted from GranularConsentForm). */
+  toggles?: Record<string, boolean>;
+  /** Callback to update a single toggle (lifted from GranularConsentForm). */
+  onToggle?: (key: string, val: boolean) => void;
 }
 
 export function EmployeeDataView({
   employee,
-  onEmployeeUpdated,
+  onEmployeeUpdated: _onEmployeeUpdated,
   hasConsented = false,
   isAdmin = false,
+  adminReview = false,
+  template,
+  toggles,
+  onToggle,
 }: EmployeeDataViewProps) {
   const e = employee;
   const { user } = useAuth();
   const isOwner = user?.id === e.user_id;
 
-  async function saveSection(updates: Record<string, string>) {
-    if (isAdmin) {
-      const oldValues: Record<string, string> = {};
-      for (const key of Object.keys(updates)) {
-        oldValues[key] = e[key] ?? "";
-      }
-      await EmployeeService.adminOverride(e.id, updates, oldValues);
-    } else {
-      await EmployeeService.updateEmployee(e.id, updates);
+  // ── Section-level consent statuses ────────────────────────────────────────
+  // Loaded once from purpose-level records and aggregated per UI section.
+  const [sectionedStatuses, setSectionedStatuses] = useState<
+    Array<{ section: ConsentSection; statuses: PurposeConsentStatus[] }>
+  >([]);
+
+  const refreshStatuses = useCallback(async () => {
+    if (!e.id) return;
+    const { sectionedStatuses: s } = await ConsentService.getConsentStatuses(e.id);
+    setSectionedStatuses(s);
+  }, [e.id]);
+
+  useEffect(() => {
+    refreshStatuses();
+  }, [refreshStatuses, hasConsented]); // re-fetch when consent is submitted
+
+  /** Returns the aggregate status for a UI section key. */
+  function sectionStatus(key: string): SectionConsentStatus {
+    return computeSectionConsentStatus(key, sectionedStatuses);
+  }
+
+  /** Returns ConsentSection objects mapped to the given UI section key. */
+  function getConsentSections(uiKey: string): ConsentSection[] {
+    if (!template) return [];
+    const numbers = UI_SECTION_CONSENT_MAP[uiKey] ?? [];
+    return template.sections.filter((s) => numbers.includes(s.section_number));
+  }
+
+  /** Returns PurposeConsentStatus objects mapped to the given UI section key. */
+  function getPurposeStatuses(uiKey: string): PurposeConsentStatus[] {
+    const numbers = UI_SECTION_CONSENT_MAP[uiKey] ?? [];
+    return sectionedStatuses
+      .filter((s) => numbers.includes(s.section.section_number))
+      .flatMap((s) => s.statuses);
+  }
+
+  /** Builds the inline SectionConsentArea node for a given UI section key. */
+  function consentAreaFor(uiKey: string): React.ReactNode | undefined {
+    // Admin reviewing another employee → read-only consent status panel
+    if (adminReview) {
+      const statuses = getPurposeStatuses(uiKey);
+      if (statuses.length === 0) return undefined;
+      return (
+        <SectionConsentArea
+          hasConsented={true}
+          purposeStatuses={statuses}
+          employeeId={e.id}
+          readOnly={true}
+        />
+      );
     }
-    onEmployeeUpdated({ ...e, ...updates, id: e.id });
+
+    // Self-service view (employee or admin viewing own profile) → interactive
+    if (!user) return undefined;
+
+    if (!hasConsented) {
+      if (!template || !toggles || !onToggle) return undefined;
+      const sections = getConsentSections(uiKey);
+      if (sections.length === 0) return undefined;
+      return (
+        <SectionConsentArea
+          hasConsented={false}
+          consentSections={sections}
+          toggles={toggles}
+          onToggle={onToggle}
+        />
+      );
+    }
+
+    const statuses = getPurposeStatuses(uiKey);
+    if (statuses.length === 0) return undefined;
+    const employeeName = `${e.first_name ?? ""} ${e.last_name ?? ""}`.trim();
+    return (
+      <SectionConsentArea
+        hasConsented={true}
+        purposeStatuses={statuses}
+        employeeId={e.id}
+        userId={user.id}
+        employeeName={employeeName}
+        onRefresh={refreshStatuses}
+      />
+    );
   }
 
   // ── Personal & Contact (merged, with PRD additions) ────────────────────────
@@ -174,8 +271,8 @@ export function EmployeeDataView({
   ];
 
   /**
-   * Flat sections that employees can NEVER directly edit.
-   * Admins retain full edit capability via adminOverride.
+   * Flat sections — always read-only (no edit button shown for anyone).
+   * Admin sees data unmasked but cannot edit for demo.
    * No "Update" correction buttons shown (allowCorrection=false).
    */
   const readOnlySectionProps = {
@@ -183,33 +280,34 @@ export function EmployeeDataView({
     isAdmin,
     isOwner,
     employeeId: e.id as string,
-    // Only admin can save these sections; employees cannot edit them at all
-    onSave: isAdmin ? saveSection : undefined,
+    onSave: undefined,
     allowCorrection: false,
   };
 
   /**
-   * Multi-entry sections that employees CAN update after consent.
-   * All changes (add/edit/delete) go through the update request (correction_requests)
-   * approval workflow — employees NEVER directly modify production records post-consent.
-   * Admins (isAdmin=true) bypass the lock and can edit directly.
+   * Multi-entry sections employees (and admin self-view) CAN update.
+   * All changes go through the correction_requests approval workflow.
+   * adminReview mode forces viewOnly so no edit/add/delete appears.
    */
   const editableMultiProps = {
     employeeId: e.id as string,
     isAdmin,
-    hasConsented,  // Use actual value; MultiEntrySection routes locked changes through approval flow
+    hasConsented,
+    hideAdd: adminReview,
+    viewOnly: adminReview,
   };
 
   /**
-   * Multi-entry sections that are purely read-only for employees
-   * (Employment History). allowUpdate=false hides all action buttons.
-   * Admins can still edit normally.
+   * Multi-entry sections that are purely read-only for the self-service user
+   * (Employment History). allowUpdate=false hides correction buttons.
+   * adminReview mode also forces viewOnly.
    */
   const lockedMultiProps = {
     employeeId: e.id as string,
     isAdmin,
     hasConsented,
     allowUpdate: false,
+    viewOnly: adminReview,
   };
 
   return (
@@ -219,30 +317,39 @@ export function EmployeeDataView({
         title="Personal & Contact Information"
         icon={<UserBoldDuotone size={18} />}
         fields={personalContactFields}
+        consentStatus={sectionStatus("personalContact")}
+        consentArea={consentAreaFor("personalContact")}
         {...readOnlySectionProps}
       />
       <DataSection
         title="Employment Information"
         icon={<CaseMinimalisticBoldDuotone size={18} />}
         fields={employmentFields}
+        consentStatus={sectionStatus("employment")}
         {...readOnlySectionProps}
       />
       <DataSection
         title="Payroll & Banking"
         icon={<CardBoldDuotone size={18} />}
         fields={payrollFields}
+        consentStatus={sectionStatus("payrollBanking")}
+        consentArea={consentAreaFor("payrollBanking")}
         {...readOnlySectionProps}
       />
       <DataSection
         title="Government Identification"
         icon={<PassportBoldDuotone size={18} />}
         fields={govtFields}
+        consentStatus={sectionStatus("governmentIds")}
+        consentArea={consentAreaFor("governmentIds")}
         {...readOnlySectionProps}
       />
       <DataSection
         title="Emergency Contact"
         icon={<HospitalBoldDuotone size={18} />}
         fields={emergencyFields}
+        consentStatus={sectionStatus("emergencyContact")}
+        consentArea={consentAreaFor("emergencyContact")}
         {...readOnlySectionProps}
       />
       <DataSection
@@ -250,17 +357,19 @@ export function EmployeeDataView({
         icon={<HeartBoldDuotone size={18} />}
         fields={healthFields}
         defaultOpen={false}
+        consentStatus={sectionStatus("health")}
+        consentArea={consentAreaFor("health")}
         {...readOnlySectionProps}
       />
 
       {/* ── Editable multi-entry sections (employees can always edit directly) ── */}
-      <EducationSection {...editableMultiProps} />
-      <CertificationsSection {...editableMultiProps} />
-      <DependentsSection {...editableMultiProps} />
-      <NomineesSection {...editableMultiProps} />
+      <EducationSection {...editableMultiProps} consentStatus={sectionStatus("education")} consentArea={consentAreaFor("education")} />
+      <CertificationsSection {...editableMultiProps} consentStatus={sectionStatus("certifications")} consentArea={consentAreaFor("certifications")} />
+      <DependentsSection {...editableMultiProps} consentStatus={sectionStatus("dependents")} consentArea={consentAreaFor("dependents")} />
+      <NomineesSection {...editableMultiProps} consentStatus={sectionStatus("nominees")} consentArea={consentAreaFor("nominees")} />
 
       {/* ── Read-only multi-entry sections (employees cannot edit) ── */}
-      <EmploymentHistorySection {...lockedMultiProps} />
+      <EmploymentHistorySection {...lockedMultiProps} consentStatus={sectionStatus("employmentHistory")} consentArea={consentAreaFor("employmentHistory")} />
 
       {/* ── Additional notes (read-only for employees) ── */}
       <DataSection
@@ -271,6 +380,7 @@ export function EmployeeDataView({
           { label: "Notes", key: "notes", value: e.notes, type: "textarea" },
         ]}
         defaultOpen={false}
+        consentStatus={sectionStatus("additionalNotes")}
         {...readOnlySectionProps}
       />
     </div>

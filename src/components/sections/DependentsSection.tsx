@@ -1,6 +1,7 @@
 import { MultiEntrySection, type EntryField } from "@/components/MultiEntrySection";
 import { EmployeeService } from "@/services/employee.service";
 import { UsersGroupTwoRoundedBoldDuotone } from "solar-icon-set";
+import type { SectionConsentStatus } from "@/lib/section-consent";
 
 const FIELDS: EntryField[] = [
   { key: "name", label: "Dependent Name", required: true },
@@ -24,9 +25,13 @@ interface Props {
   employeeId: string;
   isAdmin?: boolean;
   hasConsented?: boolean;
+  hideAdd?: boolean;
+  viewOnly?: boolean;
+  consentStatus?: SectionConsentStatus;
+  consentArea?: React.ReactNode;
 }
 
-export function DependentsSection({ employeeId, isAdmin, hasConsented }: Props) {
+export function DependentsSection({ employeeId, isAdmin, hasConsented, hideAdd, viewOnly, consentStatus, consentArea }: Props) {
   return (
     <MultiEntrySection
       title="Dependents"
@@ -34,6 +39,10 @@ export function DependentsSection({ employeeId, isAdmin, hasConsented }: Props) 
       employeeId={employeeId}
       isAdmin={isAdmin}
       hasConsented={hasConsented}
+      hideAdd={hideAdd}
+      viewOnly={viewOnly}
+      consentStatus={consentStatus}
+      consentArea={consentArea}
       sectionKey="employee_dependents"
       loader={EmployeeService.getDependents.bind(EmployeeService)}
       onAdd={EmployeeService.addDependent.bind(EmployeeService)}

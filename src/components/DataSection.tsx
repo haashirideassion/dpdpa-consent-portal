@@ -7,6 +7,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { DataField, type FieldDef } from "./DataField";
 import { CorrectionRequestModal } from "./CorrectionRequestModal";
+import { SectionConsentBadge } from "./SectionConsentBadge";
+import type { SectionConsentStatus } from "@/lib/section-consent";
 import { toast } from "sonner";
 
 interface DataSectionProps {
@@ -29,6 +31,10 @@ interface DataSectionProps {
    * Defaults to true.
    */
   allowCorrection?: boolean;
+  /** Aggregate consent status for this section — renders a status badge in the header. */
+  consentStatus?: SectionConsentStatus;
+  /** Inline consent area rendered at the bottom of the card content. */
+  consentArea?: React.ReactNode;
 }
 
 export function DataSection({
@@ -42,6 +48,8 @@ export function DataSection({
   isAdmin = false,
   isOwner = false,
   allowCorrection = true,
+  consentStatus,
+  consentArea,
 }: DataSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [editMode, setEditMode] = useState(false);
@@ -160,11 +168,12 @@ export function DataSection({
       <Card className="border border-border shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between py-3.5 px-5">
           <div
-            className="flex items-center gap-2.5 cursor-pointer select-none flex-1"
+            className="flex items-center gap-2.5 cursor-pointer select-none flex-1 min-w-0"
             onClick={() => !editMode && setOpen(!open)}
           >
-            <span className="text-primary">{icon}</span>
-            <CardTitle className="text-base font-semibold">{title}</CardTitle>
+            <span className="text-primary shrink-0">{icon}</span>
+            <CardTitle className="text-base font-semibold truncate">{title}</CardTitle>
+            {consentStatus && <SectionConsentBadge status={consentStatus} />}
           </div>
 
           <div className="flex items-center gap-2">
@@ -235,6 +244,7 @@ export function DataSection({
                 );
               })}
             </div>
+            {consentArea}
           </CardContent>
         )}
       </Card>

@@ -1,6 +1,7 @@
 import { MultiEntrySection, type EntryField } from "@/components/MultiEntrySection";
 import { EmployeeService } from "@/services/employee.service";
 import { DiplomaBoldDuotone } from "solar-icon-set";
+import type { SectionConsentStatus } from "@/lib/section-consent";
 
 const COMMON_ISSUERS = [
   "AWS", "Microsoft", "Google", "PMI", "Scrum Alliance", "ISACA",
@@ -25,9 +26,13 @@ interface Props {
   employeeId: string;
   isAdmin?: boolean;
   hasConsented?: boolean;
+  hideAdd?: boolean;
+  viewOnly?: boolean;
+  consentStatus?: SectionConsentStatus;
+  consentArea?: React.ReactNode;
 }
 
-export function CertificationsSection({ employeeId, isAdmin, hasConsented }: Props) {
+export function CertificationsSection({ employeeId, isAdmin, hasConsented, hideAdd, viewOnly, consentStatus, consentArea }: Props) {
   return (
     <MultiEntrySection
       title="Certifications"
@@ -35,6 +40,10 @@ export function CertificationsSection({ employeeId, isAdmin, hasConsented }: Pro
       employeeId={employeeId}
       isAdmin={isAdmin}
       hasConsented={hasConsented}
+      hideAdd={hideAdd}
+      viewOnly={viewOnly}
+      consentStatus={consentStatus}
+      consentArea={consentArea}
       sectionKey="employee_certifications_v2"
       loader={EmployeeService.getCertifications.bind(EmployeeService)}
       onAdd={EmployeeService.addCertification.bind(EmployeeService)}
