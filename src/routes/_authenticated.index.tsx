@@ -40,6 +40,26 @@ function EmployeePortal() {
   const [loading, setLoading] = useState(true);
   const [noVideo, setNoVideo] = useState(false);
 
+  // ── Shared toggle state for consent purposes ───────────────────────────────
+  // Initialized from the active template: mandatory=ON (locked), others=OFF.
+  // Lifted here so GranularConsentForm and inline SectionConsentArea share state.
+  const [toggles, setToggles] = useState<Record<string, boolean>>({});
+
+  const handleToggle = useCallback((key: string, val: boolean) => {
+    setToggles((prev) => ({ ...prev, [key]: val }));
+  }, []);
+
+  // Re-initialize toggles whenever the active template changes
+  useEffect(() => {
+    if (!activeTemplate) return;
+    const init: Record<string, boolean> = {};
+    activeTemplate.purposes.forEach((p) => {
+      const type = p.purpose_type ?? (p.is_mandatory ? "mandatory" : "optional");
+      init[p.purpose_key] = type === "mandatory";
+    });
+    setToggles(init);
+  }, [activeTemplate]);
+
   // ── DPDPA banner: persisted per-user via localStorage ─────────────────────
   // Show only on first visit or before first consent. Never re-show once dismissed.
   const dpdpaStorageKey = user?.id ? `dpdpa_intro_dismissed_${user.id}` : null;
@@ -206,6 +226,9 @@ function EmployeePortal() {
               <EmployeeDataView
                 employee={employee}
                 hasConsented={hasConsented}
+                template={activeTemplate}
+                toggles={toggles}
+                onToggle={handleToggle}
                 onEmployeeUpdated={(updated) => {
                   if (updated) setEmployee(updated);
                 }}
@@ -217,6 +240,8 @@ function EmployeePortal() {
                   userId={user.id}
                   template={activeTemplate}
                   hasConsented={hasConsented}
+                  toggles={toggles}
+                  onToggle={handleToggle}
                   onConsentSubmitted={fetchData}
                 />
               )}

@@ -50,6 +50,8 @@ import {
 } from "solar-icon-set";
 import { toast } from "sonner";
 import { CorrectionService } from "@/services/correction.service";
+import { SectionConsentBadge } from "@/components/SectionConsentBadge";
+import type { SectionConsentStatus } from "@/lib/section-consent";
 
 // ── Field config ──────────────────────────────────────────────────────────────
 export interface EntryField {
@@ -85,6 +87,24 @@ interface MultiEntrySectionProps {
    * Defaults to true.
    */
   allowUpdate?: boolean;
+  /**
+   * When true, hides the Add button and empty-state "Add" CTA even when
+   * the user has edit capability (canEdit). Used in admin view where admins
+   * can edit existing records but must not manually create new child records.
+   * Defaults to false.
+   */
+  hideAdd?: boolean;
+  /**
+   * When true, forces the section into fully read-only mode regardless of
+   * isAdmin or hasConsented. All edit/delete/add affordances are hidden.
+   * Used to render admin views as view-only for demo purposes.
+   * Defaults to false.
+   */
+  viewOnly?: boolean;
+  /** Aggregate consent status for this section — renders a status badge in the header. */
+  consentStatus?: SectionConsentStatus;
+  /** Inline consent area rendered at the bottom of the card content. */
+  consentArea?: React.ReactNode;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -103,6 +123,10 @@ export function MultiEntrySection({
   renderCard,
   emptyMessage,
   allowUpdate = true,
+  hideAdd = false,
+  viewOnly = false,
+  consentStatus,
+  consentArea,
 }: MultiEntrySectionProps) {
   const [entries, setEntries] = useState<any[]>([]);
   const [loadingEntries, setLoadingEntries] = useState(true);
@@ -123,7 +147,7 @@ export function MultiEntrySection({
   const [deleting, setDeleting] = useState(false);
 
   const isLocked = hasConsented && !isAdmin;
-  const canEdit = !isLocked;
+  const canEdit = !isLocked && !viewOnly;
   // Show update (correction) action buttons only when locked AND the section allows it
   const showUpdateButtons = isLocked && allowUpdate;
 
@@ -355,14 +379,15 @@ export function MultiEntrySection({
     <>
       <Card className="border border-border shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between py-3.5 px-5">
-          <div className="flex items-center gap-2.5">
-            <span className="text-primary">{icon}</span>
-            <CardTitle className="text-base font-semibold">{title}</CardTitle>
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <span className="text-primary shrink-0">{icon}</span>
+            <CardTitle className="text-base font-semibold truncate">{title}</CardTitle>
             {entries.length > 0 && (
-              <span className="text-[11px] text-muted-foreground bg-muted rounded-full px-2 py-0.5 font-medium tabular-nums">
+              <span className="text-[11px] text-muted-foreground bg-muted rounded-full px-2 py-0.5 font-medium tabular-nums shrink-0">
                 {entries.length}
               </span>
             )}
+            {consentStatus && <SectionConsentBadge status={consentStatus} />}
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -372,7 +397,7 @@ export function MultiEntrySection({
                 Locked
               </span>
             )}
-            {canEdit && (
+            {canEdit && !hideAdd && (
               <Button
                 size="sm"
                 variant="ghost"
@@ -399,7 +424,7 @@ export function MultiEntrySection({
               <p className="text-xs text-muted-foreground">
                 {emptyMessage ?? `No ${title.toLowerCase()} added yet.`}
               </p>
-              {canEdit && (
+              {canEdit && !hideAdd && (
                 <button
                   type="button"
                   onClick={openAdd}
@@ -475,6 +500,7 @@ export function MultiEntrySection({
               ))}
             </div>
           )}
+          {consentArea}
         </CardContent>
       </Card>
 

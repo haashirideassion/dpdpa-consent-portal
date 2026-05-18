@@ -1,6 +1,7 @@
 import { MultiEntrySection, type EntryField } from "@/components/MultiEntrySection";
 import { EmployeeService } from "@/services/employee.service";
 import { Bag2BoldDuotone } from "solar-icon-set";
+import type { SectionConsentStatus } from "@/lib/section-consent";
 
 const FIELDS: EntryField[] = [
   { key: "employer_name", label: "Employer / Company Name", required: true },
@@ -30,9 +31,12 @@ interface Props {
   isAdmin?: boolean;
   hasConsented?: boolean;
   allowUpdate?: boolean;
+  viewOnly?: boolean;
+  consentStatus?: SectionConsentStatus;
+  consentArea?: React.ReactNode;
 }
 
-export function EmploymentHistorySection({ employeeId, isAdmin, hasConsented, allowUpdate }: Props) {
+export function EmploymentHistorySection({ employeeId, isAdmin, hasConsented, allowUpdate, viewOnly, consentStatus, consentArea }: Props) {
   return (
     <MultiEntrySection
       title="Previous Employment"
@@ -41,6 +45,9 @@ export function EmploymentHistorySection({ employeeId, isAdmin, hasConsented, al
       isAdmin={isAdmin}
       hasConsented={hasConsented}
       allowUpdate={allowUpdate}
+      viewOnly={viewOnly}
+      consentStatus={consentStatus}
+      consentArea={consentArea}
       sectionKey="employee_employment_history"
       loader={EmployeeService.getEmploymentHistory.bind(EmployeeService)}
       onAdd={EmployeeService.addEmploymentHistory.bind(EmployeeService)}
