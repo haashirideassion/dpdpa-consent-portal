@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ConsentService, type PurposeConsentStatus } from "@/services/consent.service";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ConsentService, type PurposeConsentStatus, type PurposeType } from "@/services/consent.service";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -39,56 +39,36 @@ import {
   RefreshBoldDuotone,
   ArrowDownBoldDuotone,
   AddCircleBoldDuotone,
+  GlobalBoldDuotone,
 } from "solar-icon-set";
+import { AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { GrievanceOfficerBlock } from "@/components/GrievanceOfficerBlock";
 
-// ── Consequence copy per purpose_key ─────────────────────────────────────────
-const WITHDRAWAL_CONSEQUENCES: Record<string, string[]> = {
-  payroll: [
-    "Salary and statutory payment processing will be affected.",
-    "PF, ESI, and TDS obligations cannot be fulfilled without this consent.",
-    "This consent is mandatory and cannot be withdrawn.",
-  ],
-  benefits: [
-    "Health insurance and other employment benefits may be suspended.",
-    "Insurance claims may not be processed until consent is restored.",
-    "This consent is mandatory and cannot be withdrawn.",
-  ],
-  background_check: [
-    "Employment verification may be placed on hold.",
-    "Some regulatory submissions may be delayed.",
-    "This consent is mandatory and cannot be withdrawn.",
-  ],
-  training: [
-    "Access to internal and external learning platforms may be revoked.",
-    "Certifications linked to company-sponsored training may be affected.",
-    "You can re-consent at any time to regain access.",
-  ],
-  marketing: [
-    "You will be removed from internal newsletters and company announcements.",
-    "Your name and photo will no longer appear in company publications.",
-    "This will not affect your core employment or benefits.",
-  ],
-  cross_border: [
-    "Your data will only be processed within India.",
-    "Some features of global HR systems may become unavailable.",
-    "Transfers to adequacy-compliant jurisdictions will be paused.",
-  ],
-};
-
-function getConsequences(purposeKey: string, isMandatory: boolean): string[] {
-  if (WITHDRAWAL_CONSEQUENCES[purposeKey]) return WITHDRAWAL_CONSEQUENCES[purposeKey];
-  if (isMandatory) {
-    return [
-      "This is a mandatory consent required for your employment.",
-      "Withdrawing this may impact core HR processes.",
-    ];
+// ── Purpose type badge ────────────────────────────────────────────────────────
+function PurposeTypeBadge({ type }: { type: PurposeType }) {
+  if (type === "mandatory") {
+    return (
+      <Badge variant="secondary" className="text-[9px] uppercase tracking-wide py-0 px-1.5 h-4 font-semibold gap-0.5">
+        <LockKeyholeMinimalisticBoldDuotone size={9} className="mr-0.5" />
+        Mandatory
+      </Badge>
+    );
   }
-  return [
-    "Some optional services related to this purpose may no longer be available.",
-    "You can re-consent at any time to restore these services.",
-  ];
+  if (type === "conditional") {
+    return (
+      <Badge className="text-[9px] uppercase tracking-wide py-0 px-1.5 h-4 font-semibold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-50 gap-0.5">
+        <ShieldWarningBoldDuotone size={9} className="mr-0.5" />
+        Conditional
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="text-[9px] uppercase tracking-wide py-0 px-1.5 h-4 text-muted-foreground">
+      Optional
+    </Badge>
+  );
 }
 
 // ── Status badge ──────────────────────────────────────────────────────────────
@@ -187,6 +167,11 @@ function ConsentCard({
 }) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const hasHistory = item.grantHistory.length + item.withdrawalHistory.length > 0;
+  const purposeType: PurposeType = item.purpose.purpose_type ?? (item.purpose.is_mandatory ? "mandatory" : "optional");
+  const isSelectable = purposeType !== "mandatory";
+  // Support v1.0 and v2.0 fields
+  const dataUsed   = item.purpose.data_used   ?? item.purpose.data_categories;
+  const sharedWith = item.purpose.shared_with ?? item.purpose.third_parties;
 
   return (
     <Card className="overflow-hidden border border-border/60 shadow-none">
@@ -198,20 +183,11 @@ function ConsentCard({
               <span className="text-sm font-semibold text-foreground">
                 {item.purpose.label}
               </span>
-              {item.purpose.is_mandatory ? (
-                <Badge
-                  variant="secondary"
-                  className="text-[9px] uppercase tracking-wide py-0 px-1.5 h-4 font-semibold"
-                >
-                  <LockKeyholeMinimalisticBoldDuotone size={9} className="mr-0.5" />
-                  Mandatory
-                </Badge>
-              ) : (
-                <Badge
-                  variant="outline"
-                  className="text-[9px] uppercase tracking-wide py-0 px-1.5 h-4 text-muted-foreground"
-                >
-                  Optional
+              <PurposeTypeBadge type={purposeType} />
+              {item.purpose.cross_border && (
+                <Badge className="gap-1 bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-50 text-[9px] py-0 px-1.5 h-4">
+                  <GlobalBoldDuotone size={9} />
+                  Cross-border
                 </Badge>
               )}
             </div>
@@ -219,6 +195,32 @@ function ConsentCard({
             <p className="text-xs text-muted-foreground leading-relaxed max-w-prose">
               {item.purpose.description}
             </p>
+
+            {/* Disclosure mini-summary */}
+            {(dataUsed || sharedWith || item.purpose.retention_period) && (
+              <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
+                {dataUsed && (
+                  <span className="text-[11px] text-muted-foreground">
+                    <span className="font-medium text-foreground/60">Data: </span>
+                    {dataUsed}
+                  </span>
+                )}
+                {item.purpose.retention_period && (
+                  <span className="text-[11px] text-muted-foreground">
+                    <span className="font-medium text-foreground/60">Retention: </span>
+                    {item.purpose.retention_period}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Conditional: consequence info */}
+            {purposeType === "conditional" && item.purpose.consequence_of_declining && item.currentStatus !== "active" && (
+              <div className="flex items-start gap-1.5 mt-1.5 text-[11px] text-amber-700">
+                <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                <span>{item.purpose.consequence_of_declining}</span>
+              </div>
+            )}
 
             {/* Date info */}
             <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
@@ -241,7 +243,7 @@ function ConsentCard({
           <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
             <StatusBadge status={item.currentStatus} />
 
-            {canAct && !item.purpose.is_mandatory && (
+            {canAct && isSelectable && (
               <>
                 {item.currentStatus === "pending" && (
                   <Button
@@ -279,8 +281,8 @@ function ConsentCard({
               </>
             )}
 
-            {item.purpose.is_mandatory && item.currentStatus === "active" && (
-              <span className="text-[10px] text-muted-foreground italic">Required</span>
+            {!isSelectable && item.currentStatus === "active" && (
+              <span className="text-[10px] text-muted-foreground italic">Required by law</span>
             )}
           </div>
         </div>
@@ -323,15 +325,13 @@ function WithdrawDialog({
   const [reason, setReason] = useState("");
 
   useEffect(() => {
-    if (!item) {
-      setStep(1);
-      setReason("");
-    }
+    if (!item) { setStep(1); setReason(""); }
   }, [item]);
 
   if (!item) return null;
 
-  const consequences = getConsequences(item.purpose.purpose_key, item.purpose.is_mandatory);
+  // Use purpose-level consequence text (v2.0) when available
+  const consequence = item.purpose.consequence_of_declining;
 
   return (
     <Dialog open={!!item} onOpenChange={(open) => !open && onClose()}>
@@ -345,24 +345,27 @@ function WithdrawDialog({
               </DialogTitle>
               <DialogDescription className="text-sm">
                 Withdrawing consent for{" "}
-                <span className="font-semibold text-foreground">
-                  {item.purpose.label}
-                </span>{" "}
+                <span className="font-semibold text-foreground">{item.purpose.label}</span>{" "}
                 will have the following effects:
               </DialogDescription>
             </DialogHeader>
 
-            <ul className="space-y-2 my-2">
-              {consequences.map((c, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm">
-                  <InfoCircleBoldDuotone
-                    size={15}
-                    className="text-amber-500 mt-0.5 shrink-0"
-                  />
-                  <span className="text-muted-foreground">{c}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="space-y-2 my-2">
+              {consequence ? (
+                <div className="flex items-start gap-2 text-sm">
+                  <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                  <span className="text-muted-foreground">{consequence}</span>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2 text-sm">
+                  <InfoCircleBoldDuotone size={15} className="text-amber-500 mt-0.5 shrink-0" />
+                  <span className="text-muted-foreground">
+                    Some optional services related to this purpose may no longer be available.
+                    You can re-consent at any time to restore these services.
+                  </span>
+                </div>
+              )}
+            </div>
 
             <p className="text-xs text-muted-foreground bg-muted/40 rounded-md p-3">
               You may re-consent at any time. This withdrawal will be recorded in your
@@ -370,16 +373,8 @@ function WithdrawDialog({
             </p>
 
             <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={onClose} className="text-sm">
-                Cancel
-              </Button>
-              <Button
-                variant="default"
-                onClick={() => setStep(2)}
-                className="text-sm"
-              >
-                Continue
-              </Button>
+              <Button variant="outline" onClick={onClose} className="text-sm">Cancel</Button>
+              <Button variant="default" onClick={() => setStep(2)} className="text-sm">Continue</Button>
             </DialogFooter>
           </>
         ) : (
@@ -391,10 +386,8 @@ function WithdrawDialog({
               </DialogTitle>
               <DialogDescription className="text-sm">
                 Are you sure you want to withdraw consent for{" "}
-                <span className="font-semibold text-foreground">
-                  {item.purpose.label}
-                </span>
-                ? This action will be recorded.
+                <span className="font-semibold text-foreground">{item.purpose.label}</span>?
+                This action will be recorded.
               </DialogDescription>
             </DialogHeader>
 
@@ -412,14 +405,10 @@ function WithdrawDialog({
               />
             </div>
 
+            <GrievanceOfficerBlock />
+
             <DialogFooter className="gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setStep(1)}
-                className="text-sm"
-              >
-                Back
-              </Button>
+              <Button variant="outline" onClick={() => setStep(1)} className="text-sm">Back</Button>
               <Button
                 variant="destructive"
                 onClick={() => onConfirm(reason)}
@@ -436,12 +425,9 @@ function WithdrawDialog({
   );
 }
 
-// ── Give Consent dialog (first-time, pending optional purpose) ────────────────
+// ── Give Consent dialog (first-time / pending optional purpose) ───────────────
 function GiveConsentDialog({
-  item,
-  onClose,
-  onConfirm,
-  loading,
+  item, onClose, onConfirm, loading,
 }: {
   item: PurposeConsentStatus | null;
   onClose: () => void;
@@ -449,7 +435,6 @@ function GiveConsentDialog({
   loading: boolean;
 }) {
   if (!item) return null;
-
   return (
     <Dialog open={!!item} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-sm">
@@ -460,13 +445,9 @@ function GiveConsentDialog({
           </DialogTitle>
           <DialogDescription className="text-sm">
             You are consenting to{" "}
-            <span className="font-semibold text-foreground">
-              {item.purpose.label}
-            </span>
-            .
+            <span className="font-semibold text-foreground">{item.purpose.label}</span>.
           </DialogDescription>
         </DialogHeader>
-
         <div className="space-y-2 text-sm text-muted-foreground">
           <p className="leading-relaxed">{item.purpose.description}</p>
           {item.purpose.legal_basis && (
@@ -476,21 +457,12 @@ function GiveConsentDialog({
             </p>
           )}
         </div>
-
         <p className="text-xs text-muted-foreground bg-emerald-50 border border-emerald-100 rounded-md p-3">
-          A timestamped consent record will be created. You may withdraw this
-          consent at any time.
+          A timestamped consent record will be created. You may withdraw this consent at any time.
         </p>
-
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose} className="text-sm">
-            Cancel
-          </Button>
-          <Button
-            onClick={onConfirm}
-            disabled={loading}
-            className="text-sm gap-1 bg-emerald-600 hover:bg-emerald-700"
-          >
+          <Button variant="outline" onClick={onClose} className="text-sm">Cancel</Button>
+          <Button onClick={onConfirm} disabled={loading} className="text-sm gap-1 bg-emerald-600 hover:bg-emerald-700">
             {loading ? "Processing..." : "Confirm Consent"}
           </Button>
         </DialogFooter>
@@ -501,10 +473,7 @@ function GiveConsentDialog({
 
 // ── Re-consent confirmation dialog ───────────────────────────────────────────
 function ReConsentDialog({
-  item,
-  onClose,
-  onConfirm,
-  loading,
+  item, onClose, onConfirm, loading,
 }: {
   item: PurposeConsentStatus | null;
   onClose: () => void;
@@ -512,7 +481,6 @@ function ReConsentDialog({
   loading: boolean;
 }) {
   if (!item) return null;
-
   return (
     <Dialog open={!!item} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-sm">
@@ -523,27 +491,17 @@ function ReConsentDialog({
           </DialogTitle>
           <DialogDescription className="text-sm">
             You are about to consent again to{" "}
-            <span className="font-semibold text-foreground">
-              {item.purpose.label}
-            </span>
-            . This will restore any services or processing associated with this purpose.
+            <span className="font-semibold text-foreground">{item.purpose.label}</span>.
+            This will restore any services or processing associated with this purpose.
           </DialogDescription>
         </DialogHeader>
-
         <p className="text-xs text-muted-foreground bg-emerald-50 border border-emerald-100 rounded-md p-3">
           A new consent record will be created with today's date and timestamp.
           Your previous withdrawal history is preserved.
         </p>
-
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose} className="text-sm">
-            Cancel
-          </Button>
-          <Button
-            onClick={onConfirm}
-            disabled={loading}
-            className="text-sm gap-1 bg-emerald-600 hover:bg-emerald-700"
-          >
+          <Button variant="outline" onClick={onClose} className="text-sm">Cancel</Button>
+          <Button onClick={onConfirm} disabled={loading} className="text-sm gap-1 bg-emerald-600 hover:bg-emerald-700">
             {loading ? "Processing..." : "Confirm Consent"}
           </Button>
         </DialogFooter>
@@ -554,9 +512,7 @@ function ReConsentDialog({
 
 // ── DPR dialog (Exercise My Rights) ──────────────────────────────────────────
 function DprDialog({
-  employeeId,
-  open,
-  onOpenChange,
+  employeeId, open, onOpenChange,
 }: {
   employeeId: string;
   open: boolean;
@@ -579,8 +535,7 @@ function DprDialog({
     if (!error) {
       onOpenChange(false);
       toast.success("Your DPDPA request has been submitted to the DPO.");
-      setDprType("");
-      setDprDesc("");
+      setDprType(""); setDprDesc("");
     } else {
       toast.error("Failed to submit request. Please try again.");
     }
@@ -613,8 +568,7 @@ function DprDialog({
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">
-              Details{" "}
-              <span className="text-muted-foreground font-normal">(optional)</span>
+              Details <span className="text-muted-foreground font-normal">(optional)</span>
             </Label>
             <Textarea
               placeholder="Provide any specific context for your request..."
@@ -626,9 +580,7 @@ function DprDialog({
           </div>
         </div>
         <DialogFooter className="gap-2">
-          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button size="sm" onClick={handleSubmit} disabled={!dprType || submitting}>
             {submitting ? "Submitting..." : "Submit Request"}
           </Button>
@@ -648,8 +600,7 @@ function EmptyState() {
       <div>
         <p className="text-sm font-semibold text-foreground">No Consent Template Active</p>
         <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-          No active consent template was found. Please contact HR if you believe this
-          is an error.
+          No active consent template was found. Please contact HR if you believe this is an error.
         </p>
       </div>
     </div>
@@ -668,8 +619,10 @@ export function MyConsentsView({
 }) {
   const [loading, setLoading] = useState(true);
   const [statuses, setStatuses] = useState<PurposeConsentStatus[]>([]);
+  const [sectionedStatuses, setSectionedStatuses] = useState<
+    Array<{ section: { id: string; section_number: number; section_name: string }; statuses: PurposeConsentStatus[] }>
+  >([]);
 
-  // Dialog state
   const [withdrawTarget, setWithdrawTarget] = useState<PurposeConsentStatus | null>(null);
   const [reConsentTarget, setReConsentTarget] = useState<PurposeConsentStatus | null>(null);
   const [giveConsentTarget, setGiveConsentTarget] = useState<PurposeConsentStatus | null>(null);
@@ -678,21 +631,19 @@ export function MyConsentsView({
 
   const fetchStatuses = useCallback(async () => {
     setLoading(true);
-    const { statuses: s } = await ConsentService.getConsentStatuses(employeeId);
-    setStatuses(s);
+    const result = await ConsentService.getConsentStatuses(employeeId);
+    setStatuses(result.statuses);
+    setSectionedStatuses(result.sectionedStatuses);
     setLoading(false);
   }, [employeeId]);
 
-  useEffect(() => {
-    fetchStatuses();
-  }, [fetchStatuses]);
+  useEffect(() => { fetchStatuses(); }, [fetchStatuses]);
 
   const handleWithdrawConfirm = async (reason: string) => {
     if (!withdrawTarget || !userId) return;
     setActionLoading(true);
     const ok = await ConsentService.withdrawConsent({
-      employeeId,
-      userId,
+      employeeId, userId,
       purposeKey: withdrawTarget.purpose.purpose_key,
       purposeLabel: withdrawTarget.purpose.label,
       reason: reason || undefined,
@@ -712,8 +663,7 @@ export function MyConsentsView({
     if (!reConsentTarget || !userId) return;
     setActionLoading(true);
     const ok = await ConsentService.reGrantConsent({
-      employeeId,
-      userId,
+      employeeId, userId,
       purposeKey: reConsentTarget.purpose.purpose_key,
       purposeLabel: reConsentTarget.purpose.label,
       templateId: reConsentTarget.purpose.templateId,
@@ -735,8 +685,7 @@ export function MyConsentsView({
     if (!giveConsentTarget || !userId) return;
     setActionLoading(true);
     const ok = await ConsentService.reGrantConsent({
-      employeeId,
-      userId,
+      employeeId, userId,
       purposeKey: giveConsentTarget.purpose.purpose_key,
       purposeLabel: giveConsentTarget.purpose.label,
       templateId: giveConsentTarget.purpose.templateId,
@@ -764,17 +713,82 @@ export function MyConsentsView({
     );
   }
 
-  if (statuses.length === 0) {
-    return <EmptyState />;
-  }
+  if (statuses.length === 0) return <EmptyState />;
 
-  const mandatory = statuses.filter((s) => s.purpose.is_mandatory);
-  const optional = statuses.filter((s) => !s.purpose.is_mandatory);
-
-  const activeCount = statuses.filter((s) => s.currentStatus === "active").length;
+  const activeCount   = statuses.filter((s) => s.currentStatus === "active").length;
   const withdrawnCount = statuses.filter((s) => s.currentStatus === "withdrawn").length;
-  const pendingOptionalCount = optional.filter((s) => s.currentStatus === "pending").length;
-  const canAct = !!userId;
+  const pendingCount  = statuses.filter((s) => s.currentStatus === "pending" && s.purpose.purpose_type !== "mandatory").length;
+  const canAct        = !!userId;
+  const hasSections   = sectionedStatuses.length > 0;
+
+  // Render grouped (v2.0) or flat (v1.0)
+  const renderConsents = () => {
+    if (hasSections) {
+      return (
+        <div className="space-y-6 divide-y divide-border/40">
+          {sectionedStatuses.map(({ section, statuses: sStatuses }) => (
+            <div key={section.id} className="pt-4 first:pt-0 space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {section.section_number}. {section.section_name}
+              </p>
+              <div className="space-y-2">
+                {sStatuses.map((item) => (
+                  <ConsentCard
+                    key={item.purpose.purpose_key}
+                    item={item}
+                    canAct={canAct}
+                    onWithdraw={setWithdrawTarget}
+                    onReConsent={setReConsentTarget}
+                    onGiveConsent={setGiveConsentTarget}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    // Flat list (legacy v1.0)
+    const mandatory = statuses.filter((s) => s.purpose.is_mandatory);
+    const optional  = statuses.filter((s) => !s.purpose.is_mandatory);
+    return (
+      <>
+        {mandatory.length > 0 && (
+          <section className="space-y-2">
+            <div className="flex items-center gap-2">
+              <LockKeyholeMinimalisticBoldDuotone size={13} className="text-muted-foreground" />
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Mandatory Consents
+              </span>
+            </div>
+            <div className="space-y-2">
+              {mandatory.map((item) => (
+                <ConsentCard key={item.purpose.purpose_key} item={item} canAct={canAct}
+                  onWithdraw={setWithdrawTarget} onReConsent={setReConsentTarget} onGiveConsent={setGiveConsentTarget} />
+              ))}
+            </div>
+          </section>
+        )}
+        {optional.length > 0 && (
+          <section className="space-y-2">
+            <div className="flex items-center gap-2">
+              <InfoCircleBoldDuotone size={13} className="text-muted-foreground" />
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Optional Consents
+              </span>
+            </div>
+            <div className="space-y-2">
+              {optional.map((item) => (
+                <ConsentCard key={item.purpose.purpose_key} item={item} canAct={canAct}
+                  onWithdraw={setWithdrawTarget} onReConsent={setReConsentTarget} onGiveConsent={setGiveConsentTarget} />
+              ))}
+            </div>
+          </section>
+        )}
+      </>
+    );
+  };
 
   return (
     <div className="space-y-6 mt-4 animate-in fade-in slide-in-from-bottom-2">
@@ -782,8 +796,8 @@ export function MyConsentsView({
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <p className="text-sm text-muted-foreground">
-            Manage your DPDPA consent preferences. You may withdraw optional consents at
-            any time and re-consent when needed.
+            Manage your DPDPA consent preferences. You may withdraw optional and conditional consents
+            at any time and re-consent when needed.
           </p>
           <div className="flex gap-3 mt-2">
             <span className="text-xs text-muted-foreground">
@@ -794,9 +808,9 @@ export function MyConsentsView({
                 <span className="font-semibold text-red-600">{withdrawnCount}</span> withdrawn
               </span>
             )}
-            {pendingOptionalCount > 0 && (
+            {pendingCount > 0 && (
               <span className="text-xs text-muted-foreground">
-                <span className="font-semibold text-amber-600">{pendingOptionalCount}</span> pending
+                <span className="font-semibold text-amber-600">{pendingCount}</span> pending
               </span>
             )}
             <span className="text-xs text-muted-foreground">
@@ -815,85 +829,24 @@ export function MyConsentsView({
         </Button>
       </div>
 
-      {/* Mandatory consents */}
-      {mandatory.length > 0 && (
-        <section className="space-y-2">
-          <div className="flex items-center gap-2">
-            <LockKeyholeMinimalisticBoldDuotone size={13} className="text-muted-foreground" />
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Mandatory Consents
-            </span>
-          </div>
-          <div className="space-y-2">
-            {mandatory.map((item) => (
-              <ConsentCard
-                key={item.purpose.purpose_key}
-                item={item}
-                canAct={canAct}
-                onWithdraw={setWithdrawTarget}
-                onReConsent={setReConsentTarget}
-                onGiveConsent={setGiveConsentTarget}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Optional consents */}
-      {optional.length > 0 && (
-        <section className="space-y-2">
-          <div className="flex items-center gap-2">
-            <InfoCircleBoldDuotone size={13} className="text-muted-foreground" />
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Optional Consents
-            </span>
-          </div>
-          <div className="space-y-2">
-            {optional.map((item) => (
-              <ConsentCard
-                key={item.purpose.purpose_key}
-                item={item}
-                canAct={canAct}
-                onWithdraw={setWithdrawTarget}
-                onReConsent={setReConsentTarget}
-                onGiveConsent={setGiveConsentTarget}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+      {/* Consent list */}
+      {renderConsents()}
 
       <Separator />
 
-      <p className="text-[11px] text-muted-foreground text-center pb-2">
+      <p className="text-[11px] text-muted-foreground text-center">
         All consent actions are logged with timestamps for DPDPA compliance. Mandatory
         consents cannot be withdrawn as they are required for your employment relationship.
       </p>
 
+      {/* Grievance Officer Block — always shown per spec */}
+      <GrievanceOfficerBlock />
+
       {/* Dialogs */}
-      <WithdrawDialog
-        item={withdrawTarget}
-        onClose={() => setWithdrawTarget(null)}
-        onConfirm={handleWithdrawConfirm}
-        loading={actionLoading}
-      />
-      <ReConsentDialog
-        item={reConsentTarget}
-        onClose={() => setReConsentTarget(null)}
-        onConfirm={handleReConsentConfirm}
-        loading={actionLoading}
-      />
-      <GiveConsentDialog
-        item={giveConsentTarget}
-        onClose={() => setGiveConsentTarget(null)}
-        onConfirm={handleGiveConsentConfirm}
-        loading={actionLoading}
-      />
-      <DprDialog
-        employeeId={employeeId}
-        open={dprOpen}
-        onOpenChange={setDprOpen}
-      />
+      <WithdrawDialog item={withdrawTarget} onClose={() => setWithdrawTarget(null)} onConfirm={handleWithdrawConfirm} loading={actionLoading} />
+      <ReConsentDialog item={reConsentTarget} onClose={() => setReConsentTarget(null)} onConfirm={handleReConsentConfirm} loading={actionLoading} />
+      <GiveConsentDialog item={giveConsentTarget} onClose={() => setGiveConsentTarget(null)} onConfirm={handleGiveConsentConfirm} loading={actionLoading} />
+      <DprDialog employeeId={employeeId} open={dprOpen} onOpenChange={setDprOpen} />
     </div>
   );
 }
