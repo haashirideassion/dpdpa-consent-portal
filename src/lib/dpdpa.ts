@@ -32,13 +32,11 @@ export function isDpdpaField(fieldName: string): boolean {
   return DPDPA_FIELDS.has(fieldName);
 }
 
-export const CONSENT_VERSION = "v1.0";
+/** Active template version. Update when a new template is activated in the DB. */
+export const CONSENT_VERSION = "v2.0";
 
-export const CONSENT_STATEMENT = `I hereby acknowledge that I have reviewed all personal and employment-related information stored by the organization as displayed above. I understand that certain data fields are classified as "Protected Personal Data" under the Digital Personal Data Protection Act, 2023 (DPDPA).
-
-I provide my explicit consent for the organization to store, process, and use my personal data as described, in accordance with the company's data privacy policy and applicable provisions of the DPDPA.
-
-I understand that I may withdraw this consent at any time by contacting the HR/Compliance team, subject to applicable legal obligations.`;
+export const CONSENT_STATEMENT =
+  "By typing my full name below and clicking Submit, I confirm that I have watched the introductory video and read the education module on DPDPA. I have reviewed my personal information in each section above. I have made an informed decision for each purpose, understanding the data used, the parties involved, the retention period, and the consequences of declining. My consent for each Optional and Conditional purpose is given freely and without coercion. I understand I can withdraw consent for any Optional or Conditional purpose at any time through the My Consents area, and that withdrawal will be as easy as giving consent. I understand my rights under DPDPA — to access, correct, erase, nominate, and raise grievances — and how to exercise them.";
 
 export function maskValue(value: string, visible = 4) {
   if (!value) return "-";
