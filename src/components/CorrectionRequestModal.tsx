@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,7 +13,9 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { CorrectionService } from "@/services/correction.service";
-import { PaperclipBoldDuotone } from "solar-icon-set";
+import { AttachmentService, type EmployeeAttachment } from "@/services/attachment.service";
+import { requiresAttachment } from "@/lib/attachmentConfig";
+import { PaperclipBoldDuotone, DownloadMinimalisticBoldDuotone } from "solar-icon-set";
 
 interface CorrectionRequestModalProps {
   open: boolean;
@@ -36,6 +38,25 @@ export function CorrectionRequestModal({
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Current document on file (loaded when the field supports attachments)
+  const [currentAttachment, setCurrentAttachment] = useState<EmployeeAttachment | null>(null);
+  const [currentAttachmentUrl, setCurrentAttachmentUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open || !requiresAttachment(fieldKey)) {
+      setCurrentAttachment(null);
+      setCurrentAttachmentUrl(null);
+      return;
+    }
+    AttachmentService.getActive(employeeId, fieldKey).then(async (att) => {
+      setCurrentAttachment(att);
+      if (att) {
+        const url = await AttachmentService.getSignedUrl(att.file_path);
+        setCurrentAttachmentUrl(url);
+      }
+    });
+  }, [open, employeeId, fieldKey]);
 
   async function handleSubmit() {
     if (!newValue.trim()) {
@@ -111,6 +132,30 @@ export function CorrectionRequestModal({
             </p>
           </div>
 
+          {/* Current Document on File */}
+          {currentAttachment && (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Current Document on File</Label>
+              <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2">
+                <PaperclipBoldDuotone size={13} className="text-muted-foreground shrink-0" />
+                <span className="text-xs text-muted-foreground truncate flex-1">
+                  {currentAttachment.file_name}
+                </span>
+                {currentAttachmentUrl && (
+                  <a
+                    href={currentAttachmentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 inline-flex items-center gap-0.5 text-xs font-medium text-primary hover:underline underline-offset-2"
+                  >
+                    <DownloadMinimalisticBoldDuotone size={12} />
+                    View
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* New Value */}
           <div className="space-y-1.5">
             <Label htmlFor="new-value" className="text-xs">Updated Value <span className="text-destructive">*</span></Label>
@@ -124,10 +169,11 @@ export function CorrectionRequestModal({
             />
           </div>
 
-          {/* Proof Upload */}
+          {/* Proof / Replacement Document Upload */}
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">
-              Supporting Document <span className="text-muted-foreground">(optional — PDF / JPG / PNG, max 5 MB)</span>
+              {requiresAttachment(fieldKey) ? "Replacement Document" : "Supporting Document"}{" "}
+              <span className="text-muted-foreground">(optional — PDF / JPG / PNG, max 5 MB)</span>
             </Label>
             <div className="flex items-center gap-2">
               <Input

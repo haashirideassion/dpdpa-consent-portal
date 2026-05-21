@@ -7,8 +7,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { DataField, type FieldDef } from "./DataField";
 import { CorrectionRequestModal } from "./CorrectionRequestModal";
+import { AttachmentField } from "./AttachmentField";
 import { SectionConsentBadge } from "./SectionConsentBadge";
 import type { SectionConsentStatus } from "@/lib/section-consent";
+import { requiresAttachment } from "@/lib/attachmentConfig";
 import { toast } from "sonner";
 
 interface DataSectionProps {
@@ -239,6 +241,16 @@ export function DataSection({
                       >
                         Update
                       </button>
+                    )}
+
+                    {/* Supporting document attachment row */}
+                    {requiresAttachment(f.key) && employeeId && (
+                      <AttachmentField
+                        employeeId={employeeId}
+                        fieldKey={f.key}
+                        hasConsented={hasConsented}
+                        isAdmin={isAdmin}
+                      />
                     )}
                   </div>
                 );

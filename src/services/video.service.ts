@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { config } from "@/lib/config";
 
 export const VideoService = {
   /**
@@ -138,10 +139,6 @@ export const VideoService = {
     duration_seconds: number;
     resolution: string;
   }) {
-    if (payload.duration_seconds < 45 || payload.duration_seconds > 90) {
-      throw new Error("Duration must be between 45 and 90 seconds.");
-    }
-
     const { data, error } = await supabase
       .from("video_versions")
       .insert({ ...payload, caption_url: payload.caption_url || null, status: "draft", is_active: false })
@@ -195,24 +192,80 @@ export const VideoService = {
   // ---------------------------------------------------------------------------
 
   /**
-   * Uploads an MP4 video file to Supabase Storage.
+   * Uploads an MP4 video file to Supabase Storage via XHR so that
+   * onProgress receives real byte-transfer events (fetch has no upload progress).
    * Path: videos/{language}/{version}.mp4
    * Returns the public URL.
    */
-  async uploadVideoFile(file: File, language: string, version: string): Promise<string> {
+  async uploadVideoFile(
+    file: File,
+    language: string,
+    version: string,
+    onProgress?: (pct: number) => void
+  ): Promise<string> {
+    const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500 MB
+    if (file.size > MAX_VIDEO_SIZE) {
+      throw new Error(`Video file exceeds the 500 MB limit (${(file.size / 1024 / 1024).toFixed(1)} MB).`);
+    }
+
     const safeLang = language.replace(/[^a-z0-9]/gi, "_").toLowerCase();
     const safeVer  = version.replace(/[^a-z0-9._-]/gi, "_").toLowerCase();
-    const path = `videos/${safeLang}/${safeVer}.mp4`;
+    const storagePath = `videos/${safeLang}/${safeVer}.mp4`;
 
-    const { error } = await supabase.storage
-      .from("dpdpa_videos")
-      .upload(path, file, { upsert: true, contentType: "video/mp4" });
+    // Get the current session JWT so XHR can authenticate
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+    if (!accessToken) throw new Error("Not authenticated. Please sign in again.");
 
-    if (error) throw new Error(`Video upload failed: ${error.message}`);
+    const supabaseUrl = config.supabase.url;
+    const uploadUrl = `${supabaseUrl}/storage/v1/object/dpdpa_videos/${storagePath}`;
+
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", uploadUrl, true);
+      xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+      xhr.setRequestHeader("Content-Type", "video/mp4");
+      xhr.setRequestHeader("x-upsert", "true");
+
+      if (onProgress) {
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            onProgress(Math.min(99, Math.round((e.loaded / e.total) * 100)));
+          }
+        };
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+        } else {
+          let msg = `Upload failed (HTTP ${xhr.status})`;
+          try {
+            const body = JSON.parse(xhr.responseText);
+            if (body?.error) msg = body.error;
+            else if (body?.message) msg = body.message;
+          } catch {
+            // ignore JSON parse errors
+          }
+          reject(new Error(msg));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error("Network error during upload. Check your connection."));
+      xhr.ontimeout = () => reject(new Error("Upload timed out. Check your connection and try again."));
+
+      // Dynamic timeout: minimum 10 min + 30 s per MB at 33 KB/s floor
+      xhr.timeout = Math.max(10 * 60_000, Math.ceil(file.size / (33 * 1024)) * 1000);
+
+      xhr.send(file);
+    });
+
+    // Signal 100% only after server confirms completion
+    onProgress?.(100);
 
     const { data: urlData } = supabase.storage
       .from("dpdpa_videos")
-      .getPublicUrl(path);
+      .getPublicUrl(storagePath);
 
     return urlData.publicUrl;
   },
@@ -243,7 +296,7 @@ export const VideoService = {
 
   /**
    * Full upload flow: uploads both files then inserts the video_versions record as draft.
-   * @param videoFile - MP4 file (≤ 25 MB)
+   * @param videoFile - MP4 file (≤ 500 MB)
    * @param captionFile - VTT or SRT file (mandatory)
    * @param meta - title, version, language, duration_seconds, resolution
    */
@@ -260,8 +313,8 @@ export const VideoService = {
     onProgress?: (step: "video" | "caption" | "saving") => void
   ) {
     // Validate before touching storage
-    if (videoFile.size > 26_214_400) {
-      throw new Error("Video file exceeds the 25 MB limit.");
+    if (videoFile.size > 500 * 1024 * 1024) {
+      throw new Error("Video file exceeds the 500 MB limit.");
     }
     if (!["video/mp4"].includes(videoFile.type) && !videoFile.name.endsWith(".mp4")) {
       throw new Error("Only MP4 video files are accepted.");
@@ -269,10 +322,6 @@ export const VideoService = {
     if (!captionFile) {
       throw new Error("A caption file (.vtt or .srt) is mandatory for DPDPA compliance.");
     }
-    if (meta.duration_seconds < 45 || meta.duration_seconds > 90) {
-      throw new Error("Duration must be between 45 and 90 seconds.");
-    }
-
     onProgress?.("video");
     const videoUrl = await this.uploadVideoFile(videoFile, meta.language, meta.version);
 

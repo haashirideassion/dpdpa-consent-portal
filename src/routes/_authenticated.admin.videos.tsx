@@ -67,25 +67,6 @@ const STEP_LABELS: Record<UploadStep, string> = {
   error: "Upload failed",
 };
 
-const STEP_PCT: Record<UploadStep, number> = {
-  idle: 0,
-  video: captionFile => captionFile ? 30 : 50, // dynamic — filled in handler
-  caption: 65,
-  saving: 85,
-  done: 100,
-  error: 0,
-} as unknown as Record<UploadStep, number>;
-
-// Static pct for display purposes
-const STEP_PCT_DISPLAY: Record<UploadStep, number> = {
-  idle: 0,
-  video: 30,
-  caption: 65,
-  saving: 85,
-  done: 100,
-  error: 0,
-};
-
 function AdminVideosPage() {
   const [videos, setVideos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,6 +81,8 @@ function AdminVideosPage() {
   const [captionFile, setCaptionFile] = useState<File | null>(null);
   const [uploadStep, setUploadStep] = useState<UploadStep>("idle");
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // Single source of truth for both the progress bar and the label percentage
+  const [uploadPct, setUploadPct] = useState(0);
 
   const videoInputRef = useRef<HTMLInputElement>(null);
   const captionInputRef = useRef<HTMLInputElement>(null);
@@ -131,6 +114,13 @@ function AdminVideosPage() {
       return;
     }
 
+    const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500 MB
+    if (file.size > MAX_VIDEO_SIZE) {
+      toast.error(`File too large: ${(file.size / 1024 / 1024).toFixed(1)} MB. Maximum allowed size is 500 MB.`);
+      if (videoInputRef.current) videoInputRef.current.value = "";
+      return;
+    }
+
     const video = document.createElement("video");
     video.preload = "metadata";
 
@@ -138,17 +128,10 @@ function AdminVideosPage() {
       const detectedDuration = Math.floor(video.duration);
       URL.revokeObjectURL(video.src);
       
-      if (detectedDuration < 45 || detectedDuration > 90) {
-        toast.error(`Invalid video duration: ${detectedDuration}s. Must be between 45 and 90 seconds.`);
-        setVideoFile(null);
-        setDuration("");
-        if (videoInputRef.current) videoInputRef.current.value = "";
-      } else {
-        setDuration(detectedDuration.toString());
-        setVideoFile(file);
-        setUploadError(null);
-        toast.success(`Video duration detected: ${detectedDuration} seconds.`);
-      }
+      setDuration(detectedDuration.toString());
+      setVideoFile(file);
+      setUploadError(null);
+      toast.success(`Video duration detected: ${detectedDuration} seconds.`);
     };
     
     video.onerror = () => {
@@ -170,26 +153,30 @@ function AdminVideosPage() {
     }
 
     const durationNum = parseInt(duration, 10);
-    if (durationNum < 45 || durationNum > 90) {
-      toast.error("Duration must be between 45 and 90 seconds.");
-      return;
-    }
 
     setUploadError(null);
+    setUploadPct(0);
     setUploadStep("video");
 
     try {
-      // Upload video file first
-      const videoUrl = await VideoService.uploadVideoFile(videoFile, language, version);
+      // Upload video — XHR reports real byte progress (0→90%)
+      const videoUrl = await VideoService.uploadVideoFile(
+        videoFile,
+        language,
+        version,
+        (pct) => setUploadPct(Math.round(pct * 0.9))
+      );
 
       // Upload caption file only if provided (optional)
       let captionUrl = "";
       if (captionFile) {
         setUploadStep("caption");
+        setUploadPct(92);
         captionUrl = await VideoService.uploadCaptionFile(captionFile, language, version);
       }
 
       setUploadStep("saving");
+      setUploadPct(96);
       await VideoService.createVideoVersion({
         title,
         version,
@@ -201,6 +188,7 @@ function AdminVideosPage() {
       });
 
       setUploadStep("done");
+      setUploadPct(100);
       toast.success("Video version saved as draft!");
 
       // Reset form
@@ -245,7 +233,6 @@ function AdminVideosPage() {
   };
 
   const isUploading = ["video", "caption", "saving"].includes(uploadStep);
-  const uploadPct = STEP_PCT_DISPLAY[uploadStep] ?? 0;
 
   return (
     <div className="space-y-8">
@@ -265,7 +252,7 @@ function AdminVideosPage() {
             <CardTitle>Create New Video Version</CardTitle>
           </div>
           <CardDescription>
-            Upload an MP4 file (H.264, max 25 MB, 720p–1080p, 45–90 s). A captions file (.vtt or .srt) is optional but recommended for accessibility.
+            Upload an MP4 file (H.264, max 500 MB, 720p–1080p). A captions file (.vtt or .srt) is optional but recommended for accessibility.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -343,7 +330,7 @@ function AdminVideosPage() {
             <div className="space-y-2">
               <Label htmlFor="vid-file">
                 Video File{" "}
-                <span className="text-muted-foreground font-normal">(.mp4, H.264, max 25 MB)</span>
+                <span className="text-muted-foreground font-normal">(.mp4, H.264, max 500 MB)</span>
               </Label>
               <div
                 className={`
@@ -431,7 +418,9 @@ function AdminVideosPage() {
             <div className="space-y-2 pt-2">
               <div className="flex items-center justify-between text-sm">
                 <span className={uploadStep === "error" ? "text-destructive" : "text-foreground"}>
-                  {STEP_LABELS[uploadStep]}
+                  {uploadStep === "video"
+                    ? `Uploading video… ${uploadPct}%`
+                    : STEP_LABELS[uploadStep]}
                 </span>
                 {uploadStep !== "error" && (
                   <span className="text-muted-foreground text-xs">{uploadPct}%</span>

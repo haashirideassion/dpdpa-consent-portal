@@ -285,16 +285,16 @@ export function EmployeeDataView({
   };
 
   /**
-   * Multi-entry sections employees (and admin self-view) CAN update.
-   * All changes go through the correction_requests approval workflow.
-   * adminReview mode forces viewOnly so no edit/add/delete appears.
+   * Multi-entry sections — full admin override flow.
+   * Admin (isAdmin=true) is never locked: can add, edit, and delete records
+   * directly without creating correction requests.
+   * Employee changes after consent go through the correction_requests workflow.
    */
   const editableMultiProps = {
     employeeId: e.id as string,
     isAdmin,
     hasConsented,
-    hideAdd: adminReview,
-    viewOnly: adminReview,
+    viewOnly: false,
   };
 
   /**
