@@ -642,6 +642,12 @@ function EmployeeList() {
 
       const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/\s+/g, "_"));
 
+      const DATE_FIELDS = new Set(["date_of_birth", "date_of_joining"]);
+      const convertDate = (val: string): string => {
+        const match = val.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+        return match ? `${match[3]}-${match[2]}-${match[1]}` : val;
+      };
+
       const rowsToInsert = lines
         .slice(1)
         .map((line) => {
@@ -652,6 +658,9 @@ function EmployeeList() {
               let val = values[i]?.trim() || "";
               if (val.startsWith('"') && val.endsWith('"')) {
                 val = val.substring(1, val.length - 1);
+              }
+              if (DATE_FIELDS.has(h) && val) {
+                val = convertDate(val);
               }
               row[h] = val;
             }
