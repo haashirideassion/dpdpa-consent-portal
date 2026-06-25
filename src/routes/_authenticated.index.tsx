@@ -13,6 +13,7 @@ import { DpdpaLegend } from "@/components/DpdpaLegend";
 import { DpdpaInfo } from "@/components/DpdpaInfo";
 import { DpdpaActContent } from "@/components/DpdpaActContent";
 import { ProfileSidebar } from "@/components/ProfileSidebar";
+import { MyRequestsView } from "@/components/MyRequestsView";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Tables } from "@/integrations/supabase/types";
@@ -206,6 +207,7 @@ function EmployeePortal() {
         <TabsList className="mb-5">
           <TabsTrigger value="my-data">My Data &amp; Consent</TabsTrigger>
           <TabsTrigger value="history">My Consents</TabsTrigger>
+          <TabsTrigger value="requests">My Requests</TabsTrigger>
           <TabsTrigger value="dpdpa-act">DPDPA Act</TabsTrigger>
         </TabsList>
 
@@ -258,7 +260,14 @@ function EmployeePortal() {
           />
         </TabsContent>
 
-        {/* ── Tab 3: DPDPA Act ── */}
+        {/* ── Tab 3: My Requests ── */}
+        <TabsContent value="requests" className="mt-0">
+          {user && (
+            <MyRequestsView employeeId={employee.id} userId={user.id} />
+          )}
+        </TabsContent>
+
+        {/* ── Tab 4: DPDPA Act ── */}
         <TabsContent value="dpdpa-act" className="mt-0">
           <DpdpaActContent />
         </TabsContent>

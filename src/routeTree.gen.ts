@@ -19,12 +19,20 @@ import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedConsentVideoRouteImport } from './routes/_authenticated.consent.video'
 import { Route as AuthenticatedConsentEducationRouteImport } from './routes/_authenticated.consent.education'
 import { Route as AuthenticatedAdminVideosRouteImport } from './routes/_authenticated.admin.videos'
+import { Route as AuthenticatedAdminRisksRouteImport } from './routes/_authenticated.admin.risks'
+import { Route as AuthenticatedAdminReportsRouteImport } from './routes/_authenticated.admin.reports'
 import { Route as AuthenticatedAdminMyDataRouteImport } from './routes/_authenticated.admin.my-data'
+import { Route as AuthenticatedAdminInventoryRouteImport } from './routes/_authenticated.admin.inventory'
 import { Route as AuthenticatedAdminDprRouteImport } from './routes/_authenticated.admin.dpr'
 import { Route as AuthenticatedAdminCorrectionsRouteImport } from './routes/_authenticated.admin.corrections'
+import { Route as AuthenticatedAdminConsentRouteImport } from './routes/_authenticated.admin.consent'
+import { Route as AuthenticatedAdminComplianceRouteImport } from './routes/_authenticated.admin.compliance'
 import { Route as AuthenticatedAdminCampaignsRouteImport } from './routes/_authenticated.admin.campaigns'
+import { Route as AuthenticatedAdminBreachesRouteImport } from './routes/_authenticated.admin.breaches'
 import { Route as AuthenticatedAdminAuditRouteImport } from './routes/_authenticated.admin.audit'
+import { Route as AuthenticatedAdminRequestsIndexRouteImport } from './routes/_authenticated.admin.requests.index'
 import { Route as AuthenticatedAdminEmployeesIndexRouteImport } from './routes/_authenticated.admin.employees.index'
+import { Route as AuthenticatedAdminRequestsIdRouteImport } from './routes/_authenticated.admin.requests.$id'
 import { Route as AuthenticatedAdminEmployeesIdRouteImport } from './routes/_authenticated.admin.employees.$id'
 
 const LoginRoute = LoginRouteImport.update({
@@ -79,10 +87,27 @@ const AuthenticatedAdminVideosRoute =
     path: '/videos',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminRisksRoute = AuthenticatedAdminRisksRouteImport.update({
+  id: '/risks',
+  path: '/risks',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
+const AuthenticatedAdminReportsRoute =
+  AuthenticatedAdminReportsRouteImport.update({
+    id: '/reports',
+    path: '/reports',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminMyDataRoute =
   AuthenticatedAdminMyDataRouteImport.update({
     id: '/my-data',
     path: '/my-data',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminInventoryRoute =
+  AuthenticatedAdminInventoryRouteImport.update({
+    id: '/inventory',
+    path: '/inventory',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminDprRoute = AuthenticatedAdminDprRouteImport.update({
@@ -96,10 +121,28 @@ const AuthenticatedAdminCorrectionsRoute =
     path: '/corrections',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminConsentRoute =
+  AuthenticatedAdminConsentRouteImport.update({
+    id: '/consent',
+    path: '/consent',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminComplianceRoute =
+  AuthenticatedAdminComplianceRouteImport.update({
+    id: '/compliance',
+    path: '/compliance',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminCampaignsRoute =
   AuthenticatedAdminCampaignsRouteImport.update({
     id: '/campaigns',
     path: '/campaigns',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminBreachesRoute =
+  AuthenticatedAdminBreachesRouteImport.update({
+    id: '/breaches',
+    path: '/breaches',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminAuditRoute = AuthenticatedAdminAuditRouteImport.update({
@@ -107,10 +150,22 @@ const AuthenticatedAdminAuditRoute = AuthenticatedAdminAuditRouteImport.update({
   path: '/audit',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminRequestsIndexRoute =
+  AuthenticatedAdminRequestsIndexRouteImport.update({
+    id: '/requests/',
+    path: '/requests/',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminEmployeesIndexRoute =
   AuthenticatedAdminEmployeesIndexRouteImport.update({
     id: '/employees/',
     path: '/employees/',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminRequestsIdRoute =
+  AuthenticatedAdminRequestsIdRouteImport.update({
+    id: '/requests/$id',
+    path: '/requests/$id',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminEmployeesIdRoute =
@@ -127,16 +182,24 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/invite/$token': typeof InviteTokenRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
+  '/admin/breaches': typeof AuthenticatedAdminBreachesRoute
   '/admin/campaigns': typeof AuthenticatedAdminCampaignsRoute
+  '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
+  '/admin/consent': typeof AuthenticatedAdminConsentRoute
   '/admin/corrections': typeof AuthenticatedAdminCorrectionsRoute
   '/admin/dpr': typeof AuthenticatedAdminDprRoute
+  '/admin/inventory': typeof AuthenticatedAdminInventoryRoute
   '/admin/my-data': typeof AuthenticatedAdminMyDataRoute
+  '/admin/reports': typeof AuthenticatedAdminReportsRoute
+  '/admin/risks': typeof AuthenticatedAdminRisksRoute
   '/admin/videos': typeof AuthenticatedAdminVideosRoute
   '/consent/education': typeof AuthenticatedConsentEducationRoute
   '/consent/video': typeof AuthenticatedConsentVideoRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/admin/employees/$id': typeof AuthenticatedAdminEmployeesIdRoute
+  '/admin/requests/$id': typeof AuthenticatedAdminRequestsIdRoute
   '/admin/employees/': typeof AuthenticatedAdminEmployeesIndexRoute
+  '/admin/requests/': typeof AuthenticatedAdminRequestsIndexRoute
 }
 export interface FileRoutesByTo {
   '/event-register': typeof EventRegisterRoute
@@ -144,16 +207,24 @@ export interface FileRoutesByTo {
   '/invite/$token': typeof InviteTokenRoute
   '/': typeof AuthenticatedIndexRoute
   '/admin/audit': typeof AuthenticatedAdminAuditRoute
+  '/admin/breaches': typeof AuthenticatedAdminBreachesRoute
   '/admin/campaigns': typeof AuthenticatedAdminCampaignsRoute
+  '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
+  '/admin/consent': typeof AuthenticatedAdminConsentRoute
   '/admin/corrections': typeof AuthenticatedAdminCorrectionsRoute
   '/admin/dpr': typeof AuthenticatedAdminDprRoute
+  '/admin/inventory': typeof AuthenticatedAdminInventoryRoute
   '/admin/my-data': typeof AuthenticatedAdminMyDataRoute
+  '/admin/reports': typeof AuthenticatedAdminReportsRoute
+  '/admin/risks': typeof AuthenticatedAdminRisksRoute
   '/admin/videos': typeof AuthenticatedAdminVideosRoute
   '/consent/education': typeof AuthenticatedConsentEducationRoute
   '/consent/video': typeof AuthenticatedConsentVideoRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/admin/employees/$id': typeof AuthenticatedAdminEmployeesIdRoute
+  '/admin/requests/$id': typeof AuthenticatedAdminRequestsIdRoute
   '/admin/employees': typeof AuthenticatedAdminEmployeesIndexRoute
+  '/admin/requests': typeof AuthenticatedAdminRequestsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -164,16 +235,24 @@ export interface FileRoutesById {
   '/invite/$token': typeof InviteTokenRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/admin/audit': typeof AuthenticatedAdminAuditRoute
+  '/_authenticated/admin/breaches': typeof AuthenticatedAdminBreachesRoute
   '/_authenticated/admin/campaigns': typeof AuthenticatedAdminCampaignsRoute
+  '/_authenticated/admin/compliance': typeof AuthenticatedAdminComplianceRoute
+  '/_authenticated/admin/consent': typeof AuthenticatedAdminConsentRoute
   '/_authenticated/admin/corrections': typeof AuthenticatedAdminCorrectionsRoute
   '/_authenticated/admin/dpr': typeof AuthenticatedAdminDprRoute
+  '/_authenticated/admin/inventory': typeof AuthenticatedAdminInventoryRoute
   '/_authenticated/admin/my-data': typeof AuthenticatedAdminMyDataRoute
+  '/_authenticated/admin/reports': typeof AuthenticatedAdminReportsRoute
+  '/_authenticated/admin/risks': typeof AuthenticatedAdminRisksRoute
   '/_authenticated/admin/videos': typeof AuthenticatedAdminVideosRoute
   '/_authenticated/consent/education': typeof AuthenticatedConsentEducationRoute
   '/_authenticated/consent/video': typeof AuthenticatedConsentVideoRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/admin/employees/$id': typeof AuthenticatedAdminEmployeesIdRoute
+  '/_authenticated/admin/requests/$id': typeof AuthenticatedAdminRequestsIdRoute
   '/_authenticated/admin/employees/': typeof AuthenticatedAdminEmployeesIndexRoute
+  '/_authenticated/admin/requests/': typeof AuthenticatedAdminRequestsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -184,16 +263,24 @@ export interface FileRouteTypes {
     | '/admin'
     | '/invite/$token'
     | '/admin/audit'
+    | '/admin/breaches'
     | '/admin/campaigns'
+    | '/admin/compliance'
+    | '/admin/consent'
     | '/admin/corrections'
     | '/admin/dpr'
+    | '/admin/inventory'
     | '/admin/my-data'
+    | '/admin/reports'
+    | '/admin/risks'
     | '/admin/videos'
     | '/consent/education'
     | '/consent/video'
     | '/admin/'
     | '/admin/employees/$id'
+    | '/admin/requests/$id'
     | '/admin/employees/'
+    | '/admin/requests/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/event-register'
@@ -201,16 +288,24 @@ export interface FileRouteTypes {
     | '/invite/$token'
     | '/'
     | '/admin/audit'
+    | '/admin/breaches'
     | '/admin/campaigns'
+    | '/admin/compliance'
+    | '/admin/consent'
     | '/admin/corrections'
     | '/admin/dpr'
+    | '/admin/inventory'
     | '/admin/my-data'
+    | '/admin/reports'
+    | '/admin/risks'
     | '/admin/videos'
     | '/consent/education'
     | '/consent/video'
     | '/admin'
     | '/admin/employees/$id'
+    | '/admin/requests/$id'
     | '/admin/employees'
+    | '/admin/requests'
   id:
     | '__root__'
     | '/_authenticated'
@@ -220,16 +315,24 @@ export interface FileRouteTypes {
     | '/invite/$token'
     | '/_authenticated/'
     | '/_authenticated/admin/audit'
+    | '/_authenticated/admin/breaches'
     | '/_authenticated/admin/campaigns'
+    | '/_authenticated/admin/compliance'
+    | '/_authenticated/admin/consent'
     | '/_authenticated/admin/corrections'
     | '/_authenticated/admin/dpr'
+    | '/_authenticated/admin/inventory'
     | '/_authenticated/admin/my-data'
+    | '/_authenticated/admin/reports'
+    | '/_authenticated/admin/risks'
     | '/_authenticated/admin/videos'
     | '/_authenticated/consent/education'
     | '/_authenticated/consent/video'
     | '/_authenticated/admin/'
     | '/_authenticated/admin/employees/$id'
+    | '/_authenticated/admin/requests/$id'
     | '/_authenticated/admin/employees/'
+    | '/_authenticated/admin/requests/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -311,11 +414,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminVideosRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/risks': {
+      id: '/_authenticated/admin/risks'
+      path: '/risks'
+      fullPath: '/admin/risks'
+      preLoaderRoute: typeof AuthenticatedAdminRisksRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/reports': {
+      id: '/_authenticated/admin/reports'
+      path: '/reports'
+      fullPath: '/admin/reports'
+      preLoaderRoute: typeof AuthenticatedAdminReportsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/my-data': {
       id: '/_authenticated/admin/my-data'
       path: '/my-data'
       fullPath: '/admin/my-data'
       preLoaderRoute: typeof AuthenticatedAdminMyDataRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/inventory': {
+      id: '/_authenticated/admin/inventory'
+      path: '/inventory'
+      fullPath: '/admin/inventory'
+      preLoaderRoute: typeof AuthenticatedAdminInventoryRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/dpr': {
@@ -332,11 +456,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminCorrectionsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/consent': {
+      id: '/_authenticated/admin/consent'
+      path: '/consent'
+      fullPath: '/admin/consent'
+      preLoaderRoute: typeof AuthenticatedAdminConsentRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/compliance': {
+      id: '/_authenticated/admin/compliance'
+      path: '/compliance'
+      fullPath: '/admin/compliance'
+      preLoaderRoute: typeof AuthenticatedAdminComplianceRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/campaigns': {
       id: '/_authenticated/admin/campaigns'
       path: '/campaigns'
       fullPath: '/admin/campaigns'
       preLoaderRoute: typeof AuthenticatedAdminCampaignsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/breaches': {
+      id: '/_authenticated/admin/breaches'
+      path: '/breaches'
+      fullPath: '/admin/breaches'
+      preLoaderRoute: typeof AuthenticatedAdminBreachesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/audit': {
@@ -346,11 +491,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAuditRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/requests/': {
+      id: '/_authenticated/admin/requests/'
+      path: '/requests'
+      fullPath: '/admin/requests/'
+      preLoaderRoute: typeof AuthenticatedAdminRequestsIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/employees/': {
       id: '/_authenticated/admin/employees/'
       path: '/employees'
       fullPath: '/admin/employees/'
       preLoaderRoute: typeof AuthenticatedAdminEmployeesIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/requests/$id': {
+      id: '/_authenticated/admin/requests/$id'
+      path: '/requests/$id'
+      fullPath: '/admin/requests/$id'
+      preLoaderRoute: typeof AuthenticatedAdminRequestsIdRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/employees/$id': {
@@ -365,26 +524,42 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAuditRoute: typeof AuthenticatedAdminAuditRoute
+  AuthenticatedAdminBreachesRoute: typeof AuthenticatedAdminBreachesRoute
   AuthenticatedAdminCampaignsRoute: typeof AuthenticatedAdminCampaignsRoute
+  AuthenticatedAdminComplianceRoute: typeof AuthenticatedAdminComplianceRoute
+  AuthenticatedAdminConsentRoute: typeof AuthenticatedAdminConsentRoute
   AuthenticatedAdminCorrectionsRoute: typeof AuthenticatedAdminCorrectionsRoute
   AuthenticatedAdminDprRoute: typeof AuthenticatedAdminDprRoute
+  AuthenticatedAdminInventoryRoute: typeof AuthenticatedAdminInventoryRoute
   AuthenticatedAdminMyDataRoute: typeof AuthenticatedAdminMyDataRoute
+  AuthenticatedAdminReportsRoute: typeof AuthenticatedAdminReportsRoute
+  AuthenticatedAdminRisksRoute: typeof AuthenticatedAdminRisksRoute
   AuthenticatedAdminVideosRoute: typeof AuthenticatedAdminVideosRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminEmployeesIdRoute: typeof AuthenticatedAdminEmployeesIdRoute
+  AuthenticatedAdminRequestsIdRoute: typeof AuthenticatedAdminRequestsIdRoute
   AuthenticatedAdminEmployeesIndexRoute: typeof AuthenticatedAdminEmployeesIndexRoute
+  AuthenticatedAdminRequestsIndexRoute: typeof AuthenticatedAdminRequestsIndexRoute
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAuditRoute: AuthenticatedAdminAuditRoute,
+  AuthenticatedAdminBreachesRoute: AuthenticatedAdminBreachesRoute,
   AuthenticatedAdminCampaignsRoute: AuthenticatedAdminCampaignsRoute,
+  AuthenticatedAdminComplianceRoute: AuthenticatedAdminComplianceRoute,
+  AuthenticatedAdminConsentRoute: AuthenticatedAdminConsentRoute,
   AuthenticatedAdminCorrectionsRoute: AuthenticatedAdminCorrectionsRoute,
   AuthenticatedAdminDprRoute: AuthenticatedAdminDprRoute,
+  AuthenticatedAdminInventoryRoute: AuthenticatedAdminInventoryRoute,
   AuthenticatedAdminMyDataRoute: AuthenticatedAdminMyDataRoute,
+  AuthenticatedAdminReportsRoute: AuthenticatedAdminReportsRoute,
+  AuthenticatedAdminRisksRoute: AuthenticatedAdminRisksRoute,
   AuthenticatedAdminVideosRoute: AuthenticatedAdminVideosRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminEmployeesIdRoute: AuthenticatedAdminEmployeesIdRoute,
+  AuthenticatedAdminRequestsIdRoute: AuthenticatedAdminRequestsIdRoute,
   AuthenticatedAdminEmployeesIndexRoute: AuthenticatedAdminEmployeesIndexRoute,
+  AuthenticatedAdminRequestsIndexRoute: AuthenticatedAdminRequestsIndexRoute,
 }
 
 const AuthenticatedAdminRouteWithChildren =

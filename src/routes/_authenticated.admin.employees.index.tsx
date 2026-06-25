@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+const db = supabase as any;
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -540,7 +541,13 @@ interface EmployeeRow {
   designation: string | null;
   consent_status: string;
   consent_signed_at: string | null;
+  correction_count: number;
 }
+
+type SortKey = "name" | "code" | "department" | "consent" | "corrections";
+type SortDir = "asc" | "desc";
+
+const PAGE_SIZE = 20;
 
 function EmployeeList() {
   const [employees, setEmployees] = useState<EmployeeRow[]>([]);
@@ -550,40 +557,54 @@ function EmployeeList() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [uploading, setUploading] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>("code");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [page, setPage] = useState(1);
   const { user } = useAuth();
 
-  async function loadEmployees() {
-    /**
-     * FIX 1 — Ambiguous FK: PostgREST found two FK constraints between
-     *   employees ↔ consent_records (the old and new migration both created one).
-     *   We disambiguate by naming the FK explicitly:
-     *     consent_records!consent_records_employee_id_fkey(status,signed_at)
-     *
-     * FIX 2 — New normalized schema: employees master table no longer contains
-     *   department/designation — those live in employee_employment_details.
-     *   We JOIN that table too.
-     */
-    const { data, error } = await supabase
-      .from("employees")
-      .select(`
-        id,
-        employee_code,
-        first_name,
-        last_name,
-        email,
-        employee_employment_details ( department, designation ),
-        consent_records!consent_records_employee_id_fkey ( status, signed_at )
-      `)
-      .order("employee_code");
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+    setPage(1);
+  }
 
-    if (error) {
-      console.error("Failed to fetch employees:", error);
+  async function loadEmployees() {
+    const [empRes, corrRes] = await Promise.all([
+      supabase
+        .from("employees")
+        .select(`
+          id,
+          employee_code,
+          first_name,
+          last_name,
+          email,
+          employee_employment_details ( department, designation ),
+          consent_records!consent_records_employee_id_fkey ( status, signed_at )
+        `),
+      db
+        .from("correction_requests")
+        .select("employee_id, status"),
+    ]);
+
+    if (empRes.error) {
+      console.error("Failed to fetch employees:", empRes.error);
       setLoading(false);
       return;
     }
 
-    // Flatten the nested objects into a flat EmployeeRow
-    const rows: EmployeeRow[] = (data ?? []).map((emp: any) => ({
+    // Build correction count map
+    const corrMap: Record<string, number> = {};
+    for (const r of (corrRes.data ?? []) as any[]) {
+      if (r.status === "pending") {
+        corrMap[r.employee_id] = (corrMap[r.employee_id] ?? 0) + 1;
+      }
+    }
+
+    const rows: EmployeeRow[] = (empRes.data ?? []).map((emp: any) => ({
       id: emp.id,
       employee_code: emp.employee_code,
       first_name: emp.first_name,
@@ -591,13 +612,13 @@ function EmployeeList() {
       email: emp.email,
       department: emp.employee_employment_details?.department ?? null,
       designation: emp.employee_employment_details?.designation ?? null,
-      // PostgREST returns one-to-many as an ARRAY — must access [0]
       consent_status: (Array.isArray(emp.consent_records)
         ? emp.consent_records[0]?.status
         : emp.consent_records?.status) ?? "pending",
       consent_signed_at: (Array.isArray(emp.consent_records)
         ? emp.consent_records[0]?.signed_at
         : emp.consent_records?.signed_at) ?? null,
+      correction_count: corrMap[emp.id] ?? 0,
     }));
 
     setEmployees(rows);
@@ -615,7 +636,7 @@ function EmployeeList() {
   );
 
   const filtered = useMemo(() => {
-    return employees.filter((e) => {
+    const base = employees.filter((e) => {
       const q = search.toLowerCase();
       const matchSearch =
         !q ||
@@ -628,7 +649,33 @@ function EmployeeList() {
 
       return matchSearch && matchDept && matchStatus;
     });
-  }, [employees, search, deptFilter, statusFilter]);
+
+    // Sort
+    return [...base].sort((a, b) => {
+      let cmp = 0;
+      switch (sortKey) {
+        case "name":
+          cmp = `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`);
+          break;
+        case "code":
+          cmp = (a.employee_code ?? "").localeCompare(b.employee_code ?? "");
+          break;
+        case "department":
+          cmp = (a.department ?? "").localeCompare(b.department ?? "");
+          break;
+        case "consent":
+          cmp = (a.consent_status ?? "").localeCompare(b.consent_status ?? "");
+          break;
+        case "corrections":
+          cmp = b.correction_count - a.correction_count;
+          break;
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [employees, search, deptFilter, statusFilter, sortKey, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -785,17 +832,28 @@ function EmployeeList() {
         <Table className="table-fixed">
           <TableHeader>
             <TableRow className="bg-muted/30 hover:bg-muted/30">
-              <TableHead className="w-[28%] sm:w-[30%]">Employee</TableHead>
-              <TableHead className="hidden w-[15%] sm:table-cell">Code</TableHead>
-              <TableHead className="hidden w-[16%] md:table-cell">Department</TableHead>
-              <TableHead className="hidden w-[16%] lg:table-cell">Designation</TableHead>
-              <TableHead className="w-[12%]">Consent</TableHead>
-              <TableHead className="hidden w-[11%] sm:table-cell">Consented At</TableHead>
+              <TableHead className="w-[28%] sm:w-[30%] cursor-pointer select-none" onClick={() => handleSort("name")}>
+                Employee {sortKey === "name" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+              </TableHead>
+              <TableHead className="hidden w-[12%] sm:table-cell cursor-pointer select-none" onClick={() => handleSort("code")}>
+                Code {sortKey === "code" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+              </TableHead>
+              <TableHead className="hidden w-[14%] md:table-cell cursor-pointer select-none" onClick={() => handleSort("department")}>
+                Department {sortKey === "department" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+              </TableHead>
+              <TableHead className="hidden w-[14%] lg:table-cell">Designation</TableHead>
+              <TableHead className="w-[12%] cursor-pointer select-none" onClick={() => handleSort("consent")}>
+                Consent {sortKey === "consent" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+              </TableHead>
+              <TableHead className="hidden w-[10%] sm:table-cell">Consented At</TableHead>
+              <TableHead className="hidden w-[8%] md:table-cell cursor-pointer select-none" onClick={() => handleSort("corrections")} title="Pending correction requests">
+                Fixes {sortKey === "corrections" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+              </TableHead>
               <TableHead className="w-12"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((emp) => (
+            {paginated.map((emp) => (
               <TableRow key={emp.id} className="h-16">
                 <TableCell className="py-3 font-medium">
                   <div className="truncate">{emp.first_name} {emp.last_name}</div>
@@ -822,8 +880,16 @@ function EmployeeList() {
                       })
                     : "—"}
                 </TableCell>
+                <TableCell className="hidden py-3 md:table-cell">
+                  {emp.correction_count > 0 ? (
+                    <Badge variant="outline" className="text-xs border-yellow-300 text-yellow-700">
+                      {emp.correction_count}
+                    </Badge>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </TableCell>
                 <TableCell className="py-3">
-                  {/* Eye icon → navigates to the detailed employee view */}
                   <Button variant="ghost" size="icon" asChild title="View employee details">
                     <Link to="/admin/employees/$id" params={{ id: emp.id }}>
                       <EyeBoldDuotone size={16} />
@@ -834,7 +900,7 @@ function EmployeeList() {
             ))}
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="py-14">
+                <TableCell colSpan={8} className="py-14">
                   <div className="flex flex-col items-center gap-2 text-center">
                     <MinimalisticMagniferBoldDuotone size={32} className="text-muted-foreground/25" />
                     <p className="text-sm font-medium text-foreground">No employees found</p>
@@ -850,6 +916,53 @@ function EmployeeList() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>
+            Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              Previous
+            </Button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .map((p, idx, arr) => (
+                <>
+                  {idx > 0 && arr[idx - 1] !== p - 1 && (
+                    <span key={`ellipsis-${p}`} className="px-1">…</span>
+                  )}
+                  <Button
+                    key={p}
+                    variant={p === page ? "default" : "outline"}
+                    size="sm"
+                    className="h-7 w-7 text-xs p-0"
+                    onClick={() => setPage(p)}
+                  >
+                    {p}
+                  </Button>
+                </>
+              ))}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

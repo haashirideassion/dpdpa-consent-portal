@@ -14,7 +14,10 @@ export type AuditAction =
   | "dpr.created"
   | "campaign.created"
   | "campaign.activated"
-  | "admin.override";
+  | "admin.override"
+  | "dsr.status_updated"
+  | "breach.updated"
+  | "compliance.updated";
 
 interface AuditPayload {
   action: AuditAction;

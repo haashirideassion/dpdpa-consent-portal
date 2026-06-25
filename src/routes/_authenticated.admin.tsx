@@ -1,18 +1,68 @@
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
-import { ChartSquareBoldDuotone, UsersGroupTwoRoundedBoldDuotone, ShieldCheckBoldDuotone, CheckCircleBoldDuotone, UserBoldDuotone, PlayCircleBoldDuotone } from "solar-icon-set";
+import {
+  ChartSquareBoldDuotone,
+  UsersGroupTwoRoundedBoldDuotone,
+  ShieldCheckBoldDuotone,
+  CheckCircleBoldDuotone,
+  UserBoldDuotone,
+  PlayCircleBoldDuotone,
+  DocumentTextBoldDuotone,
+  FolderOpenBoldDuotone,
+  DangerTriangleBoldDuotone,
+  GraphUpBoldDuotone,
+  ClipboardListBoldDuotone,
+  ChartBoldDuotone,
+} from "solar-icon-set";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminLayout,
 });
 
+interface NavItem {
+  to: string;
+  icon: React.ReactNode;
+  label: string;
+  section?: string;
+  exact?: boolean;
+}
+
+const NAV_ITEMS: NavItem[] = [
+  // ── Personal ──────────────────────────────
+  { to: "/admin/my-data", icon: <UserBoldDuotone size={16} />, label: "My Data", section: "Personal" },
+
+  // ── Overview ─────────────────────────────
+  { to: "/admin", icon: <ChartSquareBoldDuotone size={16} />, label: "Dashboard", section: "Overview", exact: true },
+  { to: "/admin/employees", icon: <UsersGroupTwoRoundedBoldDuotone size={16} />, label: "Employees" },
+
+  // ── Data Rights ──────────────────────────
+  { to: "/admin/requests", icon: <DocumentTextBoldDuotone size={16} />, label: "Data Requests", section: "Data Rights" },
+  { to: "/admin/corrections", icon: <CheckCircleBoldDuotone size={16} />, label: "Update Queue" },
+  { to: "/admin/consent", icon: <ClipboardListBoldDuotone size={16} />, label: "Consent Register" },
+
+  // ── Compliance ───────────────────────────
+  { to: "/admin/compliance", icon: <ShieldCheckBoldDuotone size={16} />, label: "Compliance", section: "Compliance" },
+  { to: "/admin/risks", icon: <DangerTriangleBoldDuotone size={16} />, label: "Risks & DPIA" },
+  { to: "/admin/inventory", icon: <FolderOpenBoldDuotone size={16} />, label: "Data Inventory" },
+  { to: "/admin/breaches", icon: <DangerTriangleBoldDuotone size={16} />, label: "Breach Log" },
+
+  // ── Analytics ────────────────────────────
+  { to: "/admin/reports", icon: <GraphUpBoldDuotone size={16} />, label: "Reports", section: "Analytics" },
+
+  // ── Admin ────────────────────────────────
+  { to: "/admin/videos", icon: <PlayCircleBoldDuotone size={16} />, label: "Videos", section: "Admin" },
+  { to: "/admin/audit", icon: <ChartBoldDuotone size={16} />, label: "Audit Logs" },
+];
+
+const linkBase = "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors";
+const linkActive = "bg-primary/10 text-primary hover:bg-primary/15";
+
 function AdminLayout() {
-  const { role, loading, hasRole } = useAuth();
+  const { loading, hasRole } = useAuth();
 
   if (loading) return null;
 
-  // Only admin and hr_manager can access the admin section
-  if (!hasRole("admin") && !hasRole("hr_manager")) {
+  if (!hasRole("admin") && !hasRole("hr_manager") && !hasRole("dpo")) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-16 text-center">
         <div className="inline-flex flex-col items-center gap-3">
@@ -28,53 +78,49 @@ function AdminLayout() {
     );
   }
 
+  // Group nav items by section
+  const sections: { title: string; items: NavItem[] }[] = [];
+  let current: NavItem[] = [];
+  let currentTitle = "";
+  for (const item of NAV_ITEMS) {
+    if (item.section !== undefined) {
+      if (current.length > 0) sections.push({ title: currentTitle, items: current });
+      currentTitle = item.section;
+      current = [item];
+    } else {
+      current.push(item);
+    }
+  }
+  if (current.length > 0) sections.push({ title: currentTitle, items: current });
+
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 py-5">
       <div className="flex flex-col sm:flex-row gap-5">
         {/* Sidebar */}
         <aside className="sm:w-52 shrink-0">
-          <div className="rounded-xl border border-border bg-card p-1.5">
+          <div className="rounded-xl border border-border bg-card p-1.5 sticky top-5">
             <nav className="flex sm:flex-col gap-0.5">
-              <Link
-                to="/admin/my-data"
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                activeProps={{ className: "bg-primary/10 text-primary hover:bg-primary/15" }}
-              >
-                <UserBoldDuotone size={16} />
-                My Data
-              </Link>
-              <Link
-                to="/admin/employees"
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                activeProps={{ className: "bg-primary/10 text-primary hover:bg-primary/15" }}
-              >
-                <UsersGroupTwoRoundedBoldDuotone size={16} />
-                Employees
-              </Link>
-              <Link
-                to="/admin/audit"
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                activeProps={{ className: "bg-primary/10 text-primary hover:bg-primary/15" }}
-              >
-                <ShieldCheckBoldDuotone size={16} />
-                Audit Logs
-              </Link>
-              <Link
-                to="/admin/corrections"
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                activeProps={{ className: "bg-primary/10 text-primary hover:bg-primary/15" }}
-              >
-                <CheckCircleBoldDuotone size={16} />
-                Updates
-              </Link>
-              <Link
-                to="/admin/videos"
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                activeProps={{ className: "bg-primary/10 text-primary hover:bg-primary/15" }}
-              >
-                <PlayCircleBoldDuotone size={16} />
-                Videos
-              </Link>
+              {sections.map((sec, si) => (
+                <div key={si} className="w-full">
+                  {sec.title && (
+                    <p className="hidden sm:block px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                      {sec.title}
+                    </p>
+                  )}
+                  {sec.items.map((item) => (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      className={linkBase}
+                      activeProps={{ className: linkActive }}
+                      activeOptions={item.exact ? { exact: true } : undefined}
+                    >
+                      {item.icon}
+                      <span className="hidden sm:inline">{item.label}</span>
+                    </Link>
+                  ))}
+                </div>
+              ))}
             </nav>
           </div>
         </aside>
