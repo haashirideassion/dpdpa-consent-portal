@@ -2,14 +2,17 @@
  * MultiEntrySection
  * Generic reusable section for multi-record employee data categories.
  *
- * Locked state (hasConsented && !isAdmin):
- *   - Add/Edit/Delete buttons hidden
- *   - Header shows "Locked" + "Request Correction" (opens sheet for add-as-request)
- *   - Each record shows pencil → opens sheet pre-filled for edit-as-request
- *   - Sheet submit goes to correction_requests (original data unchanged)
+ * Direct write access (isAdmin only):
+ *   - Admin/HR can add/edit/delete records directly against the master table,
+ *     at any time, regardless of the employee's consent state.
  *
- * Unlocked state:
- *   - Standard add / edit / delete flow
+ * Everyone else (employees, including pre-consent):
+ *   - Add/Edit/Delete never write the master table directly. Every action
+ *     opens the same sheet in correction mode and submits to
+ *     correction_requests as a pending request — the master table is only
+ *     ever mutated once an admin approves it (see approve_correction RPC).
+ *   - Header shows "Locked" once the employee has consented (cosmetic —
+ *     write access was already correction-only before that point too).
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -105,6 +108,19 @@ interface MultiEntrySectionProps {
   consentStatus?: SectionConsentStatus;
   /** Inline consent area rendered at the bottom of the card content. */
   consentArea?: React.ReactNode;
+  /** Optional cross-field validation beyond per-field `required` checks. Return a map of field key -> error message. */
+  validate?: (draft: Record<string, any>) => Record<string, string> | null | undefined;
+  /** Optional custom toast copy; falls back to generic wording when omitted. */
+  messages?: {
+    added?: string;
+    updated?: string;
+    deleted?: string;
+    saveError?: string;
+  };
+  /** Overrides the "+ Add <label>" empty-state CTA text (after "+ "). Defaults to `Add ${title.toLowerCase()}`. */
+  emptyActionLabel?: string;
+  /** Overrides the sheet submit button text; falls back to "Add" / "Update". */
+  submitLabels?: { add?: string; edit?: string };
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -127,6 +143,10 @@ export function MultiEntrySection({
   viewOnly = false,
   consentStatus,
   consentArea,
+  validate,
+  messages,
+  emptyActionLabel,
+  submitLabels,
 }: MultiEntrySectionProps) {
   const [entries, setEntries] = useState<any[]>([]);
   const [loadingEntries, setLoadingEntries] = useState(true);
@@ -147,9 +167,10 @@ export function MultiEntrySection({
   const [deleting, setDeleting] = useState(false);
 
   const isLocked = hasConsented && !isAdmin;
-  const canEdit = !isLocked && !viewOnly;
-  // Show update (correction) action buttons only when locked AND the section allows it
-  const showUpdateButtons = isLocked && allowUpdate;
+  // Only admins ever get direct write access to the master table. Employees
+  // always go through the correction-request workflow, consented or not.
+  const canEdit = isAdmin && !viewOnly;
+  const showUpdateButtons = !isAdmin && !viewOnly && allowUpdate;
 
   // ── Data loading ─────────────────────────────────────────────────────────────
   const fetchEntries = useCallback(async () => {
@@ -229,9 +250,16 @@ export function MultiEntrySection({
       }
     });
 
+    const customErrors = validate?.(draft) ?? {};
+    Object.assign(errors, customErrors);
+
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
-      toast.error("Please fill in the required fields");
+      toast.error(
+        Object.keys(customErrors).length > 0
+          ? Object.values(customErrors)[0]
+          : "Please fill in the required fields"
+      );
       return false;
     }
 
@@ -251,15 +279,15 @@ export function MultiEntrySection({
     try {
       if (editTarget) {
         await onUpdate(editTarget.id, draft);
-        toast.success(`${title} updated`);
+        toast.success(messages?.updated ?? `${title} updated`);
       } else {
         await onAdd(employeeId, draft);
-        toast.success(`${title} added`);
+        toast.success(messages?.added ?? `${title} added`);
       }
       closeSheet();
       await fetchEntries();
     } catch {
-      toast.error("Failed to save. Please try again.");
+      toast.error(messages?.saveError ?? "Failed to save. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -316,8 +344,9 @@ export function MultiEntrySection({
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      if (isLocked && sectionKey) {
-        // Locked: check for existing pending delete request for this record
+      if (!isAdmin && sectionKey) {
+        // Employee (any consent state): submit a delete request instead of deleting directly.
+        // Check for existing pending delete request for this record
         const alreadyPending = await CorrectionService.hasPendingDeleteForRecord(
           employeeId,
           sectionKey,
@@ -343,7 +372,7 @@ export function MultiEntrySection({
         toast.success("Delete request submitted. HR will review it shortly.");
       } else {
         await onDelete(deleteTarget.id);
-        toast.success("Record deleted");
+        toast.success(messages?.deleted ?? "Record deleted");
         await fetchEntries();
       }
       setDeleteTarget(null);
@@ -370,7 +399,7 @@ export function MultiEntrySection({
       return submittingCorrection ? "Submitting…" : "Submit Update";
     }
     if (saving) return "Saving…";
-    return editTarget ? "Update" : "Add";
+    return editTarget ? (submitLabels?.edit ?? "Update") : (submitLabels?.add ?? "Add");
   }
 
   const isBusy = saving || submittingCorrection;
@@ -430,7 +459,7 @@ export function MultiEntrySection({
                   onClick={openAdd}
                   className="mt-1 text-xs text-primary font-medium hover:underline underline-offset-2"
                 >
-                  + Add {title.toLowerCase()}
+                  + {emptyActionLabel ?? `Add ${title.toLowerCase()}`}
                 </button>
               )}
               {showUpdateButtons && sectionKey && (
@@ -576,10 +605,10 @@ export function MultiEntrySection({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {isLocked ? "Request to delete this record?" : "Delete this record?"}
+              {!isAdmin ? "Request to delete this record?" : "Delete this record?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {isLocked
+              {!isAdmin
                 ? "A delete request will be submitted for HR review. The record will not be removed until approved."
                 : "This action cannot be undone."}
             </AlertDialogDescription>
@@ -592,8 +621,8 @@ export function MultiEntrySection({
               className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
             >
               {deleting
-                ? isLocked ? "Submitting…" : "Deleting…"
-                : isLocked ? "Submit Request" : "Delete"}
+                ? !isAdmin ? "Submitting…" : "Deleting…"
+                : !isAdmin ? "Submit Request" : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -636,7 +665,7 @@ function EntryInput({
       <>
         <Select value={value} onValueChange={onChange}>
           <SelectTrigger className={`h-[30px] text-sm ${error ? "border-destructive" : ""}`}>
-            <SelectValue placeholder="Select…" />
+            <SelectValue placeholder={field.placeholder ?? "Select…"} />
           </SelectTrigger>
           <SelectContent>
             {field.options.map((opt) => (

@@ -192,49 +192,67 @@ function AddEmployeeModal({
         return;
       }
 
-      // 3. Insert master employee record
-      const { data: newEmp, error: empError } = await (supabase as any)
-        .from("employees")
-        .insert({
-          first_name: form.first_name.trim(),
-          last_name: form.last_name.trim(),
-          employee_code: form.employee_code.trim(),
-          email: form.work_email.trim().toLowerCase(),
-          role: "employee",
-        })
-        .select("id")
-        .single();
-
-      if (empError) throw empError;
-      const empId = (newEmp as any).id;
-
-      // 4. Insert personal details (optional fields)
-      const hasPersonal = form.gender || form.date_of_birth || form.blood_group ||
-        form.marital_status || form.nationality;
-      if (hasPersonal) {
-        await (supabase as any).from("employee_personal_details").insert({
-          employee_id: empId,
-          gender: form.gender || null,
-          dob: form.date_of_birth || null,
-          blood_group: form.blood_group || null,
-          marital_status: form.marital_status || null,
-          nationality: form.nationality || null,
-        });
-      }
-
-      // 5. Insert contact details
-      await (supabase as any).from("employee_contact_details").insert({
-        employee_id: empId,
-        work_email: form.work_email.trim().toLowerCase(),
-        personal_email: form.personal_email.trim() || null,
-        phone: form.phone_number.trim() || null,
-        alternate_phone: form.alternate_phone.trim() || null,
-        current_address: form.current_address.trim() || null,
-        permanent_address: form.permanent_address.trim() || null,
-        city: form.city.trim() || null,
-        state: form.state.trim() || null,
-        pincode: form.pincode.trim() || null,
+      // 3. Create the employee master record AND every linked single-entry
+      // detail table row (personal, contact, employment, financial, govt ids,
+      // emergency contact, additional, health, consent) in one atomic DB
+      // transaction via RPC. This does not depend on any AFTER INSERT
+      // trigger having run — if any child insert fails, the whole thing
+      // (including the employees row) rolls back, so we can never end up
+      // with an employee that has missing child records.
+      const rpcPayload = {
+        p_first_name: form.first_name.trim(),
+        p_last_name: form.last_name.trim(),
+        p_employee_code: form.employee_code.trim(),
+        p_work_email: form.work_email.trim().toLowerCase(),
+        p_personal_email: form.personal_email.trim() || null,
+        p_phone: form.phone_number.trim() || null,
+        p_alternate_phone: form.alternate_phone.trim() || null,
+        p_gender: form.gender || null,
+        p_dob: form.date_of_birth || null,
+        p_marital_status: form.marital_status || null,
+        p_nationality: form.nationality || null,
+        p_blood_group: form.blood_group || null,
+        p_current_address: form.current_address.trim() || null,
+        p_permanent_address: form.permanent_address.trim() || null,
+        p_city: form.city.trim() || null,
+        p_state: form.state.trim() || null,
+        p_pincode: form.pincode.trim() || null,
+      };
+      // Temporary diagnostic — remove once the persistence issue is confirmed
+      // resolved against the live database. Grouped to mirror the target
+      // tables so a NULL column can be traced back to a specific form field.
+      console.log("create_employee_with_details payload", {
+        employees: {
+          first_name: rpcPayload.p_first_name,
+          last_name: rpcPayload.p_last_name,
+          employee_code: rpcPayload.p_employee_code,
+          email: rpcPayload.p_work_email,
+        },
+        employee_personal_details: {
+          gender: rpcPayload.p_gender,
+          dob: rpcPayload.p_dob,
+          blood_group: rpcPayload.p_blood_group,
+          marital_status: rpcPayload.p_marital_status,
+          nationality: rpcPayload.p_nationality,
+        },
+        employee_contact_details: {
+          work_email: rpcPayload.p_work_email,
+          personal_email: rpcPayload.p_personal_email,
+          phone: rpcPayload.p_phone,
+          alternate_phone: rpcPayload.p_alternate_phone,
+          current_address: rpcPayload.p_current_address,
+          permanent_address: rpcPayload.p_permanent_address,
+          city: rpcPayload.p_city,
+          state: rpcPayload.p_state,
+          pincode: rpcPayload.p_pincode,
+        },
       });
+
+      const { error: createError } = await (supabase as any).rpc(
+        "create_employee_with_details",
+        rpcPayload,
+      );
+      if (createError) throw createError;
 
       toast.success(`Employee ${form.first_name} ${form.last_name} added successfully.`);
       handleClose();

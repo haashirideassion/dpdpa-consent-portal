@@ -4,14 +4,15 @@ import { Bag2BoldDuotone } from "solar-icon-set";
 import type { SectionConsentStatus } from "@/lib/section-consent";
 
 const FIELDS: EntryField[] = [
-  { key: "employer_name", label: "Employer / Company Name", required: true },
-  { key: "designation", label: "Designation / Title", required: true },
-  { key: "start_date", label: "Start Date", type: "date" },
+  { key: "employer_name", label: "Employer / Company Name", required: true, placeholder: "e.g. Acme Corporation" },
+  { key: "designation", label: "Designation / Title", required: true, placeholder: "e.g. Software Engineer" },
+  { key: "start_date", label: "Start Date", type: "date", required: true },
   { key: "end_date", label: "End Date", type: "date" },
   {
     key: "reason_for_leaving",
     label: "Reason for Leaving",
     type: "select",
+    placeholder: "Select reason",
     options: [
       "Better Opportunity",
       "Career Growth",
@@ -23,8 +24,29 @@ const FIELDS: EntryField[] = [
       "Other",
     ],
   },
-  { key: "last_drawn_salary", label: "Last Drawn Salary (₹)", placeholder: "e.g. 800000" },
+  { key: "last_drawn_salary", label: "Last Drawn Salary (₹)", type: "number", placeholder: "₹800,000" },
 ];
+
+function validateEmploymentDraft(draft: Record<string, any>): Record<string, string> {
+  const errors: Record<string, string> = {};
+
+  if (draft.start_date && draft.end_date) {
+    const start = new Date(draft.start_date);
+    const end = new Date(draft.end_date);
+    if (end <= start) {
+      errors.end_date = "End date must be after the start date";
+    }
+  }
+
+  if (draft.last_drawn_salary !== undefined && draft.last_drawn_salary !== null && String(draft.last_drawn_salary).trim() !== "") {
+    const salary = Number(draft.last_drawn_salary);
+    if (!Number.isFinite(salary) || salary <= 0) {
+      errors.last_drawn_salary = "Salary must be a positive number";
+    }
+  }
+
+  return errors;
+}
 
 interface Props {
   employeeId: string;
@@ -54,7 +76,16 @@ export function EmploymentHistorySection({ employeeId, isAdmin, hasConsented, al
       onUpdate={EmployeeService.updateEmploymentHistory.bind(EmployeeService)}
       onDelete={EmployeeService.deleteEmploymentHistory.bind(EmployeeService)}
       fields={FIELDS}
-      emptyMessage="No previous employment added. Click Add to get started."
+      validate={validateEmploymentDraft}
+      submitLabels={{ add: "Add", edit: "Save Changes" }}
+      messages={{
+        added: "Employment added successfully.",
+        updated: "Employment updated successfully.",
+        deleted: "Employment deleted successfully.",
+        saveError: "Unable to save employment.",
+      }}
+      emptyMessage="No previous employment added."
+      emptyActionLabel="Add Previous Employment"
       renderCard={(entry) => {
         const startYear = entry.start_date
           ? new Date(entry.start_date).getFullYear()

@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { EmployeeDataView } from "@/components/EmployeeDataView";
 import { EmployeeService } from "@/services/employee.service";
 import { DpdpaLegend } from "@/components/DpdpaLegend";
@@ -31,6 +32,8 @@ export const Route = createFileRoute("/_authenticated/admin/employees/$id")({
 
 function EmployeeDetail() {
   const { id } = Route.useParams();
+  const { hasRole } = useAuth();
+  const canManage = hasRole("admin") || hasRole("hr_manager");
   const [employee, setEmployee] = useState<Tables<"employees"> | null>(null);
   const [consentLogs, setConsentLogs] = useState<Tables<"consent_logs">[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,9 +113,11 @@ function EmployeeDetail() {
           <DpdpaLegend />
 
           <EmployeeDataView
+            key={id}
             employee={employee}
-            isAdmin={true}
+            isAdmin={canManage}
             adminReview={true}
+            readOnly={!canManage}
             onEmployeeUpdated={async () => {
               const updated = await EmployeeService.getById(id);
               if (updated) setEmployee(updated as any);

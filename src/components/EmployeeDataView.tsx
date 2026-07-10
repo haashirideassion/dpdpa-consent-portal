@@ -9,7 +9,6 @@ import {
   CardBoldDuotone,
   PassportBoldDuotone,
   HospitalBoldDuotone,
-  DocumentTextBoldDuotone,
   HeartBoldDuotone,
 } from "solar-icon-set";
 import { ConsentService } from "@/services/consent.service";
@@ -18,6 +17,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { EducationSection } from "./sections/EducationSection";
 import { CertificationsSection } from "./sections/CertificationsSection";
 import { EmploymentHistorySection } from "./sections/EmploymentHistorySection";
+import { AdditionalNotesSection } from "./sections/AdditionalNotesSection";
 import { NomineesSection } from "./sections/NomineesSection";
 import { DependentsSection } from "./sections/DependentsSection";
 import { computeSectionConsentStatus, UI_SECTION_CONSENT_MAP } from "@/lib/section-consent";
@@ -42,6 +42,12 @@ interface EmployeeDataViewProps {
    * (employee self-service or admin viewing their own data — fully interactive).
    */
   adminReview?: boolean;
+  /**
+   * When true the viewer holds a read-only compliance role (e.g. DPO):
+   * all add/edit/delete affordances are hidden across every multi-entry
+   * section regardless of `isAdmin`/`adminReview`.
+   */
+  readOnly?: boolean;
   /** Active consent template — required for inline pre-consent checkboxes. */
   template?: ConsentTemplate | null;
   /** Shared toggle state for all purposes (lifted from GranularConsentForm). */
@@ -56,6 +62,7 @@ export function EmployeeDataView({
   hasConsented = false,
   isAdmin = false,
   adminReview = false,
+  readOnly = false,
   template,
   toggles,
   onToggle,
@@ -286,28 +293,45 @@ export function EmployeeDataView({
 
   /**
    * Multi-entry sections — full admin override flow.
-   * Admin (isAdmin=true) is never locked: can add, edit, and delete records
-   * directly without creating correction requests.
-   * Employee changes after consent go through the correction_requests workflow.
+   * Admin (isAdmin=true) can add, edit, and delete records directly without
+   * creating correction requests. Employees always go through the
+   * correction_requests workflow instead — before AND after consent — so
+   * the master table is never written directly by a non-admin.
    */
   const editableMultiProps = {
     employeeId: e.id as string,
     isAdmin,
     hasConsented,
-    viewOnly: false,
+    viewOnly: readOnly,
   };
 
   /**
-   * Multi-entry sections that are purely read-only for the self-service user
-   * (Employment History). allowUpdate=false hides correction buttons.
-   * adminReview mode also forces viewOnly.
+   * Employment History (Previous Employment) — same model as editableMultiProps:
+   * admin/HR can write directly; employees always go through a correction
+   * request (never a direct write), regardless of consent state. Kept as a
+   * separate prop object in case this section's permissions need to diverge
+   * from the other multi-entry sections later.
    */
   const lockedMultiProps = {
     employeeId: e.id as string,
     isAdmin,
     hasConsented,
+    allowUpdate: true,
+    viewOnly: readOnly,
+  };
+
+  /**
+   * Additional Notes — editable only by admin/HR (isAdmin), never by the
+   * employee themself (no self-service or correction-request path for this
+   * section). readOnly (e.g. DPO) is always locked, same as everyone else
+   * who isn't an admin/HR manager.
+   */
+  const additionalNotesProps = {
+    employeeId: e.id as string,
+    isAdmin,
+    hasConsented,
     allowUpdate: false,
-    viewOnly: adminReview,
+    viewOnly: readOnly || !isAdmin,
   };
 
   return (
@@ -371,18 +395,8 @@ export function EmployeeDataView({
       {/* ── Read-only multi-entry sections (employees cannot edit) ── */}
       <EmploymentHistorySection {...lockedMultiProps} consentStatus={sectionStatus("employmentHistory")} consentArea={consentAreaFor("employmentHistory")} />
 
-      {/* ── Additional notes (read-only for employees) ── */}
-      <DataSection
-        title="Additional Notes"
-        icon={<DocumentTextBoldDuotone size={18} />}
-        fields={[
-          { label: "Languages", key: "languages", value: e.languages },
-          { label: "Notes", key: "notes", value: e.notes, type: "textarea" },
-        ]}
-        defaultOpen={false}
-        consentStatus={sectionStatus("additionalNotes")}
-        {...readOnlySectionProps}
-      />
+      {/* ── Additional notes (admin/HR editable, everyone else read-only) ── */}
+      <AdditionalNotesSection {...additionalNotesProps} consentStatus={sectionStatus("additionalNotes")} consentArea={consentAreaFor("additionalNotes")} />
     </div>
   );
 }

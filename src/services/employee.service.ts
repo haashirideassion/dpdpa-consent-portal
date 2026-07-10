@@ -32,107 +32,107 @@ interface FieldMapping {
 const FIELD_MAP: Record<string, FieldMapping> = {
   // ── employees (master) ──────────────────────────────────────────────────
   employee_code: { table: "employees", column: "employee_code" },
-  first_name:  { table: "employees", column: "first_name" },
-  last_name:   { table: "employees", column: "last_name" },
+  first_name: { table: "employees", column: "first_name" },
+  last_name: { table: "employees", column: "last_name" },
 
   // ── employee_personal_details ───────────────────────────────────────────
   // UI key "date_of_birth" → DB column "dob"
-  date_of_birth:  { table: "employee_personal_details", column: "dob" },
-  gender:         { table: "employee_personal_details", column: "gender" },
-  blood_group:    { table: "employee_personal_details", column: "blood_group" },
+  date_of_birth: { table: "employee_personal_details", column: "dob" },
+  gender: { table: "employee_personal_details", column: "gender" },
+  blood_group: { table: "employee_personal_details", column: "blood_group" },
   marital_status: { table: "employee_personal_details", column: "marital_status" },
-  nationality:    { table: "employee_personal_details", column: "nationality" },
+  nationality: { table: "employee_personal_details", column: "nationality" },
 
   // ── employee_contact_details ────────────────────────────────────────────
-  work_email:       { table: "employee_contact_details", column: "work_email" },
-  personal_email:   { table: "employee_contact_details", column: "personal_email" },
+  work_email: { table: "employee_contact_details", column: "work_email" },
+  personal_email: { table: "employee_contact_details", column: "personal_email" },
   // UI key "phone_number" → DB column "phone"
-  phone_number:     { table: "employee_contact_details", column: "phone" },
-  alternate_phone:  { table: "employee_contact_details", column: "alternate_phone" },
-  current_address:  { table: "employee_contact_details", column: "current_address" },
-  permanent_address:{ table: "employee_contact_details", column: "permanent_address" },
-  city:             { table: "employee_contact_details", column: "city" },
-  state:            { table: "employee_contact_details", column: "state" },
-  pincode:          { table: "employee_contact_details", column: "pincode" },
+  phone_number: { table: "employee_contact_details", column: "phone" },
+  alternate_phone: { table: "employee_contact_details", column: "alternate_phone" },
+  current_address: { table: "employee_contact_details", column: "current_address" },
+  permanent_address: { table: "employee_contact_details", column: "permanent_address" },
+  city: { table: "employee_contact_details", column: "city" },
+  state: { table: "employee_contact_details", column: "state" },
+  pincode: { table: "employee_contact_details", column: "pincode" },
 
   // ── employee_employment_details ─────────────────────────────────────────
-  department:       { table: "employee_employment_details", column: "department" },
-  designation:      { table: "employee_employment_details", column: "designation" },
+  department: { table: "employee_employment_details", column: "department" },
+  designation: { table: "employee_employment_details", column: "designation" },
   // UI key "date_of_joining" → DB column "joining_date"
-  date_of_joining:  { table: "employee_employment_details", column: "joining_date" },
-  employment_type:  { table: "employee_employment_details", column: "employment_type" },
+  date_of_joining: { table: "employee_employment_details", column: "joining_date" },
+  employment_type: { table: "employee_employment_details", column: "employment_type" },
   // UI key "reporting_manager" → DB column "manager"
-  reporting_manager:{ table: "employee_employment_details", column: "manager" },
-  work_location:    { table: "employee_employment_details", column: "work_location" },
+  reporting_manager: { table: "employee_employment_details", column: "manager" },
+  work_location: { table: "employee_employment_details", column: "work_location" },
   // UI key "employee_status" → DB column "status"
-  employee_status:  { table: "employee_employment_details", column: "status" },
+  employee_status: { table: "employee_employment_details", column: "status" },
 
   // ── employee_financial_details ──────────────────────────────────────────
-  bank_name:           { table: "employee_financial_details", column: "bank_name" },
+  bank_name: { table: "employee_financial_details", column: "bank_name" },
   bank_account_number: { table: "employee_financial_details", column: "bank_account_number" },
   // UI key "ifsc_code" → DB column "ifsc"
-  ifsc_code:           { table: "employee_financial_details", column: "ifsc" },
+  ifsc_code: { table: "employee_financial_details", column: "ifsc" },
   // UI key "pan_number" → DB column "pan"
-  pan_number:          { table: "employee_financial_details", column: "pan" },
-  ctc:                 { table: "employee_financial_details", column: "ctc" },
+  pan_number: { table: "employee_financial_details", column: "pan" },
+  ctc: { table: "employee_financial_details", column: "ctc" },
 
   // ── employee_govt_ids ───────────────────────────────────────────────────
   // UI key "aadhaar_number" → DB column "aadhaar"
-  aadhaar_number:  { table: "employee_govt_ids", column: "aadhaar" },
+  aadhaar_number: { table: "employee_govt_ids", column: "aadhaar" },
   // UI key "uan_number" → DB column "uan"
-  uan_number:      { table: "employee_govt_ids", column: "uan" },
+  uan_number: { table: "employee_govt_ids", column: "uan" },
   // UI key "passport_number" → DB column "passport"
   passport_number: { table: "employee_govt_ids", column: "passport" },
   passport_expiry: { table: "employee_govt_ids", column: "passport_expiry" },
   driving_license: { table: "employee_govt_ids", column: "driving_license" },
-  voter_id:        { table: "employee_govt_ids", column: "voter_id" },
+  voter_id: { table: "employee_govt_ids", column: "voter_id" },
 
   // ── employee_emergency_contacts ─────────────────────────────────────────
   // UI key "emergency_contact_name" → DB column "contact_name"
-  emergency_contact_name:     { table: "employee_emergency_contacts", column: "contact_name" },
+  emergency_contact_name: { table: "employee_emergency_contacts", column: "contact_name" },
   emergency_contact_relation: { table: "employee_emergency_contacts", column: "relation" },
   // UI key "emergency_contact_phone" → DB column "contact_phone"
-  emergency_contact_phone:    { table: "employee_emergency_contacts", column: "contact_phone" },
-  emergency_contact_email:    { table: "employee_emergency_contacts", column: "contact_email" },
+  emergency_contact_phone: { table: "employee_emergency_contacts", column: "contact_phone" },
+  emergency_contact_email: { table: "employee_emergency_contacts", column: "contact_email" },
 
   // ── employee_additional_details ─────────────────────────────────────────
   qualifications: { table: "employee_additional_details", column: "qualifications" },
   certifications: { table: "employee_additional_details", column: "certifications" },
-  languages:      { table: "employee_additional_details", column: "languages" },
-  notes:          { table: "employee_additional_details", column: "notes" },
+  languages: { table: "employee_additional_details", column: "languages" },
+  notes: { table: "employee_additional_details", column: "notes" },
 
   // ── employee_personal_details — PRD additions ───────────────────────────
   father_name: { table: "employee_personal_details", column: "father_name" },
   mother_name: { table: "employee_personal_details", column: "mother_name" },
 
   // ── employee_financial_details — PRD additions ──────────────────────────
-  bank_branch:  { table: "employee_financial_details", column: "bank_branch" },
-  upi_id:       { table: "employee_financial_details", column: "upi_id" },
-  pf_account:   { table: "employee_financial_details", column: "pf_account" },
-  esic_number:  { table: "employee_financial_details", column: "esic_number" },
+  bank_branch: { table: "employee_financial_details", column: "bank_branch" },
+  upi_id: { table: "employee_financial_details", column: "upi_id" },
+  pf_account: { table: "employee_financial_details", column: "pf_account" },
+  esic_number: { table: "employee_financial_details", column: "esic_number" },
 
   // ── employee_health_info ────────────────────────────────────────────────
-  disability_status:  { table: "employee_health_info", column: "disability_status" },
+  disability_status: { table: "employee_health_info", column: "disability_status" },
   chronic_conditions: { table: "employee_health_info", column: "chronic_conditions" },
-  allergies:          { table: "employee_health_info", column: "allergies" },
+  allergies: { table: "employee_health_info", column: "allergies" },
 };
 
 // ---------------------------------------------------------------------------
 // Reverse alias map: DB column → UI key (used when flattening joined data)
 // ---------------------------------------------------------------------------
 const DB_TO_UI: Record<string, string> = {
-  dob:           "date_of_birth",
-  phone:         "phone_number",
-  joining_date:  "date_of_joining",
-  manager:       "reporting_manager",
-  status:        "employee_status",
-  ifsc:          "ifsc_code",
-  pan:           "pan_number",
-  aadhaar:       "aadhaar_number",
-  uan:           "uan_number",
-  passport:      "passport_number",
-  contact_name:  "emergency_contact_name",
-  relation:      "emergency_contact_relation",
+  dob: "date_of_birth",
+  phone: "phone_number",
+  joining_date: "date_of_joining",
+  manager: "reporting_manager",
+  status: "employee_status",
+  ifsc: "ifsc_code",
+  pan: "pan_number",
+  aadhaar: "aadhaar_number",
+  uan: "uan_number",
+  passport: "passport_number",
+  contact_name: "emergency_contact_name",
+  relation: "emergency_contact_relation",
   contact_phone: "emergency_contact_phone",
   contact_email: "emergency_contact_email",
 };
@@ -167,7 +167,8 @@ export const EmployeeService = {
         employee_financial_details (*),
         employee_govt_ids (*),
         employee_emergency_contacts (*),
-        employee_additional_details (*)
+        employee_additional_details (*),
+        employee_health_info (*)
       `)
       .eq("user_id", userId)
       .maybeSingle();
@@ -185,6 +186,7 @@ export const EmployeeService = {
       ...aliasToUi(employee.employee_govt_ids as any),
       ...aliasToUi(employee.employee_emergency_contacts as any),
       ...aliasToUi(employee.employee_additional_details as any),
+      ...aliasToUi((employee as any).employee_health_info as any),
       // Always preserve the master id
       id: employee.id,
     };
@@ -204,7 +206,8 @@ export const EmployeeService = {
         employee_financial_details (*),
         employee_govt_ids (*),
         employee_emergency_contacts (*),
-        employee_additional_details (*)
+        employee_additional_details (*),
+        employee_health_info (*)
       `)
       .eq("id", employeeId)
       .maybeSingle();
@@ -221,6 +224,7 @@ export const EmployeeService = {
       ...aliasToUi(employee.employee_govt_ids as any),
       ...aliasToUi(employee.employee_emergency_contacts as any),
       ...aliasToUi(employee.employee_additional_details as any),
+      ...aliasToUi((employee as any).employee_health_info as any),
       id: employee.id,
     };
   },
@@ -296,7 +300,7 @@ export const EmployeeService = {
     // 2. Process side-effects for each changed field
     for (const [key, newValue] of Object.entries(updates)) {
       const oldValue = oldValues[key];
-      
+
       // Only log if the value actually changed
       if (newValue !== oldValue) {
         // A. Audit Log
@@ -533,6 +537,47 @@ export const EmployeeService = {
       .from("employee_dependents" as any)
       .delete()
       .eq("id", id);
+    if (error) throw error;
+  },
+
+  // ── employee_additional_details (single row per employee, exposed as a 0/1-entry list) ──
+  async getAdditionalNotes(employeeId: string) {
+    const { data, error } = await supabase
+      .from("employee_additional_details" as any)
+      .select("*")
+      .eq("employee_id", employeeId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return [];
+    const record = data as any;
+    const hasContent = [record.languages, record.qualifications, record.notes].some(
+      (v) => v && String(v).trim() !== ""
+    );
+    return hasContent ? [{ id: employeeId, ...record }] : [];
+  },
+  async addAdditionalNotes(employeeId: string, record: Record<string, any>) {
+    const { error } = await supabase
+      .from("employee_additional_details" as any)
+      .upsert(
+        { employee_id: employeeId, ...record, updated_at: new Date().toISOString() },
+        { onConflict: "employee_id" }
+      );
+    if (error) throw error;
+  },
+  async updateAdditionalNotes(employeeId: string, record: Record<string, any>) {
+    const { error } = await supabase
+      .from("employee_additional_details" as any)
+      .upsert(
+        { employee_id: employeeId, ...record, updated_at: new Date().toISOString() },
+        { onConflict: "employee_id" }
+      );
+    if (error) throw error;
+  },
+  async deleteAdditionalNotes(employeeId: string) {
+    const { error } = await supabase
+      .from("employee_additional_details" as any)
+      .delete()
+      .eq("employee_id", employeeId);
     if (error) throw error;
   },
 };
