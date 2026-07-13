@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter \\\\\"Name='node.exe'\\\\\" | Select-Object ProcessId,CommandLine\")",
+      "Bash(powershell -Command \"Stop-Process -Id 13492 -Force\")",
+      "Bash(powershell -Command \"Get-Process -Id 8728,24476,24016 | Select-Object Id,StartTime\")"
+    ]
+  }
+}

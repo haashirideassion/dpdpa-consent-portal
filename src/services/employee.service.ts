@@ -553,7 +553,9 @@ export const EmployeeService = {
     const hasContent = [record.languages, record.qualifications, record.notes].some(
       (v) => v && String(v).trim() !== ""
     );
-    return hasContent ? [{ id: employeeId, ...record }] : [];
+    // `id` must stay the employee_id: onUpdate/onDelete are keyed by employee_id,
+    // not the table's own primary key, so record.id must not clobber it here.
+    return hasContent ? [{ ...record, id: employeeId }] : [];
   },
   async addAdditionalNotes(employeeId: string, record: Record<string, any>) {
     const { error } = await supabase
@@ -574,10 +576,14 @@ export const EmployeeService = {
     if (error) throw error;
   },
   async deleteAdditionalNotes(employeeId: string) {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("employee_additional_details" as any)
       .delete()
-      .eq("employee_id", employeeId);
+      .eq("employee_id", employeeId)
+      .select("id");
     if (error) throw error;
+    if (!data || data.length === 0) {
+      throw new Error("No matching additional notes record was found to delete.");
+    }
   },
 };

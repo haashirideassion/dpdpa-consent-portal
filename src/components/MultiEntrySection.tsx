@@ -286,7 +286,8 @@ export function MultiEntrySection({
       }
       closeSheet();
       await fetchEntries();
-    } catch {
+    } catch (err) {
+      console.error(`[${title}] save failed:`, err);
       toast.error(messages?.saveError ?? "Failed to save. Please try again.");
     } finally {
       setSaving(false);
@@ -376,7 +377,8 @@ export function MultiEntrySection({
         await fetchEntries();
       }
       setDeleteTarget(null);
-    } catch {
+    } catch (err) {
+      console.error(`[${title}] delete failed:`, err);
       toast.error("Failed to process. Please try again.");
     } finally {
       setDeleting(false);
