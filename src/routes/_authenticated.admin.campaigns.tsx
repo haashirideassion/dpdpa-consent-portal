@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -17,9 +18,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { FolderWithFilesBoldDuotone, PlayCircleBoldDuotone, AddCircleBoldDuotone } from "solar-icon-set";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
+import { toast } from "sonner";
+import { campaignSchema, type CampaignFormValues } from "@/lib/validation/campaign";
 
 export const Route = createFileRoute("/_authenticated/admin/campaigns")({
   head: () => ({
@@ -44,12 +48,14 @@ function CampaignsAdminPage() {
   
   // Dialog state
   const [open, setOpen] = useState(false);
-  const [newCampName, setNewCampName] = useState("");
-  const [selectedTemplate, setSelectedTemplate] = useState("");
-  const [selectedVideo, setSelectedVideo] = useState("");
   const [templates, setTemplates] = useState<{id: string, name: string, version: string}[]>([]);
   const [videos, setVideos] = useState<{id: string, title: string, version: string}[]>([]);
   const [creating, setCreating] = useState(false);
+
+  const form = useForm<CampaignFormValues>({
+    resolver: zodResolver(campaignSchema),
+    defaultValues: { name: "", template_id: "", video_version_id: "" },
+  });
 
   useEffect(() => {
     async function fetchCampaigns() {
@@ -79,14 +85,14 @@ function CampaignsAdminPage() {
     fetchCampaigns();
   }, []);
 
-  const handleCreateCampaign = async () => {
-    if (!newCampName || !selectedTemplate || !selectedVideo || !user) return;
+  const onSubmit = async (values: CampaignFormValues) => {
+    if (!user) return;
     setCreating(true);
 
     const { error } = await supabase.from("campaigns").insert({
-      name: newCampName,
-      template_id: selectedTemplate,
-      video_version_id: selectedVideo,
+      name: values.name,
+      template_id: values.template_id,
+      video_version_id: values.video_version_id,
       status: "active",
       launched_at: new Date().toISOString(),
       created_by: user.id
@@ -99,6 +105,7 @@ function CampaignsAdminPage() {
       window.location.reload();
     } else {
       console.error("Failed to create campaign", error);
+      toast.error("Failed to create campaign.");
     }
   };
 
@@ -126,45 +133,70 @@ function CampaignsAdminPage() {
                 Launch a new consent collection drive. This will allow you to generate invites for employees.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Campaign Name</Label>
-                <Input 
-                  placeholder="e.g. Q3 2026 Policy Update" 
-                  value={newCampName}
-                  onChange={(e) => setNewCampName(e.target.value)}
+            <Form {...form}>
+              <div className="space-y-4 py-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Campaign Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. Q3 2026 Policy Update" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="template_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Consent Template</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select active template" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {templates.map(t => (
+                            <SelectItem key={t.id} value={t.id}>{t.name} ({t.version})</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="video_version_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Mandatory Intro Video</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select active video" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {videos.map(v => (
+                            <SelectItem key={v.id} value={v.id}>{v.title} ({v.version})</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Consent Template</Label>
-                <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select active template" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {templates.map(t => (
-                      <SelectItem key={t.id} value={t.id}>{t.name} ({t.version})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Mandatory Intro Video</Label>
-                <Select value={selectedVideo} onValueChange={setSelectedVideo}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select active video" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {videos.map(v => (
-                      <SelectItem key={v.id} value={v.id}>{v.title} ({v.version})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            </Form>
             <DialogFooter>
               <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button onClick={handleCreateCampaign} disabled={creating || !newCampName || !selectedTemplate || !selectedVideo}>
+              <Button onClick={form.handleSubmit(onSubmit)} disabled={creating}>
                 {creating ? "Launching..." : "Launch Campaign"}
               </Button>
             </DialogFooter>

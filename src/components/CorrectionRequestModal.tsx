@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,11 +13,13 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { toast } from "sonner";
 import { CorrectionService } from "@/services/correction.service";
 import { AttachmentService, type EmployeeAttachment } from "@/services/attachment.service";
 import { requiresAttachment } from "@/lib/attachmentConfig";
 import { PaperclipBoldDuotone, DownloadMinimalisticBoldDuotone } from "solar-icon-set";
+import { correctionRequestSchema, type CorrectionRequestFormValues } from "@/lib/validation/correction";
 
 interface CorrectionRequestModalProps {
   open: boolean;
@@ -34,10 +38,14 @@ export function CorrectionRequestModal({
   fieldLabel,
   currentValue,
 }: CorrectionRequestModalProps) {
-  const [newValue, setNewValue] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const form = useForm<CorrectionRequestFormValues>({
+    resolver: zodResolver(correctionRequestSchema),
+    defaultValues: { newValue: "" },
+  });
 
   // Current document on file (loaded when the field supports attachments)
   const [currentAttachment, setCurrentAttachment] = useState<EmployeeAttachment | null>(null);
@@ -58,12 +66,7 @@ export function CorrectionRequestModal({
     });
   }, [open, employeeId, fieldKey]);
 
-  async function handleSubmit() {
-    if (!newValue.trim()) {
-      toast.error("Please enter the corrected value.");
-      return;
-    }
-
+  async function onSubmit(values: CorrectionRequestFormValues) {
     setSubmitting(true);
     try {
       // Check if there's already a pending request for this field
@@ -83,12 +86,12 @@ export function CorrectionRequestModal({
         fieldKey,
         fieldLabel,
         oldValue: currentValue ?? "",
-        newValue: newValue.trim(),
+        newValue: values.newValue.trim(),
         attachmentUrl,
       });
 
       toast.success("Update request submitted! HR will review it shortly.");
-      setNewValue("");
+      form.reset({ newValue: "" });
       setFile(null);
       onClose();
     } catch (err: any) {
@@ -101,7 +104,7 @@ export function CorrectionRequestModal({
 
   function handleClose() {
     if (!submitting) {
-      setNewValue("");
+      form.reset({ newValue: "" });
       setFile(null);
       onClose();
     }
@@ -157,17 +160,26 @@ export function CorrectionRequestModal({
           )}
 
           {/* New Value */}
-          <div className="space-y-1.5">
-            <Label htmlFor="new-value" className="text-xs">Updated Value <span className="text-destructive">*</span></Label>
-            <Textarea
-              id="new-value"
-              placeholder="Enter the correct value..."
-              value={newValue}
-              onChange={(e) => setNewValue(e.target.value)}
-              rows={2}
-              disabled={submitting}
+          <Form {...form}>
+            <FormField
+              control={form.control}
+              name="newValue"
+              render={({ field }) => (
+                <FormItem className="space-y-1.5">
+                  <FormLabel className="text-xs">Updated Value <span className="text-destructive">*</span></FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Enter the correct value..."
+                      rows={2}
+                      disabled={submitting}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
+          </Form>
 
           {/* Proof / Replacement Document Upload */}
           <div className="space-y-1.5">
@@ -211,7 +223,7 @@ export function CorrectionRequestModal({
           <Button variant="outline" size="sm" onClick={handleClose} disabled={submitting}>
             Cancel
           </Button>
-          <Button size="sm" onClick={handleSubmit} disabled={submitting}>
+          <Button size="sm" onClick={form.handleSubmit(onSubmit)} disabled={submitting}>
             {submitting ? "Submitting…" : "Submit Update"}
           </Button>
         </DialogFooter>

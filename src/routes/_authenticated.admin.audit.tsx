@@ -7,9 +7,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { ShieldCheckBoldDuotone, FileTextBoldDuotone } from "solar-icon-set";
+import { ShieldCheckBoldDuotone, FileTextBoldDuotone, DownloadMinimalisticBoldDuotone } from "solar-icon-set";
 import { format, startOfDay, endOfDay } from "date-fns";
 import { maskValue, isDpdpaField } from "@/lib/dpdpa";
+import { downloadCsv } from "@/lib/csv";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/audit")({
   head: () => ({
@@ -35,6 +37,7 @@ function AuditAdminPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [exportingCsv, setExportingCsv] = useState(false);
 
   // Pagination
   const [page, setPage] = useState(0);
@@ -57,36 +60,39 @@ function AuditAdminPage() {
 
   const shouldMask = (field: string) => SENSITIVE_FIELDS.includes(field) || field.includes("id");
 
+  // Shared by the paginated table fetch and the CSV export — applies the
+  // three active filters identically so export always matches what's on screen.
+  const buildFilteredQuery = useCallback(
+    (countMode: "exact" | "planned" = "exact") => {
+      let query = supabase.from("audit_logs").select("*", { count: countMode });
+
+      if (actionFilter === "Admin Actions") {
+        query = query.in("action", ADMIN_ACTIONS);
+      } else if (actionFilter === "User Actions") {
+        query = query.in("action", USER_ACTIONS);
+      }
+
+      if (searchEmail) {
+        query = query.ilike("user_email", `%${searchEmail}%`);
+      }
+
+      if (dateFilter) {
+        const date = new Date(dateFilter);
+        if (!isNaN(date.getTime())) {
+          query = query.gte("created_at", startOfDay(date).toISOString());
+          query = query.lte("created_at", endOfDay(date).toISOString());
+        }
+      }
+
+      return query;
+    },
+    [actionFilter, searchEmail, dateFilter]
+  );
+
   const fetchLogs = useCallback(async () => {
     setLoading(true);
 
-    let query = supabase
-      .from("audit_logs")
-      .select("*", { count: "exact" });
-
-    // Apply Action Filter
-    if (actionFilter === "Admin Actions") {
-      query = query.in("action", ADMIN_ACTIONS);
-    } else if (actionFilter === "User Actions") {
-      query = query.in("action", USER_ACTIONS);
-    }
-
-    // Apply Email Search
-    if (searchEmail) {
-      query = query.ilike("user_email", `%${searchEmail}%`);
-    }
-
-    // Apply Date Filter
-    if (dateFilter) {
-      const date = new Date(dateFilter);
-      if (!isNaN(date.getTime())) {
-        query = query.gte("created_at", startOfDay(date).toISOString());
-        query = query.lte("created_at", endOfDay(date).toISOString());
-      }
-    }
-
-    // Pagination & Sorting
-    query = query
+    const query = buildFilteredQuery()
       .order("created_at", { ascending: false })
       .range(page * pageSize, page * pageSize + pageSize - 1);
 
@@ -98,9 +104,9 @@ function AuditAdminPage() {
     } else if (error) {
       console.error("Failed to fetch audit logs", error);
     }
-    
+
     setLoading(false);
-  }, [page, actionFilter, searchEmail, dateFilter]);
+  }, [buildFilteredQuery, page]);
 
   // Refetch when dependencies change
   useEffect(() => {
@@ -187,6 +193,80 @@ function AuditAdminPage() {
     return <span className="text-muted-foreground">—</span>;
   };
 
+  // Plain-text equivalent of renderMetadata()'s three branches, for the CSV export.
+  // Reuses the same shouldMask/maskValue masking so the export can never show an
+  // unmasked value the table itself would have hidden.
+  const getChangeSummary = (log: AuditLog): string => {
+    if (log.metadata?.field) {
+      const oldVal = shouldMask(log.metadata.field) && log.metadata.old_value
+        ? maskValue(log.metadata.old_value, 4)
+        : (log.metadata.old_value || "null");
+      const newVal = shouldMask(log.metadata.field) && log.metadata.new_value
+        ? maskValue(log.metadata.new_value, 4)
+        : (log.metadata.new_value || "null");
+      return `${log.metadata.field.replace(/_/g, " ")}: ${oldVal} -> ${newVal}`;
+    }
+
+    if (log.action === "USER_LOGIN" || log.action === "login") {
+      const provider = typeof log.metadata?.provider === "string" ? log.metadata.provider : "azure";
+      return `Provider: ${provider}`;
+    }
+
+    if (log.metadata) {
+      return JSON.stringify(log.metadata);
+    }
+
+    return "—";
+  };
+
+  const EXPORT_ROW_CAP = 5000;
+
+  async function handleExportCsv() {
+    if (exportingCsv) return;
+    setExportingCsv(true);
+    try {
+      const query = buildFilteredQuery("exact")
+        .order("created_at", { ascending: false })
+        .limit(EXPORT_ROW_CAP);
+
+      const { data, count, error } = await query;
+      if (error) throw error;
+
+      const matched = data as any as AuditLog[];
+      if (!matched || matched.length === 0) {
+        toast.error("No audit records match the current filters");
+        return;
+      }
+
+      const rows: string[][] = [
+        ["Action", "User", "Entity", "Change", "Time"],
+        ...matched.map((log) => [
+          formatAction(log.action),
+          log.user_email || "System / Unknown",
+          log.entity_type || "—",
+          getChangeSummary(log),
+          format(new Date(log.created_at), "MMM d, yyyy HH:mm"),
+        ]),
+      ];
+
+      const filename = `audit_logs_${format(new Date(), "yyyy-MM-dd")}.csv`;
+      downloadCsv(filename, rows);
+
+      if ((count ?? 0) > EXPORT_ROW_CAP) {
+        toast.success(
+          `Exported first ${EXPORT_ROW_CAP.toLocaleString()} of ${(count ?? 0).toLocaleString()} matching records — narrow your filters for a complete export`
+        );
+      } else {
+        toast.success(`Exported ${matched.length.toLocaleString()} audit record${matched.length === 1 ? "" : "s"}`);
+      }
+    } catch (err) {
+      console.error("Failed to export audit logs", err);
+      toast.error("Failed to export audit logs");
+    } finally {
+      setExportingCsv(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="page-header">
@@ -224,13 +304,24 @@ function AuditAdminPage() {
               onChange={(e) => setDateFilter(e.target.value)}
             />
 
-            <Input 
+            <Input
               type="text"
-              placeholder="Search user email..." 
+              placeholder="Search user email..."
               className="w-full sm:flex-1"
               value={searchEmail}
               onChange={(e) => setSearchEmail(e.target.value)}
             />
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={handleExportCsv}
+              disabled={exportingCsv || (!loading && logs.length === 0)}
+            >
+              <DownloadMinimalisticBoldDuotone size={16} />
+              {exportingCsv ? "Exporting…" : "Export CSV"}
+            </Button>
           </div>
 
           {loading ? (

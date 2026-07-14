@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { GraphUpBoldDuotone } from "solar-icon-set";
 import { toast } from "sonner";
+import { downloadCsv } from "@/lib/csv";
 
 export const Route = createFileRoute("/_authenticated/admin/reports")({
   head: () => ({ meta: [{ title: "Reports & Analytics — DPDPA Portal" }] }),
@@ -28,17 +29,6 @@ interface ReportData {
   requestsByStatus: { name: string; value: number }[];
   correctionsByStatus: { name: string; value: number }[];
   topEmployees: { name: string; code: string; consented: boolean; corrections: number }[];
-}
-
-function downloadCsv(filename: string, rows: string[][]): void {
-  const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 async function fetchReportData(): Promise<ReportData> {

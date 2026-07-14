@@ -1,18 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { BreachService, type BreachIncident, type BreachSeverity, type BreachStatus } from "@/services/breach.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { DangerTriangleBoldDuotone, AddSquareBoldDuotone, CheckCircleBoldDuotone } from "solar-icon-set";
+import { breachIncidentSchema, type BreachIncidentFormValues } from "@/lib/validation/breach";
 
 export const Route = createFileRoute("/_authenticated/admin/breaches")({
   head: () => ({ meta: [{ title: "Breach Management — DPDPA Portal" }] }),
@@ -42,7 +45,7 @@ const STATUS_LABELS: Record<BreachStatus, string> = {
   closed: "Closed",
 };
 
-const EMPTY_FORM = {
+const EMPTY_FORM: BreachIncidentFormValues = {
   title: "",
   description: "",
   severity: "medium" as BreachSeverity,
@@ -63,9 +66,13 @@ function BreachesPage() {
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
   const [showDetail, setShowDetail] = useState<BreachIncident | null>(null);
-  const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [updating, setUpdating] = useState(false);
+
+  const form = useForm<BreachIncidentFormValues>({
+    resolver: zodResolver(breachIncidentSchema),
+    defaultValues: EMPTY_FORM,
+  });
 
   async function load(): Promise<BreachIncident[]> {
     try {
@@ -82,32 +89,28 @@ function BreachesPage() {
     load().finally(() => setLoading(false));
   }, []);
 
-  async function handleCreate() {
-    if (!form.title.trim()) {
-      toast.error("Title is required.");
-      return;
-    }
+  async function onSubmit(values: BreachIncidentFormValues) {
     setSaving(true);
     try {
       await BreachService.create({
-        title: form.title.trim(),
-        description: form.description || null,
-        severity: form.severity,
-        status: form.status,
-        discovered_at: new Date(form.discovered_at).toISOString(),
-        affected_count: form.affected_count ? parseInt(form.affected_count) : null,
-        affected_data_categories: form.affected_data_categories
-          ? form.affected_data_categories.split(",").map((s) => s.trim()).filter(Boolean)
+        title: values.title.trim(),
+        description: values.description || null,
+        severity: values.severity,
+        status: values.status,
+        discovered_at: new Date(values.discovered_at).toISOString(),
+        affected_count: values.affected_count ? parseInt(values.affected_count) : null,
+        affected_data_categories: values.affected_data_categories
+          ? values.affected_data_categories.split(",").map((s) => s.trim()).filter(Boolean)
           : [],
-        root_cause: form.root_cause || null,
-        remediation: form.remediation || null,
+        root_cause: values.root_cause || null,
+        remediation: values.remediation || null,
         board_notified_at: null,
         principals_notified_at: null,
         owner_user_id: null,
       });
       toast.success("Breach incident logged.");
       setShowNew(false);
-      setForm(EMPTY_FORM);
+      form.reset(EMPTY_FORM);
       await load();
     } catch {
       toast.error("Failed to log breach.");
@@ -255,91 +258,131 @@ function BreachesPage() {
           <DialogHeader>
             <DialogTitle>Log Breach Incident</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label className="text-sm">Title *</Label>
-              <Input
-                value={form.title}
-                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                placeholder="Brief title of the incident"
-                className="text-sm"
+          <Form {...form}>
+            <div className="space-y-4 py-2">
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">Title *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Brief title of the incident" className="text-sm" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Description</Label>
-              <Textarea
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                rows={3}
-                className="text-sm"
-                placeholder="Describe what happened"
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">Description</FormLabel>
+                    <FormControl>
+                      <Textarea rows={3} className="text-sm" placeholder="Describe what happened" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-sm">Severity</Label>
-                <Select value={form.severity} onValueChange={(v) => setForm((f) => ({ ...f, severity: v as BreachSeverity }))}>
-                  <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {["low","medium","high","critical"].map((s) => (
-                      <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm">Discovered At</Label>
-                <Input
-                  type="datetime-local"
-                  value={form.discovered_at}
-                  onChange={(e) => setForm((f) => ({ ...f, discovered_at: e.target.value }))}
-                  className="text-sm"
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="severity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-sm">Severity</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {["low","medium","high","critical"].map((s) => (
+                            <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="discovered_at"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-sm">Discovered At</FormLabel>
+                      <FormControl>
+                        <Input type="datetime-local" className="text-sm" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Affected Data Categories (comma-separated)</Label>
-              <Input
-                value={form.affected_data_categories}
-                onChange={(e) => setForm((f) => ({ ...f, affected_data_categories: e.target.value }))}
-                placeholder="Email, PAN, Aadhaar"
-                className="text-sm"
+              <FormField
+                control={form.control}
+                name="affected_data_categories"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">Affected Data Categories (comma-separated)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Email, PAN, Aadhaar" className="text-sm" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="affected_count"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">Number of Affected Data Principals</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="0" className="text-sm" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="root_cause"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">Root Cause</FormLabel>
+                    <FormControl>
+                      <Textarea rows={2} className="text-sm" placeholder="Known or suspected cause" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="remediation"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">Remediation Steps</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={2}
+                        className="text-sm"
+                        placeholder="Steps taken or planned to contain the breach"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Number of Affected Data Principals</Label>
-              <Input
-                type="number"
-                value={form.affected_count}
-                onChange={(e) => setForm((f) => ({ ...f, affected_count: e.target.value }))}
-                placeholder="0"
-                className="text-sm"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Root Cause</Label>
-              <Textarea
-                value={form.root_cause}
-                onChange={(e) => setForm((f) => ({ ...f, root_cause: e.target.value }))}
-                rows={2}
-                className="text-sm"
-                placeholder="Known or suspected cause"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Remediation Steps</Label>
-              <Textarea
-                value={form.remediation}
-                onChange={(e) => setForm((f) => ({ ...f, remediation: e.target.value }))}
-                rows={2}
-                className="text-sm"
-                placeholder="Steps taken or planned to contain the breach"
-              />
-            </div>
-          </div>
+          </Form>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowNew(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={saving}>{saving ? "Logging…" : "Log Incident"}</Button>
+            <Button onClick={form.handleSubmit(onSubmit)} disabled={saving}>{saving ? "Logging…" : "Log Incident"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

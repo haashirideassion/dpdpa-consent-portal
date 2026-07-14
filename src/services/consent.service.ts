@@ -224,6 +224,7 @@ export const ConsentService = {
 
       if (purposeError) {
         console.error("ConsentService: failed to save granular purpose records", purposeError);
+        return false;
       }
 
       // ── Step 3: Write to immutable audit log ─────────────────────────

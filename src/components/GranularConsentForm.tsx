@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import {
   CheckCircleBoldDuotone,
   ShieldWarningBoldDuotone,
@@ -182,7 +183,11 @@ export function GranularConsentForm({
     });
 
     setSubmitting(false);
-    if (success) onConsentSubmitted();
+    if (success) {
+      onConsentSubmitted();
+    } else {
+      toast.error("Failed to submit consent. Please try again.");
+    }
   };
 
   if (hasConsented) {

@@ -1,20 +1,23 @@
 import { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { DsrService, type DataRequest, type DsrType } from "@/services/dsr.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { AddSquareBoldDuotone, DangerTriangleBoldDuotone } from "solar-icon-set";
+import { dsrRequestSchema, type DsrRequestFormValues } from "@/lib/validation/dsr";
 
 interface Props {
   employeeId: string;
@@ -54,12 +57,18 @@ function formatDate(iso: string): string {
   });
 }
 
+const EMPTY_FORM: DsrRequestFormValues = { type: "", subject: "", description: "" };
+
 export function MyRequestsView({ employeeId, userId }: Props) {
   const [requests, setRequests] = useState<DataRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
-  const [form, setForm] = useState({ type: "" as DsrType | "", subject: "", description: "" });
   const [submitting, setSubmitting] = useState(false);
+
+  const form = useForm<DsrRequestFormValues>({
+    resolver: zodResolver(dsrRequestSchema),
+    defaultValues: EMPTY_FORM,
+  });
 
   async function load() {
     const data = await DsrService.getByUser(userId).catch(() => []);
@@ -70,22 +79,18 @@ export function MyRequestsView({ employeeId, userId }: Props) {
     load().finally(() => setLoading(false));
   }, [userId]);
 
-  async function handleSubmit() {
-    if (!form.type || !form.subject.trim() || !form.description.trim()) {
-      toast.error("Please fill in all required fields.");
-      return;
-    }
+  async function onSubmit(values: DsrRequestFormValues) {
     setSubmitting(true);
     try {
       await DsrService.create({
-        request_type: form.type as DsrType,
-        subject: form.subject.trim(),
-        description: form.description.trim(),
+        request_type: values.type as DsrType,
+        subject: values.subject.trim(),
+        description: values.description.trim(),
         employee_id: employeeId,
       });
       toast.success("Your request has been submitted. The DPO will respond within 30 days.");
       setShowDialog(false);
-      setForm({ type: "", subject: "", description: "" });
+      form.reset(EMPTY_FORM);
       await load();
     } catch {
       toast.error("Failed to submit request. Please try again.");
@@ -184,58 +189,81 @@ export function MyRequestsView({ employeeId, userId }: Props) {
           <DialogHeader>
             <DialogTitle>Raise a Data Request</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label className="text-sm">Request Type *</Label>
-              <Select value={form.type} onValueChange={(v) => setForm((f) => ({ ...f, type: v as DsrType }))}>
-                <SelectTrigger className="text-sm">
-                  <SelectValue placeholder="Select type of request…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {TYPE_OPTIONS.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>
-                      <div>
-                        <div className="font-medium">{t.label}</div>
-                        <div className="text-xs text-muted-foreground">{t.desc}</div>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-sm">Subject *</Label>
-              <Input
-                placeholder="Brief subject of your request…"
-                value={form.subject}
-                onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
-                className="text-sm"
+          <Form {...form}>
+            <div className="space-y-4 py-2">
+              <FormField
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">Request Type *</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="text-sm">
+                          <SelectValue placeholder="Select type of request…" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {TYPE_OPTIONS.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>
+                            <div>
+                              <div className="font-medium">{t.label}</div>
+                              <div className="text-xs text-muted-foreground">{t.desc}</div>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-sm">Description *</Label>
-              <Textarea
-                placeholder="Describe your request in detail…"
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                rows={4}
-                className="text-sm"
+              <FormField
+                control={form.control}
+                name="subject"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">Subject *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Brief subject of your request…" className="text-sm" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
 
-            <div className="rounded-lg bg-muted/50 p-3">
-              <p className="text-xs text-muted-foreground">
-                <DangerTriangleBoldDuotone size={12} className="inline mr-1" />
-                Your request will be reviewed by the Data Protection Officer and responded to within 30 days.
-                You will be notified when the status changes.
-              </p>
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">Description *</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Describe your request in detail…"
+                        rows={4}
+                        className="text-sm"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="rounded-lg bg-muted/50 p-3">
+                <p className="text-xs text-muted-foreground">
+                  <DangerTriangleBoldDuotone size={12} className="inline mr-1" />
+                  Your request will be reviewed by the Data Protection Officer and responded to within 30 days.
+                  You will be notified when the status changes.
+                </p>
+              </div>
             </div>
-          </div>
+          </Form>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={submitting}>
+            <Button onClick={form.handleSubmit(onSubmit)} disabled={submitting}>
               {submitting ? "Submitting…" : "Submit Request"}
             </Button>
           </DialogFooter>

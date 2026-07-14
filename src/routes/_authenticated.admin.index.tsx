@@ -16,7 +16,12 @@ import {
   DangerTriangleBoldDuotone,
   ShieldCheckBoldDuotone,
   BellBoldDuotone,
+  DownloadMinimalisticBoldDuotone,
 } from "solar-icon-set";
+import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
+import { downloadReportPdf } from "@/lib/reports/pdf";
+import { buildComplianceReportDocument } from "@/lib/reports/complianceReport";
 import {
   LineChart,
   Line,
@@ -51,7 +56,7 @@ interface ActivityRow {
   created_at: string;
 }
 
-interface DeptRow {
+export interface DeptRow {
   dept: string;
   total: number;
   consented: number;
@@ -63,7 +68,7 @@ interface PendingEmployee {
   daysSince: number;
 }
 
-interface DashboardData {
+export interface DashboardData {
   totalEmployees: number;
   consented: number;
   pendingConsent: number;
@@ -416,8 +421,10 @@ function ActivitySkeleton() {
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
 
 function AdminDashboard() {
+  const { user } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   // Activity pagination state
   const [activityPage, setActivityPage] = useState(1);
@@ -451,6 +458,24 @@ function AdminDashboard() {
     };
   }, [activityPage, activityRefreshKey]);
 
+  async function handleExportPdf() {
+    if (exportingPdf) return;
+    setExportingPdf(true);
+    try {
+      // Re-fetch rather than reusing local state, so the PDF always reflects
+      // the latest numbers even if data changed since the dashboard first loaded.
+      const latestData = await fetchDashboardData();
+      const doc = buildComplianceReportDocument(latestData, user?.email ?? "Unknown");
+      const filename = `compliance-report-${new Date().toISOString().slice(0, 10)}.pdf`;
+      await downloadReportPdf(doc, filename);
+      toast.success("Compliance report downloaded");
+    } catch {
+      toast.error("Failed to generate PDF report");
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
   if (loading) return <DashboardSkeleton />;
   if (!data) return null;
 
@@ -472,11 +497,22 @@ function AdminDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold">Compliance Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Live overview of DPDPA compliance across the organization.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Compliance Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Live overview of DPDPA compliance across the organization.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExportPdf}
+          disabled={exportingPdf}
+        >
+          <DownloadMinimalisticBoldDuotone size={16} />
+          {exportingPdf ? "Generating…" : "Export PDF"}
+        </Button>
       </div>
 
       {/* KPI Cards — Consent */}

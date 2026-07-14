@@ -1,18 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { RiskService, type RiskAssessment, type RiskStatus } from "@/services/risk.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { DangerTriangleBoldDuotone, AddSquareBoldDuotone } from "solar-icon-set";
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer } from "recharts";
+import { riskAssessmentSchema, type RiskAssessmentFormValues } from "@/lib/validation/risk";
 
 export const Route = createFileRoute("/_authenticated/admin/risks")({
   head: () => ({ meta: [{ title: "Risk & Assessments — DPDPA Portal" }] }),
@@ -31,7 +34,7 @@ const STATUS_COLORS: Record<RiskStatus, string> = {
   accepted: "bg-blue-100 text-blue-700",
 };
 
-const EMPTY_FORM = {
+const EMPTY_FORM: RiskAssessmentFormValues = {
   title: "",
   description: "",
   likelihood: "3",
@@ -56,8 +59,12 @@ function RisksPage() {
   const [risks, setRisks] = useState<RiskAssessment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+
+  const form = useForm<RiskAssessmentFormValues>({
+    resolver: zodResolver(riskAssessmentSchema),
+    defaultValues: EMPTY_FORM,
+  });
 
   async function load() {
     try {
@@ -72,27 +79,23 @@ function RisksPage() {
     load().finally(() => setLoading(false));
   }, []);
 
-  async function handleSave() {
-    if (!form.title.trim()) {
-      toast.error("Title is required.");
-      return;
-    }
+  async function onSubmit(values: RiskAssessmentFormValues) {
     setSaving(true);
     try {
       await RiskService.create({
-        title: form.title.trim(),
-        description: form.description || null,
+        title: values.title.trim(),
+        description: values.description || null,
         processing_activity_id: null,
-        likelihood: parseInt(form.likelihood),
-        impact: parseInt(form.impact),
-        mitigation: form.mitigation || null,
-        status: form.status,
+        likelihood: parseInt(values.likelihood),
+        impact: parseInt(values.impact),
+        mitigation: values.mitigation || null,
+        status: values.status,
         owner_user_id: null,
         reviewed_at: null,
       });
       toast.success("Risk assessment added.");
       setShowDialog(false);
-      setForm(EMPTY_FORM);
+      form.reset(EMPTY_FORM);
       await load();
     } catch {
       toast.error("Failed to save risk.");
@@ -296,67 +299,107 @@ function RisksPage() {
           <DialogHeader>
             <DialogTitle>Add Risk Assessment</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label className="text-sm">Title *</Label>
-              <Input
-                value={form.title}
-                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                placeholder="e.g. Unauthorised access to employee PAN data"
-                className="text-sm"
+          <Form {...form}>
+            <div className="space-y-4 py-2">
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">Title *</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g. Unauthorised access to employee PAN data"
+                        className="text-sm"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Description</Label>
-              <Textarea
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                rows={2}
-                className="text-sm"
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">Description</FormLabel>
+                    <FormControl>
+                      <Textarea rows={2} className="text-sm" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-sm">Likelihood (1–5)</Label>
-                <Select value={form.likelihood} onValueChange={(v) => setForm((f) => ({ ...f, likelihood: v }))}>
-                  <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {[1,2,3,4,5].map((n) => (
-                      <SelectItem key={n} value={String(n)}>{n} — {["Very Low","Low","Medium","High","Very High"][n-1]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="likelihood"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-sm">Likelihood (1–5)</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {[1,2,3,4,5].map((n) => (
+                            <SelectItem key={n} value={String(n)}>{n} — {["Very Low","Low","Medium","High","Very High"][n-1]}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="impact"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-sm">Impact (1–5)</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {[1,2,3,4,5].map((n) => (
+                            <SelectItem key={n} value={String(n)}>{n} — {["Negligible","Minor","Moderate","Major","Severe"][n-1]}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm">Impact (1–5)</Label>
-                <Select value={form.impact} onValueChange={(v) => setForm((f) => ({ ...f, impact: v }))}>
-                  <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {[1,2,3,4,5].map((n) => (
-                      <SelectItem key={n} value={String(n)}>{n} — {["Negligible","Minor","Moderate","Major","Severe"][n-1]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="text-sm font-medium">
+                Risk Score: {parseInt(form.watch("likelihood")) * parseInt(form.watch("impact"))} (
+                {RiskService.riskLevel(parseInt(form.watch("likelihood")) * parseInt(form.watch("impact")))})
               </div>
-            </div>
-            <div className="text-sm font-medium">
-              Risk Score: {parseInt(form.likelihood) * parseInt(form.impact)} (
-              {RiskService.riskLevel(parseInt(form.likelihood) * parseInt(form.impact))})
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Mitigation Plan</Label>
-              <Textarea
-                value={form.mitigation}
-                onChange={(e) => setForm((f) => ({ ...f, mitigation: e.target.value }))}
-                rows={2}
-                className="text-sm"
-                placeholder="Describe controls or actions to mitigate this risk"
+              <FormField
+                control={form.control}
+                name="mitigation"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">Mitigation Plan</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={2}
+                        className="text-sm"
+                        placeholder="Describe controls or actions to mitigate this risk"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
             </div>
-          </div>
+          </Form>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Add Risk"}</Button>
+            <Button onClick={form.handleSubmit(onSubmit)} disabled={saving}>{saving ? "Saving…" : "Add Risk"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

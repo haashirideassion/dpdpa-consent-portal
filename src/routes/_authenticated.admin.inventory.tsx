@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { InventoryService, type DataInventoryItem } from "@/services/inventory.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,25 +15,36 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { FolderOpenBoldDuotone, AddSquareBoldDuotone, DangerTriangleBoldDuotone } from "solar-icon-set";
+import { dataInventorySchema, type DataInventoryFormValues } from "@/lib/validation/inventory";
 
 export const Route = createFileRoute("/_authenticated/admin/inventory")({
   head: () => ({ meta: [{ title: "Data Inventory (RoPA) — DPDPA Portal" }] }),
   component: InventoryPage,
 });
 
-const EMPTY_FORM: Omit<DataInventoryItem, "id" | "created_at" | "updated_at"> = {
+const EMPTY_FORM: DataInventoryFormValues = {
   activity_name: "",
   purpose: "",
-  data_categories: [],
-  data_principal_types: [],
   legal_basis: "",
   recipients: "",
   storage_location: "",
   retention_period: "",
   cross_border: false,
+};
+
+// Bookkeeping fields not entered via this form — either passed through unedited
+// from the record being edited, or null for a new activity.
+interface InventoryPassthrough {
+  linked_consent_purpose_id: string | null;
+  owner_user_id: string | null;
+  reviewed_at: string | null;
+}
+
+const EMPTY_PASSTHROUGH: InventoryPassthrough = {
   linked_consent_purpose_id: null,
   owner_user_id: null,
   reviewed_at: null,
@@ -42,8 +55,18 @@ function InventoryPage() {
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [editing, setEditing] = useState<DataInventoryItem | null>(null);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [passthrough, setPassthrough] = useState<InventoryPassthrough>(EMPTY_PASSTHROUGH);
   const [saving, setSaving] = useState(false);
+  // Raw text mirrors of the comma-separated fields — kept separate from the
+  // RHF-managed fields so a trailing/typed comma isn't collapsed by the array
+  // join/split round-trip on every keystroke.
+  const [dataCategoriesText, setDataCategoriesText] = useState("");
+  const [dataPrincipalTypesText, setDataPrincipalTypesText] = useState("");
+
+  const form = useForm<DataInventoryFormValues>({
+    resolver: zodResolver(dataInventorySchema),
+    defaultValues: EMPTY_FORM,
+  });
 
   async function load() {
     try {
@@ -60,44 +83,46 @@ function InventoryPage() {
 
   function openNew() {
     setEditing(null);
-    setForm(EMPTY_FORM);
+    form.reset(EMPTY_FORM);
+    setPassthrough(EMPTY_PASSTHROUGH);
+    setDataCategoriesText("");
+    setDataPrincipalTypesText("");
     setShowDialog(true);
   }
 
   function openEdit(item: DataInventoryItem) {
     setEditing(item);
-    setForm({
+    form.reset({
       activity_name: item.activity_name,
       purpose: item.purpose,
-      data_categories: item.data_categories,
-      data_principal_types: item.data_principal_types,
       legal_basis: item.legal_basis ?? "",
       recipients: item.recipients ?? "",
       storage_location: item.storage_location ?? "",
       retention_period: item.retention_period ?? "",
       cross_border: item.cross_border,
+    });
+    setPassthrough({
       linked_consent_purpose_id: item.linked_consent_purpose_id,
       owner_user_id: item.owner_user_id,
       reviewed_at: item.reviewed_at,
     });
+    setDataCategoriesText(item.data_categories.join(", "));
+    setDataPrincipalTypesText(item.data_principal_types.join(", "));
     setShowDialog(true);
   }
 
-  async function handleSave() {
-    if (!form.activity_name.trim() || !form.purpose.trim()) {
-      toast.error("Activity name and purpose are required.");
-      return;
-    }
+  async function onSubmit(values: DataInventoryFormValues) {
     setSaving(true);
     try {
       const payload = {
-        ...form,
-        data_categories: form.data_categories,
-        data_principal_types: form.data_principal_types,
-        legal_basis: form.legal_basis || null,
-        recipients: form.recipients || null,
-        storage_location: form.storage_location || null,
-        retention_period: form.retention_period || null,
+        ...values,
+        ...passthrough,
+        data_categories: dataCategoriesText.split(",").map((s) => s.trim()).filter(Boolean),
+        data_principal_types: dataPrincipalTypesText.split(",").map((s) => s.trim()).filter(Boolean),
+        legal_basis: values.legal_basis || null,
+        recipients: values.recipients || null,
+        storage_location: values.storage_location || null,
+        retention_period: values.retention_period || null,
       };
       if (editing) {
         await InventoryService.update(editing.id, payload);
@@ -276,105 +301,131 @@ function InventoryPage() {
               {editing ? "Edit Processing Activity" : "Add Processing Activity"}
             </DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-sm">Activity Name *</Label>
-              <Input
-                value={form.activity_name}
-                onChange={(e) => setForm((f) => ({ ...f, activity_name: e.target.value }))}
-                placeholder="e.g. Employee Payroll Processing"
-                className="text-sm"
+          <Form {...form}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
+              <FormField
+                control={form.control}
+                name="activity_name"
+                render={({ field }) => (
+                  <FormItem className="sm:col-span-2">
+                    <FormLabel className="text-sm">Activity Name *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. Employee Payroll Processing" className="text-sm" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="purpose"
+                render={({ field }) => (
+                  <FormItem className="sm:col-span-2">
+                    <FormLabel className="text-sm">Purpose *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. Salary disbursement and tax compliance" className="text-sm" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="space-y-1.5">
+                <Label className="text-sm">Data Categories (comma-separated)</Label>
+                <Input
+                  value={dataCategoriesText}
+                  onChange={(e) => setDataCategoriesText(e.target.value)}
+                  placeholder="Name, Email, PAN"
+                  className="text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">Data Principal Types</Label>
+                <Input
+                  value={dataPrincipalTypesText}
+                  onChange={(e) => setDataPrincipalTypesText(e.target.value)}
+                  placeholder="Employees, Contractors"
+                  className="text-sm"
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="legal_basis"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">Legal Basis</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Consent / Contractual Necessity / Legal Obligation"
+                        className="text-sm"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="retention_period"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">Retention Period</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. 7 years post-employment" className="text-sm" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="storage_location"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">Storage Location</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. Supabase (India region)" className="text-sm" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="recipients"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm">Recipients / Third Parties</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. Payroll vendor, Auditors" className="text-sm" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="cross_border"
+                render={({ field }) => (
+                  <FormItem className="flex items-center gap-2 space-y-0">
+                    <FormControl>
+                      <input
+                        type="checkbox"
+                        id="cross_border"
+                        checked={field.value}
+                        onChange={(e) => field.onChange(e.target.checked)}
+                        className="h-4 w-4"
+                      />
+                    </FormControl>
+                    <FormLabel className="text-sm">Cross-border transfer</FormLabel>
+                  </FormItem>
+                )}
               />
             </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label className="text-sm">Purpose *</Label>
-              <Input
-                value={form.purpose}
-                onChange={(e) => setForm((f) => ({ ...f, purpose: e.target.value }))}
-                placeholder="e.g. Salary disbursement and tax compliance"
-                className="text-sm"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Data Categories (comma-separated)</Label>
-              <Input
-                value={form.data_categories.join(", ")}
-                onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    data_categories: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
-                  }))
-                }
-                placeholder="Name, Email, PAN"
-                className="text-sm"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Data Principal Types</Label>
-              <Input
-                value={form.data_principal_types.join(", ")}
-                onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    data_principal_types: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
-                  }))
-                }
-                placeholder="Employees, Contractors"
-                className="text-sm"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Legal Basis</Label>
-              <Input
-                value={form.legal_basis ?? ""}
-                onChange={(e) => setForm((f) => ({ ...f, legal_basis: e.target.value }))}
-                placeholder="Consent / Contractual Necessity / Legal Obligation"
-                className="text-sm"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Retention Period</Label>
-              <Input
-                value={form.retention_period ?? ""}
-                onChange={(e) => setForm((f) => ({ ...f, retention_period: e.target.value }))}
-                placeholder="e.g. 7 years post-employment"
-                className="text-sm"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Storage Location</Label>
-              <Input
-                value={form.storage_location ?? ""}
-                onChange={(e) => setForm((f) => ({ ...f, storage_location: e.target.value }))}
-                placeholder="e.g. Supabase (India region)"
-                className="text-sm"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Recipients / Third Parties</Label>
-              <Input
-                value={form.recipients ?? ""}
-                onChange={(e) => setForm((f) => ({ ...f, recipients: e.target.value }))}
-                placeholder="e.g. Payroll vendor, Auditors"
-                className="text-sm"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="cross_border"
-                checked={form.cross_border}
-                onChange={(e) => setForm((f) => ({ ...f, cross_border: e.target.checked }))}
-                className="h-4 w-4"
-              />
-              <Label htmlFor="cross_border" className="text-sm">
-                Cross-border transfer
-              </Label>
-            </div>
-          </div>
+          </Form>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving}>
+            <Button onClick={form.handleSubmit(onSubmit)} disabled={saving}>
               {saving ? "Saving…" : editing ? "Update" : "Add Activity"}
             </Button>
           </DialogFooter>

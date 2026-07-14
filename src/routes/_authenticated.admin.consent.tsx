@@ -9,6 +9,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { MinimalisticMagniferBoldDuotone, ClipboardListBoldDuotone } from "solar-icon-set";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin/consent")({
   head: () => ({ meta: [{ title: "Consent Register — DPDPA Portal" }] }),
@@ -37,8 +38,12 @@ function ConsentRegisterPage() {
   useEffect(() => {
     async function load() {
       const db = supabase as any;
-      const [empRes, purposeRes, recordsRes, withdrawalsRes] = await Promise.all([
-        supabase.from("employees").select("id, first_name, last_name, employee_id, department"),
+      const [empRes, deptRes, purposeRes, recordsRes, withdrawalsRes] = await Promise.all([
+        // employees no longer has employee_id/department directly — normalized in
+        // migration 20260430000002 into employee_code (on employees) and
+        // employee_employment_details.department (joined separately below).
+        supabase.from("employees").select("id, first_name, last_name, employee_code"),
+        db.from("employee_employment_details").select("employee_id, department"),
         // consent_purposes.is_active added in migration 20260518000002
         db.from("consent_purposes")
           .select("purpose_key, label")
@@ -51,7 +56,28 @@ function ConsentRegisterPage() {
         db.from("consent_withdrawals").select("employee_id, purpose_key, withdrawn_at"),
       ]);
 
-      const employees = empRes.data ?? [];
+      const queryErrors = [
+        empRes.error && `employees: ${empRes.error.message}`,
+        deptRes.error && `employee_employment_details: ${deptRes.error.message}`,
+        purposeRes.error && `consent_purposes: ${purposeRes.error.message}`,
+        recordsRes.error && `consent_purpose_records: ${recordsRes.error.message}`,
+        withdrawalsRes.error && `consent_withdrawals: ${withdrawalsRes.error.message}`,
+      ].filter(Boolean) as string[];
+
+      if (queryErrors.length) {
+        console.error("ConsentRegisterPage: query error(s)", queryErrors);
+        toast.error(`Failed to load consent register (${queryErrors.join("; ")})`);
+      }
+
+      // employees select is cast to any[] because the generated Supabase types are
+      // stale relative to the normalized schema (migration 20260430000002) and don't
+      // know about employee_code — same pattern used in the dashboard's fetchDashboardData.
+      const employees: any[] = empRes.data ?? [];
+      const empDeptMap = new Map<string, string>(
+        (deptRes.data ?? [])
+          .filter((r: any) => r.employee_id && r.department)
+          .map((r: any) => [r.employee_id, r.department])
+      );
       const purposeList = (purposeRes.data ?? []).map((p: any) => ({
         key: p.purpose_key,
         label: p.label,
@@ -95,8 +121,8 @@ function ConsentRegisterPage() {
           result.push({
             employee_id: emp.id,
             employee_name: `${(emp as any).first_name} ${(emp as any).last_name}`,
-            employee_code: (emp as any).employee_id ?? "—",
-            department: (emp as any).department ?? "—",
+            employee_code: (emp as any).employee_code ?? "—",
+            department: empDeptMap.get(emp.id) ?? "—",
             purpose_key: p.key,
             purpose_label: p.label,
             status: (record?.status as "active" | "withdrawn" | "pending") ?? "pending",
