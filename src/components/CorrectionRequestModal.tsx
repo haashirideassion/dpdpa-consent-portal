@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { toast } from "sonner";
 import { CorrectionService } from "@/services/correction.service";
@@ -20,6 +19,7 @@ import { AttachmentService, type EmployeeAttachment } from "@/services/attachmen
 import { requiresAttachment } from "@/lib/attachmentConfig";
 import { PaperclipBoldDuotone, DownloadMinimalisticBoldDuotone } from "solar-icon-set";
 import { correctionRequestSchema, type CorrectionRequestFormValues } from "@/lib/validation/correction";
+import { Dropzone } from "@/components/ui/dropzone";
 
 interface CorrectionRequestModalProps {
   open: boolean;
@@ -40,7 +40,6 @@ export function CorrectionRequestModal({
 }: CorrectionRequestModalProps) {
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<CorrectionRequestFormValues>({
     resolver: zodResolver(correctionRequestSchema),
@@ -187,35 +186,28 @@ export function CorrectionRequestModal({
               {requiresAttachment(fieldKey) ? "Replacement Document" : "Supporting Document"}{" "}
               <span className="text-muted-foreground">(optional — PDF / JPG / PNG, max 5 MB)</span>
             </Label>
-            <div className="flex items-center gap-2">
-              <Input
-                ref={fileRef}
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                className="hidden"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2 text-xs"
-                onClick={() => fileRef.current?.click()}
-                disabled={submitting}
-                type="button"
-              >
-                <PaperclipBoldDuotone size={14} />
-                {file ? file.name : "Attach document"}
-              </Button>
-              {file && (
+            {file ? (
+              <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2">
+                <PaperclipBoldDuotone size={13} className="text-muted-foreground shrink-0" />
+                <span className="text-xs text-foreground truncate flex-1">{file.name}</span>
                 <button
                   type="button"
-                  className="text-xs text-muted-foreground hover:text-destructive"
+                  className="shrink-0 text-xs text-muted-foreground hover:text-destructive"
                   onClick={() => setFile(null)}
+                  disabled={submitting}
                 >
                   Remove
                 </button>
-              )}
-            </div>
+              </div>
+            ) : (
+              <Dropzone
+                onFile={setFile}
+                accept=".pdf,.jpg,.jpeg,.png"
+                disabled={submitting}
+                label="Drag & drop or browse files"
+                hint="PDF, JPG, PNG — max 5MB"
+              />
+            )}
           </div>
         </div>
 

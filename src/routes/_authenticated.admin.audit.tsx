@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge, type StatusTone } from "@/components/StatusBadge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -140,17 +141,11 @@ function AuditAdminPage() {
     }
   };
 
-  const getBadge = (action: string) => {
-    if (ADMIN_ACTIONS.includes(action)) {
-      return "badge-warning border";
-    }
-    if (action === "USER_LOGIN" || action === "login" || action === "logout") {
-      return "badge-info border";
-    }
-    if (action.includes("consent")) {
-      return "badge-success border";
-    }
-    return "badge-neutral border";
+  const getBadgeTone = (action: string): StatusTone => {
+    if (ADMIN_ACTIONS.includes(action)) return "warning";
+    if (action === "USER_LOGIN" || action === "login" || action === "logout") return "info";
+    if (action.includes("consent")) return "success";
+    return "neutral";
   };
 
   const renderMetadata = (log: AuditLog) => {
@@ -331,11 +326,12 @@ function AuditAdminPage() {
               ))}
             </div>
           ) : logs.length === 0 ? (
-            <div className="py-14 flex flex-col items-center gap-2 text-center">
-              <FileTextBoldDuotone size={40} className="text-muted-foreground/25" />
-              <p className="text-sm font-medium text-foreground">No audit activity found</p>
-              <p className="text-xs text-muted-foreground">Try adjusting your filters or date range.</p>
-            </div>
+            <EmptyState
+              icon={<FileTextBoldDuotone size={40} />}
+              title="No audit activity found"
+              description="Try adjusting your filters or date range."
+              className="py-14"
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -352,9 +348,9 @@ function AuditAdminPage() {
                   {logs.map((log) => (
                     <tr key={log.id} className="border-b border-muted/50 hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3 align-top">
-                        <Badge variant="outline" className={`font-medium whitespace-nowrap capitalize ${getBadge(log.action)}`}>
+                        <StatusBadge tone={getBadgeTone(log.action)} className="font-medium whitespace-nowrap capitalize">
                           {formatAction(log.action)}
-                        </Badge>
+                        </StatusBadge>
                       </td>
                       <td className="px-4 py-3 align-top truncate max-w-[200px]">
                         {log.user_email || <span className="text-muted-foreground italic">System / Unknown</span>}
