@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 const db = supabase as any;
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -350,25 +350,36 @@ function StatCard({
   sub?: string;
   highlight?: "warning" | "danger" | "success";
 }) {
+  // Same highlight semantics as before, now keyed to the shared
+  // --destructive/--warning/--success tokens instead of ad-hoc Tailwind reds/
+  // yellows/greens, so highlighted stat cards match every other status color.
   const border =
     highlight === "danger"
-      ? "border-red-200 bg-red-50/40"
+      ? "border-destructive/30 bg-destructive/5"
       : highlight === "warning"
-      ? "border-yellow-200 bg-yellow-50/40"
+      ? "border-warning/40 bg-warning/10"
       : highlight === "success"
-      ? "border-green-200 bg-green-50/40"
+      ? "border-success/30 bg-success/5"
       : "";
+  const iconTone =
+    highlight === "danger"
+      ? "bg-destructive/10 text-destructive"
+      : highlight === "warning"
+      ? "bg-warning/15 text-warning-foreground"
+      : highlight === "success"
+      ? "bg-success/10 text-success"
+      : "bg-admin-accent/10 text-admin-accent";
   return (
-    <Card className={border}>
-      <CardContent className="flex items-start gap-3 py-5">
-        <div className="mt-0.5 text-muted-foreground">{icon}</div>
+    <div className={`stat-card ${border}`}>
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-2xl font-bold leading-none">{value}</p>
-          <p className="text-xs text-muted-foreground mt-1">{label}</p>
+          <p className="stat-card-value">{value}</p>
+          <p className="stat-card-label mt-1">{label}</p>
           {sub && <p className="text-xs text-muted-foreground/70 mt-0.5">{sub}</p>}
         </div>
-      </CardContent>
-    </Card>
+        <div className={`stat-card-icon ${iconTone}`}>{icon}</div>
+      </div>
+    </div>
   );
 }
 
@@ -582,7 +593,7 @@ function AdminDashboard() {
 
       {/* Compliance Score + Breaches */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
+        <Card className="rounded-2xl">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <ShieldCheckBoldDuotone size={16} />
@@ -592,14 +603,9 @@ function AdminDashboard() {
           <CardContent>
             <div className="flex items-baseline gap-2 mb-3">
               <span className="text-4xl font-bold">{data.compliancePct}%</span>
-              <Badge
-                variant="outline"
-                className={
-                  data.compliancePct >= 80
-                    ? "border-green-300 text-green-700"
-                    : data.compliancePct >= 50
-                    ? "border-yellow-300 text-yellow-700"
-                    : "border-red-300 text-red-700"
+              <StatusBadge
+                tone={
+                  data.compliancePct >= 80 ? "success" : data.compliancePct >= 50 ? "warning" : "danger"
                 }
               >
                 {data.compliancePct >= 80
@@ -607,7 +613,7 @@ function AdminDashboard() {
                   : data.compliancePct >= 50
                   ? "Needs Attention"
                   : "At Risk"}
-              </Badge>
+              </StatusBadge>
             </div>
             <Progress value={data.compliancePct} className="h-2" />
             <p className="text-xs text-muted-foreground mt-2">
@@ -616,7 +622,7 @@ function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card className={data.openBreaches > 0 ? "border-red-200 bg-red-50/30" : ""}>
+        <Card className={`rounded-2xl ${data.openBreaches > 0 ? "border-destructive/30 bg-destructive/5" : ""}`}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <DangerTriangleBoldDuotone size={16} />
@@ -627,7 +633,7 @@ function AdminDashboard() {
             <div className="flex items-baseline gap-2">
               <span className="text-4xl font-bold">{data.openBreaches}</span>
               {data.openBreaches > 0 && (
-                <Badge variant="destructive">Requires Action</Badge>
+                <StatusBadge tone="danger">Requires Action</StatusBadge>
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-2">

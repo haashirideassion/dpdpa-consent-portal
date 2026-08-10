@@ -3,7 +3,9 @@ import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 const db = supabase as any;
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { StatusBadge } from "@/components/StatusBadge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -874,8 +876,17 @@ function EmployeeList() {
             {paginated.map((emp) => (
               <TableRow key={emp.id} className="h-16">
                 <TableCell className="py-3 font-medium">
-                  <div className="truncate">{emp.first_name} {emp.last_name}</div>
-                  <div className="truncate text-xs text-muted-foreground">{emp.email}</div>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Avatar className="h-8 w-8 shrink-0">
+                      <AvatarFallback className="text-[11px] font-semibold bg-admin-accent/10 text-admin-accent">
+                        {[emp.first_name?.[0], emp.last_name?.[0]].filter(Boolean).join("").toUpperCase() || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <div className="truncate">{emp.first_name} {emp.last_name}</div>
+                      <div className="truncate text-xs text-muted-foreground">{emp.email}</div>
+                    </div>
+                  </div>
                 </TableCell>
                 <TableCell className="hidden py-3 text-xs text-muted-foreground sm:table-cell">
                   {emp.employee_code}
@@ -900,9 +911,9 @@ function EmployeeList() {
                 </TableCell>
                 <TableCell className="hidden py-3 md:table-cell">
                   {emp.correction_count > 0 ? (
-                    <Badge variant="outline" className="text-xs border-yellow-300 text-yellow-700">
+                    <StatusBadge tone="warning" className="text-xs">
                       {emp.correction_count}
-                    </Badge>
+                    </StatusBadge>
                   ) : (
                     <span className="text-xs text-muted-foreground">—</span>
                   )}
@@ -919,15 +930,15 @@ function EmployeeList() {
             {filtered.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8} className="py-14">
-                  <div className="flex flex-col items-center gap-2 text-center">
-                    <MinimalisticMagniferBoldDuotone size={32} className="text-muted-foreground/25" />
-                    <p className="text-sm font-medium text-foreground">No employees found</p>
-                    <p className="text-xs text-muted-foreground">
-                      {search || deptFilter !== "all" || statusFilter !== "all"
+                  <EmptyState
+                    icon={<MinimalisticMagniferBoldDuotone size={32} />}
+                    title="No employees found"
+                    description={
+                      search || deptFilter !== "all" || statusFilter !== "all"
                         ? "Try adjusting your filters or search query."
-                        : "Import employees using the CSV upload button above."}
-                    </p>
-                  </div>
+                        : "Import employees using the CSV upload button above."
+                    }
+                  />
                 </TableCell>
               </TableRow>
             )}
@@ -988,22 +999,10 @@ function EmployeeList() {
 function ConsentBadge({ status }: { status: string }) {
   switch (status) {
     case "consented":
-      return (
-        <Badge variant="outline" className="badge-success text-xs font-medium">
-          Consented
-        </Badge>
-      );
+      return <StatusBadge tone="success" className="text-xs">Consented</StatusBadge>;
     case "submitted":
-      return (
-        <Badge variant="outline" className="badge-info text-xs font-medium">
-          Submitted
-        </Badge>
-      );
+      return <StatusBadge tone="info" className="text-xs">Submitted</StatusBadge>;
     default:
-      return (
-        <Badge variant="outline" className="badge-warning text-xs font-medium">
-          Pending
-        </Badge>
-      );
+      return <StatusBadge tone="warning" className="text-xs">Pending</StatusBadge>;
   }
 }
