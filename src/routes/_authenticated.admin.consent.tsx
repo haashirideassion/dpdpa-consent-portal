@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { StatusBadge, type StatusTone } from "@/components/StatusBadge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -178,17 +179,15 @@ function ConsentRegisterPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Total Records", value: total },
-          { label: "Active Consents", value: active, color: "text-green-600" },
-          { label: "Withdrawn", value: withdrawn, color: "text-red-600" },
-          { label: "Pending", value: pending, color: "text-yellow-600" },
+          { label: "Total Records", value: total, color: "" },
+          { label: "Active Consents", value: active, color: "text-success" },
+          { label: "Withdrawn", value: withdrawn, color: "text-destructive" },
+          { label: "Pending", value: pending, color: "text-warning-foreground" },
         ].map((s) => (
-          <Card key={s.label}>
-            <CardContent className="py-4 text-center">
-              <p className={`text-2xl font-bold ${s.color ?? ""}`}>{s.value}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
-            </CardContent>
-          </Card>
+          <div key={s.label} className="stat-card items-center text-center">
+            <p className={`stat-card-value ${s.color}`}>{s.value}</p>
+            <p className="stat-card-label">{s.label}</p>
+          </div>
         ))}
       </div>
 
@@ -222,9 +221,12 @@ function ConsentRegisterPage() {
       <Card>
         <CardContent className="p-0">
           {filtered.length === 0 ? (
-            <div className="py-12 text-center text-sm text-muted-foreground">
-              No records match the current filters.
-            </div>
+            <EmptyState
+              icon={<ClipboardListBoldDuotone size={32} />}
+              title="No records match the current filters"
+              description="Try adjusting your search or purpose filter."
+              className="py-12"
+            />
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -248,20 +250,13 @@ function ConsentRegisterPage() {
                       <TableCell className="text-sm text-muted-foreground">{r.department}</TableCell>
                       <TableCell className="text-sm max-w-40 truncate">{r.purpose_label}</TableCell>
                       <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={
-                            r.status === "active"
-                              ? "border-green-300 text-green-700"
-                              : r.status === "withdrawn"
-                              ? "border-red-300 text-red-700"
-                              : r.status === "declined"
-                              ? "border-orange-300 text-orange-700"
-                              : "border-yellow-300 text-yellow-700"
+                        <StatusBadge
+                          tone={
+                            ({ active: "success", withdrawn: "danger", declined: "warning", pending: "warning" } as Record<string, StatusTone>)[r.status]
                           }
                         >
                           {r.status === "active" ? "Active" : r.status === "withdrawn" ? "Withdrawn" : r.status === "declined" ? "Declined" : "Pending"}
-                        </Badge>
+                        </StatusBadge>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {r.consent_version ?? "—"}

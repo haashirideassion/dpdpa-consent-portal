@@ -5,6 +5,7 @@ import { VideoService } from "@/services/video.service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -486,8 +487,12 @@ function AdminVideosPage() {
                 </TableRow>
               ) : videos.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    No videos uploaded yet. Use the form above to upload your first version.
+                  <TableCell colSpan={6} className="py-8">
+                    <EmptyState
+                      icon={<PlayCircleBoldDuotone size={32} />}
+                      title="No videos uploaded yet"
+                      description="Use the form above to upload your first version."
+                    />
                   </TableCell>
                 </TableRow>
               ) : (

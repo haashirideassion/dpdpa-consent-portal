@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { RiskService, type RiskAssessment, type RiskStatus } from "@/services/risk.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -241,8 +242,12 @@ function RisksPage() {
       {/* Risk list */}
       {risks.length === 0 ? (
         <Card>
-          <CardContent className="py-16 text-center text-sm text-muted-foreground">
-            No risk assessments yet. Add your first risk above.
+          <CardContent className="py-16">
+            <EmptyState
+              icon={<DangerTriangleBoldDuotone size={32} />}
+              title="No risk assessments yet"
+              description="Add your first risk above."
+            />
           </CardContent>
         </Card>
       ) : (

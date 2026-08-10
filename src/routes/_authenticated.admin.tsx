@@ -54,8 +54,11 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/admin/audit", icon: <ChartBoldDuotone size={16} />, label: "Audit Logs" },
 ];
 
-const linkBase = "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors";
-const linkActive = "bg-primary/10 text-primary hover:bg-primary/15";
+// Admin nav uses the --admin-accent (purple) token instead of --primary, so
+// the "Control Center" chrome reads as visually distinct from the Employee
+// portal without touching the shared light-theme background/card tokens.
+const linkBase = "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors border-l-2 border-transparent";
+const linkActive = "bg-admin-accent/10 text-admin-accent hover:bg-admin-accent/15 border-l-2 border-admin-accent";
 
 function AdminLayout() {
   const { loading, hasRole } = useAuth();

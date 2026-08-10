@@ -21,6 +21,7 @@ import {
   RefreshBoldDuotone,
 } from "solar-icon-set";
 import { toast } from "sonner";
+import { Dropzone } from "@/components/ui/dropzone";
 
 interface AttachmentFieldProps {
   employeeId: string;
@@ -74,14 +75,14 @@ export function AttachmentField({
   }, [employeeId, fieldKey]);
 
   // ── Upload handler ────────────────────────────────────────────────────────
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
+  // Core logic takes a File directly so both the hidden "Replace" input and
+  // the Dropzone (drag/drop or click-to-browse) can share the same path.
+  async function processFile(file: File) {
+    if (!user) return;
 
     const err = AttachmentService.validate(file);
     if (err) {
       toast.error(err);
-      if (fileRef.current) fileRef.current.value = "";
       return;
     }
 
@@ -97,8 +98,13 @@ export function AttachmentField({
       toast.error(uploadErr?.message ?? "Upload failed. Please try again.");
     } finally {
       setUploading(false);
-      if (fileRef.current) fileRef.current.value = "";
     }
+  }
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) processFile(file);
+    if (fileRef.current) fileRef.current.value = "";
   }
 
   // ── Don't render anything while loading the initial state ─────────────────
@@ -158,15 +164,13 @@ export function AttachmentField({
         </>
       ) : canUpload ? (
         // ── No attachment, upload allowed ──────────────────────────────────
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
+        <Dropzone
+          onFile={processFile}
           disabled={uploading}
-          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary border border-dashed border-border hover:border-primary/50 rounded px-2 py-0.5 transition-colors disabled:opacity-40"
-        >
-          <PaperclipBoldDuotone size={12} />
-          {uploading ? "Uploading…" : `Upload ${label}`}
-        </button>
+          className="w-full !p-2 flex-row justify-start gap-2 text-left"
+          label={uploading ? "Uploading…" : `Upload ${label}`}
+          hint={null}
+        />
       ) : (
         // ── No attachment, upload not allowed (post-consent employee) ──────
         <span className="text-[10px] text-muted-foreground/50 italic">

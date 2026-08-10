@@ -52,6 +52,8 @@
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-admin-accent: var(--admin-accent);
+  --color-admin-accent-foreground: var(--admin-accent-foreground);
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   --font-heading: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
 }
@@ -86,6 +88,11 @@
   --success-foreground: oklch(0.99 0 0);
   --warning: oklch(0.78 0.15 75);
   --warning-foreground: oklch(0.3 0.08 75);
+  /* Admin "Control Center" accent — purple, used only for admin-shell chrome
+     (active nav rail, admin-only stat cards). Employee surfaces keep using
+     --primary/--success and never reference this token. */
+  --admin-accent: oklch(0.52 0.22 300);
+  --admin-accent-foreground: oklch(0.99 0 0);
   /* Chart colors */
   --chart-1: oklch(0.55 0.18 255);
   --chart-2: oklch(0.6 0.16 150);
@@ -130,6 +137,8 @@
   --success-foreground: oklch(0.99 0 0);
   --warning: oklch(0.75 0.15 75);
   --warning-foreground: oklch(0.2 0.05 75);
+  --admin-accent: oklch(0.68 0.2 300);
+  --admin-accent-foreground: oklch(0.99 0 0);
   --chart-1: oklch(0.65 0.18 255);
   --chart-2: oklch(0.65 0.16 150);
   --chart-3: oklch(0.7 0.14 50);
@@ -292,5 +301,111 @@
   /* ── Subtle highlight row for tables ─────────────────────────────────────── */
   .table-row-hover:hover {
     background-color: color-mix(in oklch, var(--color-muted) 50%, transparent);
+  }
+
+  /* ── KPI / stat card (admin dashboard) ───────────────────────────────────── */
+  .stat-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1.25rem;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--color-border);
+    background-color: var(--color-card);
+    box-shadow: 0 1px 2px 0 color-mix(in oklch, var(--color-foreground) 4%, transparent);
+  }
+  .stat-card-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: var(--radius-md);
+    background-color: color-mix(in oklch, var(--color-primary) 10%, transparent);
+    color: var(--color-primary);
+  }
+  .stat-card-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    color: var(--color-foreground);
+  }
+  .stat-card-label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-muted-foreground);
+  }
+
+  /* ── Circular progress ring ───────────────────────────────────────────────── */
+  .progress-ring-track {
+    stroke: var(--color-muted);
+  }
+  .progress-ring-fill {
+    stroke: var(--color-primary);
+    transition: stroke-dashoffset 0.4s ease;
+  }
+  .progress-ring-label {
+    font-size: 0.875rem;
+    font-weight: 700;
+    fill: var(--color-foreground);
+  }
+
+  /* ── Vertical timeline ────────────────────────────────────────────────────── */
+  .timeline {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+  .timeline-item {
+    position: relative;
+    display: flex;
+    gap: 0.75rem;
+    padding-left: 0.25rem;
+  }
+  .timeline-item::before {
+    content: "";
+    position: absolute;
+    left: 0.5rem;
+    top: 1.25rem;
+    bottom: -1.25rem;
+    width: 1px;
+    background-color: var(--color-border);
+  }
+  .timeline-item:last-child::before {
+    display: none;
+  }
+  .timeline-dot {
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 999px;
+    margin-top: 0.125rem;
+    background-color: var(--color-card);
+    border: 2px solid var(--color-primary);
+  }
+
+  /* ── Document dropzone ────────────────────────────────────────────────────── */
+  .dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 1.25rem;
+    text-align: center;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-lg);
+    background-color: color-mix(in oklch, var(--color-muted) 40%, transparent);
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+    cursor: pointer;
+  }
+  .dropzone:hover,
+  .dropzone[data-active="true"] {
+    border-color: var(--color-primary);
+    background-color: color-mix(in oklch, var(--color-primary) 6%, transparent);
   }
 }

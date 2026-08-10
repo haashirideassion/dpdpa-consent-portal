@@ -12,6 +12,7 @@ import {
   ClockCircleBoldDuotone,
   LockKeyholeMinimalisticBoldDuotone,
 } from "solar-icon-set";
+import { StatusBadge, type StatusTone } from "@/components/StatusBadge";
 import type { SectionConsentStatus } from "@/lib/section-consent";
 
 interface SectionConsentBadgeProps {
@@ -21,44 +22,23 @@ interface SectionConsentBadgeProps {
 export function SectionConsentBadge({ status }: SectionConsentBadgeProps) {
   if (status === "not_applicable") return null;
 
+  // Tones map onto the shared --success/--warning/--destructive/--muted CSS
+  // variables via StatusBadge, instead of hardcoding a separate palette here.
   const config: Record<
     Exclude<SectionConsentStatus, "not_applicable">,
-    { label: string; icon: React.ReactNode; className: string }
+    { label: string; icon: React.ReactNode; tone: StatusTone }
   > = {
-    active: {
-      label: "Consented",
-      icon: <CheckCircleBoldDuotone size={10} />,
-      className:
-        "bg-emerald-50 text-emerald-700 border border-emerald-200",
-    },
-    pending: {
-      label: "Pending",
-      icon: <ClockCircleBoldDuotone size={10} />,
-      className:
-        "bg-amber-50 text-amber-700 border border-amber-200",
-    },
-    withdrawn: {
-      label: "Withdrawn",
-      icon: <CloseCircleBoldDuotone size={10} />,
-      className:
-        "bg-red-50 text-red-600 border border-red-200",
-    },
-    mandatory: {
-      label: "Required",
-      icon: <LockKeyholeMinimalisticBoldDuotone size={10} />,
-      className:
-        "bg-slate-100 text-slate-500 border border-slate-200",
-    },
+    active: { label: "Consented", icon: <CheckCircleBoldDuotone size={10} />, tone: "success" },
+    pending: { label: "Pending", icon: <ClockCircleBoldDuotone size={10} />, tone: "warning" },
+    withdrawn: { label: "Withdrawn", icon: <CloseCircleBoldDuotone size={10} />, tone: "danger" },
+    mandatory: { label: "Required", icon: <LockKeyholeMinimalisticBoldDuotone size={10} />, tone: "neutral" },
   };
 
-  const { label, icon, className } = config[status];
+  const { label, icon, tone } = config[status];
 
   return (
-    <span
-      className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${className}`}
-    >
-      {icon}
+    <StatusBadge tone={tone} icon={icon} className="text-[10px] uppercase tracking-wide px-1.5 py-0.5">
       {label}
-    </span>
+    </StatusBadge>
   );
 }

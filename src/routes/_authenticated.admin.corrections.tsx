@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { CorrectionService, type CorrectionRequest } from "@/services/correction.service";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/StatusBadge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -213,17 +214,17 @@ function CorrectionsQueue() {
   const filtered = requests.filter((r) => filter === "all" || r.status === filter);
 
   const statusBadge = (status: string) => {
-    if (status === "pending")  return <Badge variant="outline" className="badge-warning text-xs">Pending</Badge>;
-    if (status === "approved") return <Badge variant="outline" className="badge-success text-xs">Approved</Badge>;
-    return <Badge variant="outline" className="badge-danger text-xs">Rejected</Badge>;
+    if (status === "pending")  return <StatusBadge tone="warning" className="text-xs">Pending</StatusBadge>;
+    if (status === "approved") return <StatusBadge tone="success" className="text-xs">Approved</StatusBadge>;
+    return <StatusBadge tone="danger" className="text-xs">Rejected</StatusBadge>;
   };
 
   const typeBadge = (req: CorrectionRequest) => {
     const type = getSectionType(req);
-    if (type === "section_edit") return <Badge variant="outline" className="badge-info text-[10px]">Section Edit</Badge>;
-    if (type === "section_add") return <Badge variant="outline" className="badge-info text-[10px]">Section Add</Badge>;
-    if (type === "section_delete") return <Badge variant="outline" className="badge-danger text-[10px]">Section Delete</Badge>;
-    if (type === "section_legacy") return <Badge variant="outline" className="badge-neutral text-[10px]">Section</Badge>;
+    if (type === "section_edit") return <StatusBadge tone="info" className="text-[10px]">Section Edit</StatusBadge>;
+    if (type === "section_add") return <StatusBadge tone="info" className="text-[10px]">Section Add</StatusBadge>;
+    if (type === "section_delete") return <StatusBadge tone="danger" className="text-[10px]">Section Delete</StatusBadge>;
+    if (type === "section_legacy") return <StatusBadge tone="neutral" className="text-[10px]">Section</StatusBadge>;
     return null;
   };
 
@@ -278,15 +279,13 @@ function CorrectionsQueue() {
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="py-14 flex flex-col items-center gap-2 text-center">
-          <CheckCircleBoldDuotone size={36} className="text-muted-foreground/25" />
-          <p className="text-sm font-medium text-foreground">
-            {filter === "pending" ? "No pending updates" : `No ${filter === "all" ? "" : filter} updates`}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {filter === "pending" ? "All update requests have been reviewed." : "No records match this filter."}
-          </p>
-        </div>
+        <EmptyState
+          icon={<CheckCircleBoldDuotone size={36} />}
+          title={filter === "pending" ? "No pending updates" : `No ${filter === "all" ? "" : filter} updates`}
+          description={
+            filter === "pending" ? "All update requests have been reviewed." : "No records match this filter."
+          }
+        />
       ) : (
         <div className="space-y-3">
           {filtered.map((req) => {
@@ -294,7 +293,7 @@ function CorrectionsQueue() {
             return (
               <div
                 key={req.id}
-                className="border border-border rounded-xl px-5 py-4 flex flex-col sm:flex-row sm:items-start gap-4"
+                className="border border-border rounded-2xl px-5 py-4 flex flex-col sm:flex-row sm:items-start gap-4 shadow-sm bg-card"
               >
                 {/* Info */}
                 <div className="flex-1 min-w-0 space-y-1.5">

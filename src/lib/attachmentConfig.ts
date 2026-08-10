@@ -23,8 +23,9 @@ export interface AttachmentFieldConfig {
  */
 export const ATTACHMENT_FIELDS: Record<string, AttachmentFieldConfig> = {
   // ── Personal ──────────────────────────────────────────────────────────────
+  // Name Proof is a single upload tied to the full legal name — attached to
+  // first_name only so it doesn't render a duplicate control under Last Name.
   first_name:          { label: "Name Proof",                section: "personal" },
-  last_name:           { label: "Name Proof",                section: "personal" },
   date_of_birth:       { label: "Date of Birth Proof",       section: "personal" },
 
   // ── Government IDs ────────────────────────────────────────────────────────

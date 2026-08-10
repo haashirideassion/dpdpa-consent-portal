@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { InventoryService, type DataInventoryItem } from "@/services/inventory.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -195,9 +196,18 @@ function InventoryPage() {
       <Card>
         <CardContent className="p-0">
           {items.length === 0 ? (
-            <div className="py-16 text-center text-sm text-muted-foreground">
-              No processing activities yet. Add the first one.
-            </div>
+            <EmptyState
+              icon={<FolderOpenBoldDuotone size={32} />}
+              title="No processing activities yet"
+              description="Record what data you process, why, and how to build your RoPA."
+              cta={
+                <Button size="sm" onClick={openNew}>
+                  <AddSquareBoldDuotone size={14} className="mr-1.5" />
+                  Add Activity
+                </Button>
+              }
+              className="py-16"
+            />
           ) : (
             <Table>
               <TableHeader>
