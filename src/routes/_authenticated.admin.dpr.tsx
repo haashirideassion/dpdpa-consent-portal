@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -86,9 +87,11 @@ function DprAdminPage() {
               <Skeleton className="h-16 w-full" />
             </div>
           ) : requests.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground text-sm">
-              No DPR requests found.
-            </div>
+            <EmptyState
+              icon={<ClipboardListBoldDuotone size={32} />}
+              title="No DPR requests found"
+              className="py-12"
+            />
           ) : (
             <div className="divide-y">
               {requests.map((req) => (

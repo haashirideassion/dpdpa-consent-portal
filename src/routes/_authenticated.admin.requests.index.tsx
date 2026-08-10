@@ -3,6 +3,8 @@ import { useState, useEffect } from "react";
 import { DsrService, type DataRequest, type DsrType, type DsrStatus } from "@/services/dsr.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge, type StatusTone } from "@/components/StatusBadge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -43,19 +45,19 @@ const TYPE_LABELS: Record<string, string> = {
   grievance: "Grievance",
 };
 
-const PRIORITY_COLORS: Record<string, string> = {
-  low: "bg-blue-100 text-blue-700",
-  medium: "bg-yellow-100 text-yellow-700",
-  high: "bg-red-100 text-red-700",
+const PRIORITY_TONES: Record<string, StatusTone> = {
+  low: "info",
+  medium: "warning",
+  high: "danger",
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  new: "bg-yellow-100 text-yellow-700",
-  in_review: "bg-blue-100 text-blue-700",
-  action_required: "bg-orange-100 text-orange-700",
-  resolved: "bg-green-100 text-green-700",
-  closed: "bg-gray-100 text-gray-600",
-  rejected: "bg-red-100 text-red-700",
+const STATUS_TONES: Record<string, StatusTone> = {
+  new: "warning",
+  in_review: "info",
+  action_required: "warning",
+  resolved: "success",
+  closed: "neutral",
+  rejected: "danger",
 };
 
 function isOverdue(r: DataRequest): boolean {
@@ -201,9 +203,11 @@ function RequestsQueue() {
       <Card>
         <CardContent className="p-0">
           {filtered.length === 0 ? (
-            <div className="py-16 text-center text-sm text-muted-foreground">
-              {requests.length === 0 ? "No data requests yet." : "No requests match the current filters."}
-            </div>
+            <EmptyState
+              icon={<DocumentTextBoldDuotone size={32} />}
+              title={requests.length === 0 ? "No data requests yet." : "No requests match the current filters."}
+              className="py-16"
+            />
           ) : (
             <Table>
               <TableHeader>
@@ -246,14 +250,14 @@ function RequestsQueue() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PRIORITY_COLORS[r.priority] ?? ""}`}>
+                        <StatusBadge tone={PRIORITY_TONES[r.priority] ?? "neutral"} className="text-xs">
                           {r.priority}
-                        </span>
+                        </StatusBadge>
                       </TableCell>
                       <TableCell>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[r.status] ?? ""}`}>
+                        <StatusBadge tone={STATUS_TONES[r.status] ?? "neutral"} className="text-xs">
                           {STATUS_LABELS[r.status] ?? r.status}
-                        </span>
+                        </StatusBadge>
                       </TableCell>
                       <TableCell>
                         {r.sla_due_at ? (

@@ -45,6 +45,7 @@ import { AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { GrievanceOfficerBlock } from "@/components/GrievanceOfficerBlock";
+import { EmptyState as SharedEmptyState } from "@/components/ui/empty-state";
 
 // ── Purpose type badge ────────────────────────────────────────────────────────
 function PurposeTypeBadge({ type }: { type: PurposeType }) {
@@ -593,17 +594,12 @@ function DprDialog({
 // ── Empty state ───────────────────────────────────────────────────────────────
 function EmptyState() {
   return (
-    <div className="py-12 flex flex-col items-center gap-3 text-center">
-      <div className="w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center">
-        <DocumentBoldDuotone size={24} className="text-muted-foreground/40" />
-      </div>
-      <div>
-        <p className="text-sm font-semibold text-foreground">No Consent Template Active</p>
-        <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-          No active consent template was found. Please contact HR if you believe this is an error.
-        </p>
-      </div>
-    </div>
+    <SharedEmptyState
+      icon={<DocumentBoldDuotone size={24} />}
+      title="No Consent Template Active"
+      description="No active consent template was found. Please contact HR if you believe this is an error."
+      className="py-12"
+    />
   );
 }
 

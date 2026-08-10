@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -219,9 +220,11 @@ function CampaignsAdminPage() {
               <Skeleton className="h-16 w-full" />
             </div>
           ) : campaigns.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground text-sm">
-              No campaigns found.
-            </div>
+            <EmptyState
+              icon={<FolderWithFilesBoldDuotone size={32} />}
+              title="No campaigns found"
+              className="py-12"
+            />
           ) : (
             <div className="divide-y">
               {campaigns.map((camp) => (
