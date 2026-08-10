@@ -17,6 +17,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -408,10 +409,10 @@ export function MultiEntrySection({
 
   return (
     <>
-      <Card className="border border-border shadow-sm">
+      <Card className="border border-border shadow-sm rounded-2xl">
         <CardHeader className="flex flex-row items-center justify-between py-3.5 px-5">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <span className="text-primary shrink-0">{icon}</span>
+            <span className="stat-card-icon shrink-0 !w-8 !h-8">{icon}</span>
             <CardTitle className="text-base font-semibold truncate">{title}</CardTitle>
             {entries.length > 0 && (
               <span className="text-[11px] text-muted-foreground bg-muted rounded-full px-2 py-0.5 font-medium tabular-nums shrink-0">
@@ -450,30 +451,37 @@ export function MultiEntrySection({
               ))}
             </div>
           ) : entries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-6 text-center gap-1.5">
-              <span className="text-3xl opacity-20">—</span>
-              <p className="text-xs text-muted-foreground">
-                {emptyMessage ?? `No ${title.toLowerCase()} added yet.`}
-              </p>
-              {canEdit && !hideAdd && (
-                <button
-                  type="button"
-                  onClick={openAdd}
-                  className="mt-1 text-xs text-primary font-medium hover:underline underline-offset-2"
-                >
-                  + {emptyActionLabel ?? `Add ${title.toLowerCase()}`}
-                </button>
-              )}
-              {showUpdateButtons && sectionKey && (
-                <button
-                  type="button"
-                  onClick={openCorrectionAdd}
-                  className="mt-1 text-xs text-primary font-medium hover:underline underline-offset-2"
-                >
-                  + Request to add
-                </button>
-              )}
-            </div>
+            <EmptyState
+              icon={icon}
+              title={emptyMessage ?? `No ${title.toLowerCase()} added yet.`}
+              description={
+                canEdit && !hideAdd
+                  ? `Add your first ${title.toLowerCase().replace(/s$/, "")} to keep this section up to date.`
+                  : undefined
+              }
+              cta={
+                <div className="flex flex-col items-center gap-1.5">
+                  {canEdit && !hideAdd && (
+                    <button
+                      type="button"
+                      onClick={openAdd}
+                      className="text-xs text-primary font-medium hover:underline underline-offset-2"
+                    >
+                      + {emptyActionLabel ?? `Add ${title.toLowerCase()}`}
+                    </button>
+                  )}
+                  {showUpdateButtons && sectionKey && (
+                    <button
+                      type="button"
+                      onClick={openCorrectionAdd}
+                      className="text-xs text-primary font-medium hover:underline underline-offset-2"
+                    >
+                      + Request to add
+                    </button>
+                  )}
+                </div>
+              }
+            />
           ) : (
             <div className="space-y-2">
               {entries.map((entry, idx) => (

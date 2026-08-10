@@ -64,6 +64,14 @@ export function DataSection({
   // Correction modal state
   const [correctionField, setCorrectionField] = useState<FieldDef | null>(null);
 
+  // Left accent color keyed to the section's aggregate consent status —
+  // purely a visual cue, doesn't affect any consent logic.
+  const accentVar =
+    consentStatus === "active" ? "var(--success)"
+    : consentStatus === "pending" ? "var(--warning)"
+    : consentStatus === "withdrawn" ? "var(--destructive)"
+    : "var(--border)";
+
   // Whether this section has both address fields (enables sync feature)
   const hasCurrentAddress = fields.some((f) => f.key === "current_address");
   const hasPermanentAddress = fields.some((f) => f.key === "permanent_address");
@@ -167,13 +175,16 @@ export function DataSection({
 
   return (
     <>
-      <Card className="border border-border shadow-sm">
+      <Card
+        className="border border-border shadow-sm rounded-2xl overflow-hidden"
+        style={{ borderLeft: `3px solid ${accentVar}` }}
+      >
         <CardHeader className="flex flex-row items-center justify-between py-3.5 px-5">
           <div
             className="flex items-center gap-2.5 cursor-pointer select-none flex-1 min-w-0"
             onClick={() => !editMode && setOpen(!open)}
           >
-            <span className="text-primary shrink-0">{icon}</span>
+            <span className="stat-card-icon shrink-0 !w-8 !h-8">{icon}</span>
             <CardTitle className="text-base font-semibold truncate">{title}</CardTitle>
             {consentStatus && <SectionConsentBadge status={consentStatus} />}
           </div>

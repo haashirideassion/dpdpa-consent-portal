@@ -1,10 +1,13 @@
 import { useState, useRef } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
+import { ProgressRing } from "@/components/ProgressRing";
 import { ShieldCheckBoldDuotone, UserBoldDuotone } from "solar-icon-set";
 
 // ── Profile completion calculator ─────────────────────────────────────────────
-function calcProfileCompletion(e: any): number {
+// Exported so other screens (e.g. the employee "Welcome back" header) can
+// reuse the exact same calculation instead of duplicating it.
+export function calcProfileCompletion(e: any): number {
   const fields = [
     e.first_name, e.last_name, e.gender, e.date_of_birth, e.blood_group,
     e.marital_status, e.nationality, e.work_email, e.personal_email,
@@ -63,12 +66,13 @@ export function ProfileSidebar({ employee, role = "employee" }: ProfileSidebarPr
     : null;
 
   return (
-    <Card className="border border-border shadow-sm sticky top-6">
-      <CardContent className="pt-5 pb-5 px-5 flex flex-col items-center gap-0">
+    <Card className="border border-border shadow-sm sticky top-6 rounded-2xl overflow-hidden">
+      <div className="h-14 bg-gradient-to-br from-primary/15 via-primary/5 to-transparent" aria-hidden="true" />
+      <CardContent className="pt-0 pb-5 px-5 flex flex-col items-center gap-0 -mt-8">
 
         {/* ── Avatar + camera upload ── */}
         <div className="relative mb-3">
-          <Avatar className="h-20 w-20 ring-2 ring-primary/20 ring-offset-2">
+          <Avatar className="h-20 w-20 ring-4 ring-card shadow-sm">
             {avatarSrc && <AvatarImage src={avatarSrc} alt={fullName} />}
             <AvatarFallback className="text-xl font-semibold bg-primary/10 text-primary">
               {initials}
@@ -138,25 +142,23 @@ export function ProfileSidebar({ employee, role = "employee" }: ProfileSidebarPr
           )}
         </div>
 
-        {/* ── Profile completion bar ── */}
-        <div className="w-full mt-4">
-          <div className="flex items-center justify-between mb-1">
+        {/* ── Profile completion ring ── */}
+        <div className="w-full mt-4 flex items-center gap-3 rounded-xl bg-muted/50 p-3">
+          <ProgressRing value={completion} size={48} strokeWidth={4} className="shrink-0" />
+          <div>
             <span className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">
-              Profile
+              Profile complete
             </span>
-            <span className="text-[11px] font-semibold text-foreground">{completion}%</span>
+            {completion < 100 ? (
+              <p className="text-[11px] text-muted-foreground leading-snug mt-0.5">
+                Complete your profile for DPDPA compliance
+              </p>
+            ) : (
+              <p className="text-[11px] text-success leading-snug mt-0.5 font-medium">
+                All set — profile complete
+              </p>
+            )}
           </div>
-          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-            <div
-              className="h-full rounded-full bg-primary transition-all duration-500"
-              style={{ width: `${completion}%` }}
-            />
-          </div>
-          {completion < 100 && (
-            <p className="text-[10px] text-muted-foreground mt-1">
-              Complete your profile for DPDPA compliance
-            </p>
-          )}
         </div>
 
         {/* ── Last updated ── */}

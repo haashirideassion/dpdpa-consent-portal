@@ -12,10 +12,17 @@ import { MyConsentsView } from "@/components/MyConsentsView";
 import { DpdpaLegend } from "@/components/DpdpaLegend";
 import { DpdpaInfo } from "@/components/DpdpaInfo";
 import { DpdpaActContent } from "@/components/DpdpaActContent";
-import { ProfileSidebar } from "@/components/ProfileSidebar";
+import { ProfileSidebar, calcProfileCompletion } from "@/components/ProfileSidebar";
 import { MyRequestsView } from "@/components/MyRequestsView";
+import { ProgressRing } from "@/components/ProgressRing";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  UserBoldDuotone,
+  ClockCircleBoldDuotone,
+  ClipboardListBoldDuotone,
+  ShieldCheckBoldDuotone,
+} from "solar-icon-set";
 import type { Tables } from "@/integrations/supabase/types";
 
 export const Route = createFileRoute("/_authenticated/")({
@@ -195,20 +202,45 @@ function EmployeePortal() {
     );
   }
 
+  const firstName = employee.first_name || "there";
+  const completion = calcProfileCompletion(employee);
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-5 space-y-5">
-      {/* ── Page header ── */}
-      <div className="page-header">
-        <h1>My Profile</h1>
-        <p>Review your data, read the Act, and submit your DPDPA consent</p>
+      {/* ── Welcome header ── */}
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <div>
+          <p className="text-sm text-muted-foreground">Welcome back</p>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground mt-0.5">{firstName}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {completion < 100
+              ? "Complete your profile to enable all company benefits."
+              : "Your profile is complete — review your data or manage consent below."}
+          </p>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <ProgressRing value={completion} size={64} strokeWidth={5} />
+        </div>
       </div>
 
       <Tabs defaultValue="my-data">
         <TabsList className="mb-5">
-          <TabsTrigger value="my-data">My Data &amp; Consent</TabsTrigger>
-          <TabsTrigger value="history">My Consents</TabsTrigger>
-          <TabsTrigger value="requests">My Requests</TabsTrigger>
-          <TabsTrigger value="dpdpa-act">DPDPA Act</TabsTrigger>
+          <TabsTrigger value="my-data" className="gap-1.5">
+            <UserBoldDuotone size={15} />
+            My Data &amp; Consent
+          </TabsTrigger>
+          <TabsTrigger value="history" className="gap-1.5">
+            <ClockCircleBoldDuotone size={15} />
+            My Consents
+          </TabsTrigger>
+          <TabsTrigger value="requests" className="gap-1.5">
+            <ClipboardListBoldDuotone size={15} />
+            My Requests
+          </TabsTrigger>
+          <TabsTrigger value="dpdpa-act" className="gap-1.5">
+            <ShieldCheckBoldDuotone size={15} />
+            DPDPA Act
+          </TabsTrigger>
         </TabsList>
 
         {/* ── Tab 1: My Data & Consent ── */}
