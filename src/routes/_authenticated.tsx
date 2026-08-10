@@ -8,15 +8,22 @@ import { IdeassionLogo } from "@/components/IdeassionLogo";
 import { AuditService } from "@/services/audit.service";
 import { supabase } from "@/integrations/supabase/client";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
+import { CommandBar } from "@/components/CommandBar";
+import { MinimalisticMagniferBoldDuotone } from "solar-icon-set";
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
 });
 
 function AuthenticatedLayout() {
-  const { user, loading, role } = useAuth();
+  const { user, loading, role, hasRole } = useAuth();
   const navigate = useNavigate();
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [commandBarOpen, setCommandBarOpen] = useState(false);
+
+  // Same admin-role check the admin shell itself uses, so the command bar's
+  // admin destinations only show for roles that can actually reach them.
+  const isAdmin = hasRole("admin") || hasRole("hr_manager") || hasRole("dpo");
 
   useEffect(() => {
     const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
@@ -115,6 +122,18 @@ function AuthenticatedLayout() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setCommandBarOpen(true)}
+              className="hidden md:flex items-center gap-2 rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              title="Search (Ctrl+K)"
+            >
+              <MinimalisticMagniferBoldDuotone size={14} />
+              Search
+              <kbd className="ml-1 rounded border border-border bg-card px-1 font-mono text-[10px]">
+                Ctrl K
+              </kbd>
+            </button>
             {role === "admin" && (
               <nav className="hidden sm:flex items-center gap-1">
                 <Link
@@ -154,6 +173,7 @@ function AuthenticatedLayout() {
       <main>
         <Outlet />
       </main>
+      <CommandBar isAdmin={isAdmin} open={commandBarOpen} onOpenChange={setCommandBarOpen} />
     </div>
   );
 }
