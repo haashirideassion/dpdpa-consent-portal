@@ -243,25 +243,31 @@ export function DataSection({
                       isOwner={isOwner}
                     />
 
-                    {/* Per-field update pill — shown post-consent only for correctable+allowed sections */}
-                    {hasConsented && !f.uncorrectable && employeeId && allowCorrection && (
-                      <button
-                        type="button"
-                        onClick={() => setCorrectionField(f)}
-                        className="self-start mt-0.5 inline-flex items-center gap-1 text-[10px] font-medium text-primary border border-primary/30 bg-primary/5 hover:bg-primary/15 rounded-full px-2 py-0.5 transition-colors"
-                      >
-                        Update
-                      </button>
-                    )}
+                    {/* Action row — correction "Update" pill + document chip share
+                        one row so a field never grows two separate full-width
+                        rows underneath it. */}
+                    {((hasConsented && !f.uncorrectable && employeeId && allowCorrection) ||
+                      (requiresAttachment(f.key) && employeeId)) && (
+                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                        {hasConsented && !f.uncorrectable && employeeId && allowCorrection && (
+                          <button
+                            type="button"
+                            onClick={() => setCorrectionField(f)}
+                            className="inline-flex items-center gap-1 text-[10px] font-medium text-primary border border-primary/30 bg-primary/5 hover:bg-primary/15 rounded-full px-2 py-0.5 transition-colors"
+                          >
+                            Update
+                          </button>
+                        )}
 
-                    {/* Supporting document attachment row */}
-                    {requiresAttachment(f.key) && employeeId && (
-                      <AttachmentField
-                        employeeId={employeeId}
-                        fieldKey={f.key}
-                        hasConsented={hasConsented}
-                        isAdmin={isAdmin}
-                      />
+                        {requiresAttachment(f.key) && employeeId && (
+                          <AttachmentField
+                            employeeId={employeeId}
+                            fieldKey={f.key}
+                            hasConsented={hasConsented}
+                            isAdmin={isAdmin}
+                          />
+                        )}
+                      </div>
                     )}
                   </div>
                 );

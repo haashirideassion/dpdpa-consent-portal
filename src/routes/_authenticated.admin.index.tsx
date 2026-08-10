@@ -659,14 +659,17 @@ function AdminDashboard() {
             ) : (
               <ResponsiveContainer width="100%" height={160}>
                 <LineChart data={data.consentTrend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  {/* var(--border)/var(--primary) directly — these tokens are
+                      defined in oklch(), and hsl(var(--x)) on an oklch value
+                      is invalid CSS (renders as black). */}
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                   <Tooltip />
                   <Line
                     type="monotone"
                     dataKey="consents"
-                    stroke="hsl(var(--primary))"
+                    stroke="var(--primary)"
                     strokeWidth={2}
                     dot={{ r: 3 }}
                     name="Consents"
@@ -722,18 +725,25 @@ function AdminDashboard() {
             <CardTitle className="text-sm">Department Consent Completion</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={160}>
+            <ResponsiveContainer width="100%" height={200}>
               <BarChart
                 data={deptCompletion}
-                margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
+                margin={{ top: 0, right: 8, left: -20, bottom: 24 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="dept" tick={{ fontSize: 11 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis
+                  dataKey="dept"
+                  tick={{ fontSize: 11 }}
+                  interval={0}
+                  angle={-20}
+                  textAnchor="end"
+                  height={40}
+                />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} unit="%" />
                 <Tooltip formatter={(v: number) => `${v}%`} />
                 <Bar
                   dataKey="pct"
-                  fill="hsl(var(--primary))"
+                  fill="var(--admin-accent)"
                   radius={[3, 3, 0, 0]}
                   name="Completion"
                 />

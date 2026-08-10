@@ -1,8 +1,13 @@
 /**
  * AttachmentField
  *
- * Self-contained supporting-document upload row rendered below a DataField.
+ * Self-contained supporting-document chip rendered below a DataField.
  * Manages its own fetch, signed-URL generation, and upload state.
+ *
+ * Rendered as a compact rounded-full pill — matching the "Update" correction
+ * pill's visual language in DataSection — rather than a full-width dashed
+ * dropzone, so it sits inline with the field instead of breaking the
+ * 3-column field grid every time a government-ID field appears.
  *
  * ── Behaviour by context ───────────────────────────────────────────────────
  * Pre-consent  (hasConsented=false)  → employee can upload / replace directly.
@@ -19,9 +24,9 @@ import {
   PaperclipBoldDuotone,
   DownloadMinimalisticBoldDuotone,
   RefreshBoldDuotone,
+  CheckCircleBoldDuotone,
 } from "solar-icon-set";
 import { toast } from "sonner";
-import { Dropzone } from "@/components/ui/dropzone";
 
 interface AttachmentFieldProps {
   employeeId: string;
@@ -111,7 +116,7 @@ export function AttachmentField({
   if (loading) return null;
 
   return (
-    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+    <div className="flex flex-wrap items-center gap-1.5">
       {/* Hidden file input shared across upload & replace buttons */}
       {canUpload && (
         <input
@@ -125,55 +130,55 @@ export function AttachmentField({
       )}
 
       {attachment ? (
-        // ── Attachment exists ──────────────────────────────────────────────
-        <>
-          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-            <PaperclipBoldDuotone size={12} className="shrink-0" />
-            <span
-              className="truncate max-w-[160px]"
-              title={attachment.file_name}
-            >
-              {attachment.file_name}
-            </span>
+        // ── Attachment exists — a single document chip, same pill language
+        // as the "Update" correction button so field-row chips read as one
+        // family instead of a separate full-width block per field.
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success/5 pl-2 pr-1 py-0.5">
+          <CheckCircleBoldDuotone size={11} className="text-success shrink-0" />
+          <span
+            className="max-w-[110px] truncate text-[10px] font-medium text-foreground"
+            title={attachment.file_name}
+          >
+            {attachment.file_name}
           </span>
-
           {signedUrl && (
             <a
               href={signedUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-0.5 text-[11px] font-medium text-primary hover:underline underline-offset-2"
+              className="inline-flex items-center rounded-full p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+              title={`View ${label}`}
             >
-              <DownloadMinimalisticBoldDuotone size={12} />
-              View
+              <DownloadMinimalisticBoldDuotone size={11} />
             </a>
           )}
-
           {canUpload && (
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
               disabled={uploading}
-              className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
-              title={`Replace ${label}`}
+              className="inline-flex items-center rounded-full p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40"
+              title={uploading ? "Uploading…" : `Replace ${label}`}
             >
-              <RefreshBoldDuotone size={12} />
-              {uploading ? "Uploading…" : "Replace"}
+              <RefreshBoldDuotone size={11} className={uploading ? "animate-spin" : ""} />
             </button>
           )}
-        </>
+        </span>
       ) : canUpload ? (
-        // ── No attachment, upload allowed ──────────────────────────────────
-        <Dropzone
-          onFile={processFile}
+        // ── No attachment, upload allowed — same pill as the "Update" chip,
+        // just in the primary/dashed tone reserved for pending actions.
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
           disabled={uploading}
-          className="w-full !p-2 flex-row justify-start gap-2 text-left"
-          label={uploading ? "Uploading…" : `Upload ${label}`}
-          hint={null}
-        />
+          className="inline-flex items-center gap-1 rounded-full border border-dashed border-primary/30 bg-primary/5 px-2 py-0.5 text-[10px] font-medium text-primary hover:bg-primary/15 transition-colors disabled:opacity-40"
+        >
+          <PaperclipBoldDuotone size={11} />
+          {uploading ? "Uploading…" : `Attach ${label}`}
+        </button>
       ) : (
         // ── No attachment, upload not allowed (post-consent employee) ──────
-        <span className="text-[10px] text-muted-foreground/50 italic">
+        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground/60 italic">
           No document on file
         </span>
       )}
