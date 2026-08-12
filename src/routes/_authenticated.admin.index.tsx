@@ -494,9 +494,11 @@ function AdminDashboard() {
   const activityFrom = activityTotal === 0 ? 0 : (activityPage - 1) * ACTIVITY_PAGE_SIZE + 1;
   const activityTo = Math.min(activityPage * ACTIVITY_PAGE_SIZE, activityTotal);
 
-  // Per-dept bar chart data (real numbers, not approximation)
+  // Per-dept bar chart data (real numbers, not approximation). Full department
+  // name is kept — the chart's rotated X-axis labels + bottom margin give it
+  // room, and truncating here would also truncate the tooltip's label.
   const deptCompletion = data.deptBreakdown.slice(0, 6).map(({ dept, total, consented }) => ({
-    dept: dept.length > 12 ? dept.slice(0, 12) + "…" : dept,
+    dept,
     pct: total > 0 ? Math.round((consented / total) * 100) : 0,
   }));
 
@@ -690,29 +692,50 @@ function AdminDashboard() {
                 No data requests yet
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={160}>
-                <PieChart>
-                  <Pie
-                    data={data.dsrByType}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={65}
-                    paddingAngle={3}
-                    dataKey="value"
-                    nameKey="name"
-                    label={({ name, percent }) =>
-                      percent > 0.05 ? `${name} ${(percent * 100).toFixed(0)}%` : ""
-                    }
-                    labelLine={false}
-                  >
-                    {data.dsrByType.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={DONUT_COLORS[index % DONUT_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+              // Legend to the side instead of inline percent labels — inline
+              // labels render outside the ring and clipped at the card edge
+              // in a short container (the "Access 50%" cut-off bug). A side
+              // legend has no such collision, and matches the mini donut +
+              // legend layout used in the Consent Completion card below.
+              <div className="flex items-center gap-4">
+                <div className="w-[120px] h-[120px] shrink-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={data.dsrByType}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={38}
+                        outerRadius={58}
+                        paddingAngle={3}
+                        dataKey="value"
+                        nameKey="name"
+                      >
+                        {data.dsrByType.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={DONUT_COLORS[index % DONUT_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(v: number, name: string) => [v, name]} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="space-y-1.5 flex-1 min-w-0">
+                  {data.dsrByType.map((d, i) => {
+                    const total = data.dsrByType.reduce((sum, x) => sum + x.value, 0);
+                    const pct = total > 0 ? Math.round((d.value / total) * 100) : 0;
+                    return (
+                      <div key={d.name} className="flex items-center gap-2 text-xs">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: DONUT_COLORS[i % DONUT_COLORS.length] }}
+                        />
+                        <span className="text-muted-foreground flex-1 truncate">{d.name}</span>
+                        <span className="font-semibold tabular-nums">{pct}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -725,19 +748,20 @@ function AdminDashboard() {
             <CardTitle className="text-sm">Department Consent Completion</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
+            <ResponsiveContainer width="100%" height={240}>
               <BarChart
                 data={deptCompletion}
-                margin={{ top: 0, right: 8, left: -20, bottom: 24 }}
+                margin={{ top: 0, right: 8, left: -20, bottom: 48 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                 <XAxis
                   dataKey="dept"
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 10 }}
                   interval={0}
-                  angle={-20}
+                  angle={-35}
                   textAnchor="end"
-                  height={40}
+                  height={70}
+                  tickMargin={8}
                 />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} unit="%" />
                 <Tooltip formatter={(v: number) => `${v}%`} />
@@ -746,6 +770,7 @@ function AdminDashboard() {
                   fill="var(--admin-accent)"
                   radius={[3, 3, 0, 0]}
                   name="Completion"
+                  maxBarSize={56}
                 />
               </BarChart>
             </ResponsiveContainer>
