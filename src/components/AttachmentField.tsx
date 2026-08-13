@@ -1,8 +1,13 @@
 /**
  * AttachmentField
  *
- * Self-contained supporting-document upload row rendered below a DataField.
+ * Self-contained supporting-document chip rendered below a DataField.
  * Manages its own fetch, signed-URL generation, and upload state.
+ *
+ * Rendered as a compact rounded-full pill — matching the "Update" correction
+ * pill's visual language in DataSection — rather than a full-width dashed
+ * dropzone, so it sits inline with the field instead of breaking the
+ * 3-column field grid every time a government-ID field appears.
  *
  * ── Behaviour by context ───────────────────────────────────────────────────
  * Pre-consent  (hasConsented=false)  → employee can upload / replace directly.
@@ -16,14 +21,12 @@ import { AttachmentService, type EmployeeAttachment } from "@/services/attachmen
 import { attachmentLabel } from "@/lib/attachmentConfig";
 import { useAuth } from "@/hooks/use-auth";
 import {
-  DocumentTextBoldDuotone,
+  PaperclipBoldDuotone,
   DownloadMinimalisticBoldDuotone,
   RefreshBoldDuotone,
-  PaperclipBoldDuotone,
+  CheckCircleBoldDuotone,
 } from "solar-icon-set";
 import { toast } from "sonner";
-import { StatusBadge } from "@/components/StatusBadge";
-import { cn } from "@/lib/utils";
 
 interface AttachmentFieldProps {
   employeeId: string;
@@ -85,8 +88,7 @@ export function AttachmentField({
 
   // ── Upload handler ────────────────────────────────────────────────────────
   // Core logic takes a File directly so both the hidden "Replace" input and
-  // the empty-state drop target (drag/drop or click-to-browse) can share the
-  // same path.
+  // the Dropzone (drag/drop or click-to-browse) can share the same path.
   async function processFile(file: File) {
     if (!user) return;
 
@@ -117,19 +119,12 @@ export function AttachmentField({
     if (fileRef.current) fileRef.current.value = "";
   }
 
-  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
-    e.preventDefault();
-    if (uploading) return;
-    const file = e.dataTransfer.files?.[0];
-    if (file) processFile(file);
-  }
-
   // ── Don't render anything while loading the initial state ─────────────────
   if (loading) return null;
 
   return (
-    <div className="mt-1.5">
-      {/* Hidden file input shared across upload & replace controls */}
+    <div className="flex flex-wrap items-center gap-1.5">
+      {/* Hidden file input shared across upload & replace buttons */}
       {canUpload && (
         <input
           ref={fileRef}
@@ -142,82 +137,64 @@ export function AttachmentField({
       )}
 
       {attachment ? (
-        // ── Attachment exists — compact document card ──────────────────────
-        <div className="flex items-center gap-2.5 rounded-md border border-border bg-muted/30 px-2.5 py-2">
-          <DocumentTextBoldDuotone size={18} className="shrink-0 text-muted-foreground" />
-
-          <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-medium text-foreground truncate" title={label}>
-              {label}
-            </p>
-            <p
-              className="truncate text-[10.5px] text-muted-foreground"
-              title={attachment.file_name}
+        // ── Attachment exists — a single document chip, same pill language
+        // as the "Update" correction button so field-row chips read as one
+        // family instead of a separate full-width block per field.
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success/5 pl-2 pr-1 py-0.5">
+          <CheckCircleBoldDuotone size={11} className="text-success shrink-0" />
+          <span
+            className="max-w-[110px] truncate text-[10px] font-medium text-foreground"
+            title={
+              attachment.file_size
+                ? `${attachment.file_name} · ${formatFileSize(attachment.file_size)}`
+                : attachment.file_name
+            }
+          >
+            {attachment.file_name}
+          </span>
+          {signedUrl && (
+            <a
+              href={signedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`View ${label}`}
+              className="inline-flex items-center rounded-full p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+              title={`View ${label}`}
             >
-              {attachment.file_name}
-              {attachment.file_size ? ` · ${formatFileSize(attachment.file_size)}` : ""}
-            </p>
-          </div>
-
-          <StatusBadge tone="neutral" className="shrink-0">On file</StatusBadge>
-
-          <div className="flex shrink-0 items-center gap-1">
-            {signedUrl && (
-              <a
-                href={signedUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={`View ${label}`}
-                title="View"
-                className="inline-flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-              >
-                <DownloadMinimalisticBoldDuotone size={14} />
-              </a>
-            )}
-
-            {canUpload && (
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                disabled={uploading}
-                aria-label={`Replace ${label}`}
-                title="Replace"
-                className="inline-flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-40"
-              >
-                <RefreshBoldDuotone size={14} className={uploading ? "animate-spin" : undefined} />
-              </button>
-            )}
-          </div>
-        </div>
-      ) : canUpload ? (
-        // ── No attachment, upload allowed — compact drop target ────────────
-        <div
-          role="button"
-          tabIndex={0}
-          aria-label={`Upload ${label}`}
-          onClick={() => fileRef.current?.click()}
-          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && fileRef.current?.click()}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={handleDrop}
-          className={cn(
-            "flex items-center gap-2.5 rounded-md border border-dashed border-border px-2.5 py-2 cursor-pointer transition-colors hover:border-primary/50 hover:bg-accent/40",
-            uploading && "pointer-events-none opacity-60"
+              <DownloadMinimalisticBoldDuotone size={11} />
+            </a>
           )}
+          {canUpload && (
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              aria-label={uploading ? "Uploading…" : `Replace ${label}`}
+              className="inline-flex items-center rounded-full p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40"
+              title={uploading ? "Uploading…" : `Replace ${label}`}
+            >
+              <RefreshBoldDuotone size={11} className={uploading ? "animate-spin" : ""} />
+            </button>
+          )}
+        </span>
+      ) : canUpload ? (
+        // ── No attachment, upload allowed — same pill as the "Update" chip,
+        // just in the primary/dashed tone reserved for pending actions.
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          aria-label={uploading ? "Uploading…" : `Attach ${label}`}
+          className="inline-flex items-center gap-1 rounded-full border border-dashed border-primary/30 bg-primary/5 px-2 py-0.5 text-[10px] font-medium text-primary hover:bg-primary/15 transition-colors disabled:opacity-40"
         >
-          <PaperclipBoldDuotone size={16} className="shrink-0 text-muted-foreground" />
-          <div className="min-w-0">
-            <p className="text-[11px] font-medium text-foreground">
-              {uploading ? "Uploading…" : `Upload ${label}`}
-            </p>
-            <p className="text-[10.5px] text-muted-foreground">PDF, JPG, PNG — max 5MB</p>
-          </div>
-        </div>
+          <PaperclipBoldDuotone size={11} />
+          {uploading ? "Uploading…" : `Attach ${label}`}
+        </button>
       ) : (
         // ── No attachment, upload not allowed (post-consent employee) ──────
-        <div className="flex items-center gap-2 rounded-md border border-border/60 px-2.5 py-2">
-          <DocumentTextBoldDuotone size={16} className="shrink-0 text-muted-foreground/40" />
-          <span className="text-[11px] text-muted-foreground/60 italic">No document on file</span>
-        </div>
+        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground/60 italic">
+          No document on file
+        </span>
       )}
     </div>
   );
