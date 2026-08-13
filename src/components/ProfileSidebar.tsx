@@ -2,21 +2,45 @@ import { useState, useRef } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { ProgressRing } from "@/components/ProgressRing";
-import { ShieldCheckBoldDuotone, UserBoldDuotone } from "solar-icon-set";
+import { ShieldCheckBoldDuotone, UserBoldDuotone, ArrowDownBoldDuotone } from "solar-icon-set";
 
 // ── Profile completion calculator ─────────────────────────────────────────────
 // Exported so other screens (e.g. the employee "Welcome back" header) can
 // reuse the exact same calculation instead of duplicating it.
+//
+// Grouped into named sections so the UI can show *why* a profile isn't 100%
+// ("Contact 60%, Employment 100%") instead of a single opaque number. The
+// grouping is presentational only — calcProfileCompletion still reduces the
+// same flat field list in the same order, so the overall % is unchanged.
+const COMPLETION_SECTIONS: { label: string; fields: string[] }[] = [
+  { label: "Personal", fields: ["first_name", "last_name", "gender", "date_of_birth", "blood_group", "marital_status", "nationality"] },
+  { label: "Contact", fields: ["work_email", "personal_email", "phone_number", "current_address", "city", "state", "pincode"] },
+  { label: "Employment", fields: ["department", "designation", "date_of_joining", "employment_type", "work_location"] },
+];
+
+export interface CompletionSection {
+  label: string;
+  percent: number;
+  filled: number;
+  total: number;
+}
+
+export function calcProfileCompletionBreakdown(e: any): { overall: number; sections: CompletionSection[] } {
+  const isFilled = (v: any) => v && String(v).trim() !== "";
+
+  const sections = COMPLETION_SECTIONS.map(({ label, fields }) => {
+    const filled = fields.filter((key) => isFilled(e[key])).length;
+    return { label, filled, total: fields.length, percent: Math.round((filled / fields.length) * 100) };
+  });
+
+  const totalFields = sections.reduce((sum, s) => sum + s.total, 0);
+  const totalFilled = sections.reduce((sum, s) => sum + s.filled, 0);
+
+  return { overall: Math.round((totalFilled / totalFields) * 100), sections };
+}
+
 export function calcProfileCompletion(e: any): number {
-  const fields = [
-    e.first_name, e.last_name, e.gender, e.date_of_birth, e.blood_group,
-    e.marital_status, e.nationality, e.work_email, e.personal_email,
-    e.phone_number, e.current_address, e.city, e.state, e.pincode,
-    e.department, e.designation, e.date_of_joining, e.employment_type,
-    e.work_location,
-  ];
-  const filled = fields.filter((v) => v && String(v).trim() !== "").length;
-  return Math.round((filled / fields.length) * 100);
+  return calcProfileCompletionBreakdown(e).overall;
 }
 
 // ── Identity Row ──────────────────────────────────────────────────────────────
@@ -39,6 +63,7 @@ interface ProfileSidebarProps {
 
 export function ProfileSidebar({ employee, role = "employee" }: ProfileSidebarProps) {
   const [avatarSrc, setAvatarSrc] = useState<string | null>(null);
+  const [showBreakdown, setShowBreakdown] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const firstName = employee?.first_name ?? "";
@@ -47,7 +72,7 @@ export function ProfileSidebar({ employee, role = "employee" }: ProfileSidebarPr
   const initials =
     [firstName[0], lastName[0]].filter(Boolean).join("").toUpperCase() || "?";
 
-  const completion = calcProfileCompletion(employee);
+  const { overall: completion, sections: completionSections } = calcProfileCompletionBreakdown(employee);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -143,22 +168,54 @@ export function ProfileSidebar({ employee, role = "employee" }: ProfileSidebarPr
         </div>
 
         {/* ── Profile completion ring ── */}
-        <div className="w-full mt-4 flex items-center gap-3 rounded-xl bg-muted/50 p-3">
-          <ProgressRing value={completion} size={48} strokeWidth={4} className="shrink-0" />
-          <div>
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">
-              Profile complete
-            </span>
-            {completion < 100 ? (
-              <p className="text-[11px] text-muted-foreground leading-snug mt-0.5">
-                Complete your profile for DPDPA compliance
-              </p>
-            ) : (
-              <p className="text-[11px] text-success leading-snug mt-0.5 font-medium">
-                All set — profile complete
-              </p>
-            )}
-          </div>
+        <div className="w-full mt-4 rounded-xl bg-muted/50 p-3">
+          <button
+            type="button"
+            onClick={() => setShowBreakdown((v) => !v)}
+            className="w-full flex items-center gap-3 text-left"
+            aria-expanded={showBreakdown}
+          >
+            <ProgressRing value={completion} size={48} strokeWidth={4} className="shrink-0" />
+            <div className="flex-1 min-w-0">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">
+                Profile complete
+              </span>
+              {completion < 100 ? (
+                <p className="text-[11px] text-muted-foreground leading-snug mt-0.5">
+                  Complete your profile for DPDPA compliance
+                </p>
+              ) : (
+                <p className="text-[11px] text-success leading-snug mt-0.5 font-medium">
+                  All set — profile complete
+                </p>
+              )}
+            </div>
+            <ArrowDownBoldDuotone
+              size={13}
+              className={`text-muted-foreground shrink-0 transition-transform ${showBreakdown ? "rotate-180" : ""}`}
+            />
+          </button>
+
+          {/* Section-by-section breakdown — explains *why* completion isn't 100%
+              instead of leaving the number opaque. */}
+          {showBreakdown && (
+            <div className="mt-3 space-y-2 border-t border-border pt-3">
+              {completionSections.map((s) => (
+                <div key={s.label} className="flex items-center gap-2">
+                  <span className="text-[11px] text-muted-foreground w-20 shrink-0">{s.label}</span>
+                  <div className="flex-1 h-1.5 rounded-full bg-border overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${s.percent === 100 ? "bg-success" : "bg-primary"}`}
+                      style={{ width: `${s.percent}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] text-muted-foreground w-9 text-right tabular-nums">
+                    {s.percent}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ── Last updated ── */}

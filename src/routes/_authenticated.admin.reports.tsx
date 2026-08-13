@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 const db = supabase as any;
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/StatusBadge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -388,12 +388,9 @@ function ReportsPage() {
                     <td className="px-4 py-2">{e.name}</td>
                     <td className="px-4 py-2 text-muted-foreground">{e.code}</td>
                     <td className="px-4 py-2">
-                      <Badge
-                        variant="outline"
-                        className={e.consented ? "border-green-300 text-green-700" : "border-yellow-300 text-yellow-700"}
-                      >
+                      <StatusBadge tone={e.consented ? "success" : "warning"}>
                         {e.consented ? "Consented" : "Pending"}
-                      </Badge>
+                      </StatusBadge>
                     </td>
                   </tr>
                 ))}

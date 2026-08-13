@@ -7,6 +7,7 @@ import {
 } from "@/services/compliance.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge, type StatusTone } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -49,11 +50,11 @@ const STATUS_LABELS: Record<ComplianceStatus, string> = {
   at_risk: "At Risk",
 };
 
-const STATUS_COLORS: Record<ComplianceStatus, string> = {
-  not_started: "bg-gray-100 text-gray-600",
-  in_progress: "bg-blue-100 text-blue-700",
-  compliant: "bg-green-100 text-green-700",
-  at_risk: "bg-red-100 text-red-700",
+const STATUS_TONES: Record<ComplianceStatus, StatusTone> = {
+  not_started: "neutral",
+  in_progress: "info",
+  compliant: "success",
+  at_risk: "danger",
 };
 
 const CATEGORY_ORDER = ["Consent", "Rights", "Governance", "Security", "Incidents", "Inventory"];
@@ -186,18 +187,9 @@ function CompliancePage() {
         <CardContent className="py-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium">Overall Compliance Score</span>
-            <Badge
-              variant="outline"
-              className={
-                score >= 80
-                  ? "border-green-300 text-green-700"
-                  : score >= 50
-                  ? "border-yellow-300 text-yellow-700"
-                  : "border-red-300 text-red-700"
-              }
-            >
+            <StatusBadge tone={score >= 80 ? "success" : score >= 50 ? "warning" : "danger"}>
               {score >= 80 ? "On Track" : score >= 50 ? "Needs Attention" : "At Risk"}
-            </Badge>
+            </StatusBadge>
           </div>
           <Progress value={score} className="h-2" />
           <div className="flex gap-4 mt-3 text-xs text-muted-foreground">
@@ -223,20 +215,16 @@ function CompliancePage() {
             {(grouped[category] ?? []).map((item) => (
               <Card
                 key={item.id}
-                className={item.status === "at_risk" ? "border-red-200" : ""}
+                className={item.status === "at_risk" ? "border-destructive/25" : ""}
               >
                 <CardContent className="py-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-sm">{item.title}</span>
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                            STATUS_COLORS[item.status]
-                          }`}
-                        >
+                        <StatusBadge tone={STATUS_TONES[item.status]} className="text-xs">
                           {STATUS_LABELS[item.status]}
-                        </span>
+                        </StatusBadge>
                       </div>
                       {item.description && (
                         <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
@@ -414,7 +402,7 @@ function CompliancePage() {
                   <li key={item.id} className="flex items-start gap-2 text-xs">
                     <span
                       className={`mt-0.5 shrink-0 w-1.5 h-1.5 rounded-full ${
-                        item.status === "at_risk" ? "bg-red-500" : "bg-amber-400"
+                        item.status === "at_risk" ? "bg-destructive" : "bg-warning"
                       }`}
                     />
                     <div>

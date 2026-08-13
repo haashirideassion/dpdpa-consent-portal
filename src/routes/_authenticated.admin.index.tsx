@@ -113,33 +113,37 @@ function timeAgo(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+// These are categorical tags (activity type / avatar hash), not status-severity
+// pills, so they intentionally keep their own distinct hues rather than
+// collapsing onto the 5-tone StatusBadge system. `dark:` variants keep them
+// legible now that dark mode is a supported theme.
 function getActionBadge(action: string): { bg: string; text: string } {
   const a = action.toUpperCase();
   if (a.includes("LOGIN") || a.includes("LOGOUT"))
-    return { bg: "bg-blue-100", text: "text-blue-700" };
+    return { bg: "bg-blue-100 dark:bg-blue-500/15", text: "text-blue-700 dark:text-blue-300" };
   if (a.includes("CONSENT"))
-    return { bg: "bg-green-100", text: "text-green-700" };
+    return { bg: "bg-green-100 dark:bg-green-500/15", text: "text-green-700 dark:text-green-300" };
   if (a.includes("REQUEST") || a.includes("DSR"))
-    return { bg: "bg-violet-100", text: "text-violet-700" };
+    return { bg: "bg-violet-100 dark:bg-violet-500/15", text: "text-violet-700 dark:text-violet-300" };
   if (a.includes("BREACH") || a.includes("INCIDENT"))
-    return { bg: "bg-red-100", text: "text-red-700" };
+    return { bg: "bg-red-100 dark:bg-red-500/15", text: "text-red-700 dark:text-red-300" };
   if (a.includes("CORRECTION") || a.includes("UPDATE") || a.includes("EDIT"))
-    return { bg: "bg-amber-100", text: "text-amber-700" };
+    return { bg: "bg-amber-100 dark:bg-amber-500/15", text: "text-amber-700 dark:text-amber-300" };
   if (a.includes("CREATE") || a.includes("ADD") || a.includes("IMPORT") || a.includes("VIDEO"))
-    return { bg: "bg-indigo-100", text: "text-indigo-700" };
+    return { bg: "bg-indigo-100 dark:bg-indigo-500/15", text: "text-indigo-700 dark:text-indigo-300" };
   return { bg: "bg-muted", text: "text-muted-foreground" };
 }
 
 function getAvatarStyle(email: string | null): string {
   if (!email) return "bg-muted text-muted-foreground";
   const palette = [
-    "bg-violet-100 text-violet-700",
-    "bg-blue-100 text-blue-700",
-    "bg-emerald-100 text-emerald-700",
-    "bg-amber-100 text-amber-700",
-    "bg-rose-100 text-rose-700",
-    "bg-cyan-100 text-cyan-700",
-    "bg-orange-100 text-orange-700",
+    "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300",
+    "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
+    "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+    "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+    "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
+    "bg-cyan-100 text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-300",
+    "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300",
   ];
   let hash = 0;
   for (let i = 0; i < email.length; i++) hash += email.charCodeAt(i);

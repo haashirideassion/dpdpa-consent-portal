@@ -6,7 +6,7 @@ import { EmployeeDataView } from "@/components/EmployeeDataView";
 import { EmployeeService } from "@/services/employee.service";
 import { DpdpaLegend } from "@/components/DpdpaLegend";
 import { ProfileSidebar } from "@/components/ProfileSidebar";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -142,12 +142,9 @@ function EmployeeDetail() {
                       <CheckCircleBoldDuotone size={18} color="var(--success)" className="mt-0.5" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <Badge
-                            variant="default"
-                            className="bg-success text-success-foreground text-xs"
-                          >
+                          <StatusBadge tone="success" className="text-xs">
                             {log.consent_status}
-                          </Badge>
+                          </StatusBadge>
                           <span className="text-xs text-muted-foreground">
                             Version: {log.consent_version}
                           </span>

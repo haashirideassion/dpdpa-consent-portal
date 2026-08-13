@@ -33,6 +33,20 @@ const TONE_CLASS: Record<StatusTone, string> = {
   neutral: "badge-neutral",
 };
 
+/**
+ * Same five tones, expressed as the raw CSS variable each one traces back
+ * to — for the rare spot (e.g. a card's accent border) that needs the color
+ * itself rather than a full badge. Keeps that usage pinned to the same
+ * source of truth as TONE_CLASS instead of re-deriving its own palette.
+ */
+export const TONE_CSS_VAR: Record<StatusTone, string> = {
+  success: "var(--success)",
+  warning: "var(--warning)",
+  info: "var(--primary)",
+  danger: "var(--destructive)",
+  neutral: "var(--border)",
+};
+
 export function StatusBadge({ tone, children, icon, className }: StatusBadgeProps) {
   return (
     <Badge

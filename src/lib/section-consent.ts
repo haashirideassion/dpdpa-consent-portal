@@ -10,6 +10,7 @@
  */
 
 import type { PurposeConsentStatus, ConsentSection } from "@/services/consent.service";
+import type { StatusTone } from "@/components/StatusBadge";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -38,6 +39,23 @@ export const UI_SECTION_CONSENT_MAP: Record<string, number[]> = {
   employmentHistory:  [7],      // Previous Employment
   additionalNotes:    [],       // Additional Notes — no consent purposes
 };
+
+// ── Tone mapping ──────────────────────────────────────────────────────────────
+// Single source of truth for "what color does each status read as" — consumed
+// by SectionConsentBadge (label + icon) and DataSection (card accent border),
+// so the two never drift into separate palettes for the same status.
+
+export const SECTION_CONSENT_TONE: Record<Exclude<SectionConsentStatus, "not_applicable">, StatusTone> = {
+  active: "success",
+  pending: "warning",
+  withdrawn: "danger",
+  mandatory: "neutral",
+};
+
+export function sectionConsentTone(status: SectionConsentStatus | undefined): StatusTone | null {
+  if (!status || status === "not_applicable") return null;
+  return SECTION_CONSENT_TONE[status];
+}
 
 // ── Computation ───────────────────────────────────────────────────────────────
 

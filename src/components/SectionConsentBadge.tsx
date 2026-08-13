@@ -12,8 +12,8 @@ import {
   ClockCircleBoldDuotone,
   LockKeyholeMinimalisticBoldDuotone,
 } from "solar-icon-set";
-import { StatusBadge, type StatusTone } from "@/components/StatusBadge";
-import type { SectionConsentStatus } from "@/lib/section-consent";
+import { StatusBadge } from "@/components/StatusBadge";
+import { sectionConsentTone, type SectionConsentStatus } from "@/lib/section-consent";
 
 interface SectionConsentBadgeProps {
   status: SectionConsentStatus;
@@ -22,19 +22,21 @@ interface SectionConsentBadgeProps {
 export function SectionConsentBadge({ status }: SectionConsentBadgeProps) {
   if (status === "not_applicable") return null;
 
-  // Tones map onto the shared --success/--warning/--destructive/--muted CSS
-  // variables via StatusBadge, instead of hardcoding a separate palette here.
+  // Label/icon per status; tone comes from the shared sectionConsentTone()
+  // map so this badge and DataSection's card-accent border always agree on
+  // what color a given status reads as.
   const config: Record<
     Exclude<SectionConsentStatus, "not_applicable">,
-    { label: string; icon: React.ReactNode; tone: StatusTone }
+    { label: string; icon: React.ReactNode }
   > = {
-    active: { label: "Consented", icon: <CheckCircleBoldDuotone size={10} />, tone: "success" },
-    pending: { label: "Pending", icon: <ClockCircleBoldDuotone size={10} />, tone: "warning" },
-    withdrawn: { label: "Withdrawn", icon: <CloseCircleBoldDuotone size={10} />, tone: "danger" },
-    mandatory: { label: "Required", icon: <LockKeyholeMinimalisticBoldDuotone size={10} />, tone: "neutral" },
+    active: { label: "Consented", icon: <CheckCircleBoldDuotone size={10} /> },
+    pending: { label: "Pending", icon: <ClockCircleBoldDuotone size={10} /> },
+    withdrawn: { label: "Withdrawn", icon: <CloseCircleBoldDuotone size={10} /> },
+    mandatory: { label: "Required", icon: <LockKeyholeMinimalisticBoldDuotone size={10} /> },
   };
 
-  const { label, icon, tone } = config[status];
+  const { label, icon } = config[status];
+  const tone = sectionConsentTone(status) ?? "neutral";
 
   return (
     <StatusBadge tone={tone} icon={icon} className="text-[10px] uppercase tracking-wide px-1.5 py-0.5">

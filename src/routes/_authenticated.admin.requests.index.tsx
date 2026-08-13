@@ -147,7 +147,7 @@ function RequestsQueue() {
         ].map((s) => (
           <Card
             key={s.label}
-            className={s.danger ? "border-red-200 bg-red-50/30" : s.highlight ? "border-yellow-200 bg-yellow-50/30" : ""}
+            className={s.danger ? "border-destructive/25 bg-destructive/5" : s.highlight ? "border-warning/30 bg-warning/5" : ""}
           >
             <CardContent className="py-4 text-center">
               <p className="text-2xl font-bold">{s.value}</p>
@@ -227,11 +227,11 @@ function RequestsQueue() {
                   const overdue = isOverdue(r);
                   const slaDays = r.sla_due_at ? daysUntil(r.sla_due_at) : null;
                   return (
-                    <TableRow key={r.id} className={overdue ? "bg-red-50/30" : ""}>
+                    <TableRow key={r.id} className={overdue ? "bg-destructive/5" : ""}>
                       <TableCell className="font-medium max-w-48 truncate">
                         <div className="flex items-center gap-1.5">
                           {overdue && (
-                            <DangerTriangleBoldDuotone size={14} className="text-red-500 shrink-0" />
+                            <DangerTriangleBoldDuotone size={14} className="text-destructive shrink-0" />
                           )}
                           <span className="truncate">{r.subject || "(no subject)"}</span>
                         </div>
@@ -262,7 +262,7 @@ function RequestsQueue() {
                       <TableCell>
                         {r.sla_due_at ? (
                           <div>
-                            <div className={`text-xs font-medium ${overdue ? "text-red-600" : slaDays !== null && slaDays <= 5 ? "text-yellow-600" : ""}`}>
+                            <div className={`text-xs font-medium ${overdue ? "text-destructive" : slaDays !== null && slaDays <= 5 ? "text-warning-foreground" : ""}`}>
                               {overdue ? "Overdue" : slaDays !== null ? `${slaDays}d left` : ""}
                             </div>
                             <div className="text-xs text-muted-foreground">{formatDate(r.sla_due_at)}</div>

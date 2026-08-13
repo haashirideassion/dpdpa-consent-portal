@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { VideoService } from "@/services/video.service";
 import { IntroVideoPlayer } from "@/components/IntroVideoPlayer";
+import { OnboardingStepper } from "@/components/OnboardingStepper";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { ShieldCheckBoldDuotone } from "solar-icon-set";
@@ -95,6 +96,7 @@ function ConsentVideoStep() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
+      <OnboardingStepper currentKey="video" className="mb-6" />
       <div className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight">Introduction to Data Privacy</h1>
         <p className="text-sm text-muted-foreground mt-1">

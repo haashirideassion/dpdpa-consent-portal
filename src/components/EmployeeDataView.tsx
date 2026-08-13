@@ -12,6 +12,7 @@ import {
   HeartBoldDuotone,
 } from "solar-icon-set";
 import { ConsentService } from "@/services/consent.service";
+import { EmployeeService } from "@/services/employee.service";
 import type { ConsentSection, PurposeConsentStatus, ConsentTemplate } from "@/services/consent.service";
 import { useAuth } from "@/hooks/use-auth";
 import { EducationSection } from "./sections/EducationSection";
@@ -278,16 +279,40 @@ export function EmployeeDataView({
   ];
 
   /**
-   * Flat sections — always read-only (no edit button shown for anyone).
-   * Admin sees data unmasked but cannot edit for demo.
-   * No "Update" correction buttons shown (allowCorrection=false).
+   * Admin editing their OWN profile (My Data, not the Employees module) can
+   * save flat-section changes directly — no correction request, no queue.
+   * Restricted to isOwner && isAdmin && !adminReview so this can never apply
+   * while an admin is reviewing another employee's record (Employees module
+   * always passes adminReview=true there), and never applies to employees.
+   */
+  const canSelfEditFlat = isAdmin && isOwner && !readOnly && !adminReview;
+
+  // Identity/system fields that must never be edited from this flow, even by
+  // an admin editing their own profile — they're marked `uncorrectable` in
+  // their FieldDef because they're tied to auth/HR-system identity, not just
+  // display data.
+  const UNEDITABLE_SELF_FIELDS = new Set(["work_email", "employee_code"]);
+
+  async function handleFlatSave(updates: Record<string, string>) {
+    const safeUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([key]) => !UNEDITABLE_SELF_FIELDS.has(key))
+    );
+    await EmployeeService.updateEmployee(e.id, safeUpdates);
+    await _onEmployeeUpdated();
+  }
+
+  /**
+   * Flat sections — read-only for everyone except an admin viewing their own
+   * profile (see canSelfEditFlat above). Employees never get a direct-save
+   * button here; allowCorrection stays false since the admin path saves
+   * directly and doesn't need the per-field correction-request pill.
    */
   const readOnlySectionProps = {
     hasConsented,
     isAdmin,
     isOwner,
     employeeId: e.id as string,
-    onSave: undefined,
+    onSave: canSelfEditFlat ? handleFlatSave : undefined,
     allowCorrection: false,
   };
 

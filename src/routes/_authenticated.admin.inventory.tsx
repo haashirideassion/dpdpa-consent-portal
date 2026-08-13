@@ -182,9 +182,9 @@ function InventoryPage() {
       </div>
 
       {staleCount > 0 && (
-        <Card className="border-yellow-200 bg-yellow-50/30">
+        <Card className="border-warning/30 bg-warning/5">
           <CardContent className="py-3 flex items-center gap-2 text-sm">
-            <DangerTriangleBoldDuotone size={16} className="text-yellow-600 shrink-0" />
+            <DangerTriangleBoldDuotone size={16} className="text-warning-foreground shrink-0" />
             <span>
               <strong>{staleCount}</strong> processing{" "}
               {staleCount === 1 ? "activity has" : "activities have"} not been reviewed in over 12 months.
@@ -226,7 +226,7 @@ function InventoryPage() {
                 {items.map((item) => {
                   const stale = InventoryService.isStale(item);
                   return (
-                    <TableRow key={item.id} className={stale ? "bg-yellow-50/30" : ""}>
+                    <TableRow key={item.id} className={stale ? "bg-warning/5" : ""}>
                       <TableCell className="font-medium text-sm max-w-36 truncate">
                         {item.activity_name}
                       </TableCell>

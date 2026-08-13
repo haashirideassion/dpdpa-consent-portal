@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { EmptyState } from "@/components/ui/empty-state";
 import { formatDistanceToNow } from "date-fns";
 
 interface Notification {
@@ -107,10 +108,11 @@ export function NotificationDropdown({ userId }: { userId: string }) {
         </div>
         <div className="max-h-[350px] overflow-y-auto py-1">
           {notifications.length === 0 ? (
-            <div className="px-4 py-8 text-center text-sm text-muted-foreground flex flex-col items-center justify-center gap-2">
-              <BellBoldDuotone size={32} className="opacity-20" />
-              <p>You're all caught up!</p>
-            </div>
+            <EmptyState
+              icon={<BellBoldDuotone size={28} />}
+              title="You're all caught up!"
+              className="py-8"
+            />
           ) : (
             notifications.map((n) => (
               <DropdownMenuItem 

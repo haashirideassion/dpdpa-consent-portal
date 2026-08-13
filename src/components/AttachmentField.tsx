@@ -16,18 +16,27 @@ import { AttachmentService, type EmployeeAttachment } from "@/services/attachmen
 import { attachmentLabel } from "@/lib/attachmentConfig";
 import { useAuth } from "@/hooks/use-auth";
 import {
-  PaperclipBoldDuotone,
+  DocumentTextBoldDuotone,
   DownloadMinimalisticBoldDuotone,
   RefreshBoldDuotone,
+  PaperclipBoldDuotone,
 } from "solar-icon-set";
 import { toast } from "sonner";
-import { Dropzone } from "@/components/ui/dropzone";
+import { StatusBadge } from "@/components/StatusBadge";
+import { cn } from "@/lib/utils";
 
 interface AttachmentFieldProps {
   employeeId: string;
   fieldKey: string;
   hasConsented: boolean;
   isAdmin: boolean;
+}
+
+/** e.g. 245000 → "245 KB", 2_400_000 → "2.4 MB". No fabricated units. */
+function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "";
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function AttachmentField({
@@ -76,7 +85,8 @@ export function AttachmentField({
 
   // ── Upload handler ────────────────────────────────────────────────────────
   // Core logic takes a File directly so both the hidden "Replace" input and
-  // the Dropzone (drag/drop or click-to-browse) can share the same path.
+  // the empty-state drop target (drag/drop or click-to-browse) can share the
+  // same path.
   async function processFile(file: File) {
     if (!user) return;
 
@@ -107,12 +117,19 @@ export function AttachmentField({
     if (fileRef.current) fileRef.current.value = "";
   }
 
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    if (uploading) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file) processFile(file);
+  }
+
   // ── Don't render anything while loading the initial state ─────────────────
   if (loading) return null;
 
   return (
-    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-      {/* Hidden file input shared across upload & replace buttons */}
+    <div className="mt-1.5">
+      {/* Hidden file input shared across upload & replace controls */}
       {canUpload && (
         <input
           ref={fileRef}
@@ -125,57 +142,82 @@ export function AttachmentField({
       )}
 
       {attachment ? (
-        // ── Attachment exists ──────────────────────────────────────────────
-        <>
-          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-            <PaperclipBoldDuotone size={12} className="shrink-0" />
-            <span
-              className="truncate max-w-[160px]"
+        // ── Attachment exists — compact document card ──────────────────────
+        <div className="flex items-center gap-2.5 rounded-md border border-border bg-muted/30 px-2.5 py-2">
+          <DocumentTextBoldDuotone size={18} className="shrink-0 text-muted-foreground" />
+
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-medium text-foreground truncate" title={label}>
+              {label}
+            </p>
+            <p
+              className="truncate text-[10.5px] text-muted-foreground"
               title={attachment.file_name}
             >
               {attachment.file_name}
-            </span>
-          </span>
+              {attachment.file_size ? ` · ${formatFileSize(attachment.file_size)}` : ""}
+            </p>
+          </div>
 
-          {signedUrl && (
-            <a
-              href={signedUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-0.5 text-[11px] font-medium text-primary hover:underline underline-offset-2"
-            >
-              <DownloadMinimalisticBoldDuotone size={12} />
-              View
-            </a>
-          )}
+          <StatusBadge tone="neutral" className="shrink-0">On file</StatusBadge>
 
-          {canUpload && (
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              disabled={uploading}
-              className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
-              title={`Replace ${label}`}
-            >
-              <RefreshBoldDuotone size={12} />
-              {uploading ? "Uploading…" : "Replace"}
-            </button>
-          )}
-        </>
+          <div className="flex shrink-0 items-center gap-1">
+            {signedUrl && (
+              <a
+                href={signedUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`View ${label}`}
+                title="View"
+                className="inline-flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+              >
+                <DownloadMinimalisticBoldDuotone size={14} />
+              </a>
+            )}
+
+            {canUpload && (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={uploading}
+                aria-label={`Replace ${label}`}
+                title="Replace"
+                className="inline-flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-40"
+              >
+                <RefreshBoldDuotone size={14} className={uploading ? "animate-spin" : undefined} />
+              </button>
+            )}
+          </div>
+        </div>
       ) : canUpload ? (
-        // ── No attachment, upload allowed ──────────────────────────────────
-        <Dropzone
-          onFile={processFile}
-          disabled={uploading}
-          className="w-full !p-2 flex-row justify-start gap-2 text-left"
-          label={uploading ? "Uploading…" : `Upload ${label}`}
-          hint={null}
-        />
+        // ── No attachment, upload allowed — compact drop target ────────────
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label={`Upload ${label}`}
+          onClick={() => fileRef.current?.click()}
+          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && fileRef.current?.click()}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={handleDrop}
+          className={cn(
+            "flex items-center gap-2.5 rounded-md border border-dashed border-border px-2.5 py-2 cursor-pointer transition-colors hover:border-primary/50 hover:bg-accent/40",
+            uploading && "pointer-events-none opacity-60"
+          )}
+        >
+          <PaperclipBoldDuotone size={16} className="shrink-0 text-muted-foreground" />
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium text-foreground">
+              {uploading ? "Uploading…" : `Upload ${label}`}
+            </p>
+            <p className="text-[10.5px] text-muted-foreground">PDF, JPG, PNG — max 5MB</p>
+          </div>
+        </div>
       ) : (
         // ── No attachment, upload not allowed (post-consent employee) ──────
-        <span className="text-[10px] text-muted-foreground/50 italic">
-          No document on file
-        </span>
+        <div className="flex items-center gap-2 rounded-md border border-border/60 px-2.5 py-2">
+          <DocumentTextBoldDuotone size={16} className="shrink-0 text-muted-foreground/40" />
+          <span className="text-[11px] text-muted-foreground/60 italic">No document on file</span>
+        </div>
       )}
     </div>
   );

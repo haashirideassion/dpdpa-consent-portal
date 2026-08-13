@@ -9,7 +9,8 @@ import { DataField, type FieldDef } from "./DataField";
 import { CorrectionRequestModal } from "./CorrectionRequestModal";
 import { AttachmentField } from "./AttachmentField";
 import { SectionConsentBadge } from "./SectionConsentBadge";
-import type { SectionConsentStatus } from "@/lib/section-consent";
+import { sectionConsentTone, type SectionConsentStatus } from "@/lib/section-consent";
+import { TONE_CSS_VAR } from "@/components/StatusBadge";
 import { requiresAttachment } from "@/lib/attachmentConfig";
 import { toast } from "sonner";
 
@@ -65,12 +66,10 @@ export function DataSection({
   const [correctionField, setCorrectionField] = useState<FieldDef | null>(null);
 
   // Left accent color keyed to the section's aggregate consent status —
-  // purely a visual cue, doesn't affect any consent logic.
-  const accentVar =
-    consentStatus === "active" ? "var(--success)"
-    : consentStatus === "pending" ? "var(--warning)"
-    : consentStatus === "withdrawn" ? "var(--destructive)"
-    : "var(--border)";
+  // purely a visual cue, doesn't affect any consent logic. Reuses the same
+  // status->tone mapping SectionConsentBadge renders with, so the card
+  // border and its badge never disagree on what a status means.
+  const accentVar = TONE_CSS_VAR[sectionConsentTone(consentStatus) ?? "neutral"];
 
   // Whether this section has both address fields (enables sync feature)
   const hasCurrentAddress = fields.some((f) => f.key === "current_address");

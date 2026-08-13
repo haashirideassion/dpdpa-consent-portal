@@ -18,6 +18,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -51,10 +52,12 @@ import {
   PenBoldDuotone,
   TrashBinTrashBoldDuotone,
   LockKeyholeMinimalisticBoldDuotone,
+  ClockCircleBoldDuotone,
 } from "solar-icon-set";
 import { toast } from "sonner";
 import { CorrectionService } from "@/services/correction.service";
 import { SectionConsentBadge } from "@/components/SectionConsentBadge";
+import { StatusBadge } from "@/components/StatusBadge";
 import type { SectionConsentStatus } from "@/lib/section-consent";
 
 // ── Field config ──────────────────────────────────────────────────────────────
@@ -151,6 +154,10 @@ export function MultiEntrySection({
 }: MultiEntrySectionProps) {
   const [entries, setEntries] = useState<any[]>([]);
   const [loadingEntries, setLoadingEntries] = useState(true);
+  // Record IDs with an open correction request — renders as a "Pending HR
+  // review" badge so employees can tell an approved record apart from one
+  // still awaiting review, instead of both looking identical after submit.
+  const [pendingRecordIds, setPendingRecordIds] = useState<Set<string>>(new Set());
 
   // Sheet state
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -185,9 +192,22 @@ export function MultiEntrySection({
     }
   }, [employeeId, loader, title]);
 
+  const fetchPendingRecordIds = useCallback(async () => {
+    if (isAdmin || !sectionKey) return;
+    try {
+      const ids = await CorrectionService.getPendingRecordIds(employeeId, sectionKey);
+      setPendingRecordIds(ids);
+    } catch (err) {
+      console.error(`MultiEntrySection[${title}]: pending-status fetch failed`, err);
+    }
+  }, [employeeId, isAdmin, sectionKey, title]);
+
   useEffect(() => {
-    if (employeeId) fetchEntries();
-  }, [employeeId, fetchEntries]);
+    if (employeeId) {
+      fetchEntries();
+      fetchPendingRecordIds();
+    }
+  }, [employeeId, fetchEntries, fetchPendingRecordIds]);
 
   // ── Sheet helpers ─────────────────────────────────────────────────────────────
   function closeSheet() {
@@ -334,6 +354,7 @@ export function MultiEntrySection({
 
       toast.success("Update request submitted. HR will review it shortly.");
       closeSheet();
+      await fetchPendingRecordIds();
     } catch (err: any) {
       toast.error(err?.message ?? "Failed to submit correction. Please try again.");
     } finally {
@@ -372,6 +393,7 @@ export function MultiEntrySection({
           recordValues,
         });
         toast.success("Delete request submitted. HR will review it shortly.");
+        await fetchPendingRecordIds();
       } else {
         await onDelete(deleteTarget.id);
         toast.success(messages?.deleted ?? "Record deleted");
@@ -447,7 +469,7 @@ export function MultiEntrySection({
           {loadingEntries ? (
             <div className="space-y-2">
               {[1, 2].map((i) => (
-                <div key={i} className="h-12 animate-pulse rounded-lg bg-muted" />
+                <Skeleton key={i} className="h-12 w-full rounded-lg" />
               ))}
             </div>
           ) : entries.length === 0 ? (
@@ -484,7 +506,9 @@ export function MultiEntrySection({
             />
           ) : (
             <div className="space-y-2">
-              {entries.map((entry, idx) => (
+              {entries.map((entry, idx) => {
+                const isPending = pendingRecordIds.has(entry.id);
+                return (
                 <div
                   key={entry.id}
                   className="group rounded-lg border border-border bg-muted/20 px-4 py-3 hover:bg-muted/40 transition-colors"
@@ -501,6 +525,7 @@ export function MultiEntrySection({
                           onClick={() => openEdit(entry)}
                           className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-background transition-colors"
                           title="Edit"
+                          aria-label="Edit entry"
                         >
                           <PenBoldDuotone size={12} />
                         </button>
@@ -509,6 +534,7 @@ export function MultiEntrySection({
                           onClick={() => setDeleteTarget(entry)}
                           className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                           title="Delete"
+                          aria-label="Delete entry"
                         >
                           <TrashBinTrashBoldDuotone size={12} />
                         </button>
@@ -516,27 +542,37 @@ export function MultiEntrySection({
                     )}
                   </div>
 
-                  {/* Update / Delete pills — shown in locked state only when updates are allowed */}
+                  {/* Update / Delete pills — shown in locked state only when updates are allowed.
+                      When a request is already pending, replace them with a status badge instead
+                      of leaving the record looking identical to an approved one. */}
                   {showUpdateButtons && sectionKey && (
-                    <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={() => openCorrectionEdit(entry)}
-                        className="inline-flex items-center gap-1 text-[10px] font-medium text-primary border border-primary/30 bg-primary/5 hover:bg-primary/10 rounded-full px-2 py-0.5 transition-colors"
-                      >
-                        Update
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(entry)}
-                        className="inline-flex items-center gap-1 text-[10px] font-medium text-destructive border border-destructive/30 bg-destructive/5 hover:bg-destructive/10 rounded-full px-2 py-0.5 transition-colors"
-                      >
-                        Delete
-                      </button>
-                    </div>
+                    isPending ? (
+                      <div className="mt-2">
+                        <StatusBadge tone="warning" icon={<ClockCircleBoldDuotone size={10} />} className="text-[10px]">
+                          Pending HR review
+                        </StatusBadge>
+                      </div>
+                    ) : (
+                      <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => openCorrectionEdit(entry)}
+                          className="inline-flex items-center gap-1 text-[10px] font-medium text-primary border border-primary/30 bg-primary/5 hover:bg-primary/10 rounded-full px-2 py-0.5 transition-colors"
+                        >
+                          Update
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(entry)}
+                          className="inline-flex items-center gap-1 text-[10px] font-medium text-destructive border border-destructive/30 bg-destructive/5 hover:bg-destructive/10 rounded-full px-2 py-0.5 transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )
                   )}
                 </div>
-              ))}
+              );})}
             </div>
           )}
           {consentArea}

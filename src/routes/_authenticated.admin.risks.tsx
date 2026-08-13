@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { RiskService, type RiskAssessment, type RiskStatus } from "@/services/risk.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge, type StatusTone } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { DangerTriangleBoldDuotone, AddSquareBoldDuotone } from "solar-icon-set";
+import { DangerTriangleBoldDuotone, AddSquareBoldDuotone, MinimalisticMagniferBoldDuotone } from "solar-icon-set";
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer } from "recharts";
 import { riskAssessmentSchema, type RiskAssessmentFormValues } from "@/lib/validation/risk";
 
@@ -29,10 +29,21 @@ const STATUS_LABELS: Record<RiskStatus, string> = {
   accepted: "Accepted",
 };
 
-const STATUS_COLORS: Record<RiskStatus, string> = {
-  open: "bg-red-100 text-red-700",
-  mitigated: "bg-green-100 text-green-700",
-  accepted: "bg-blue-100 text-blue-700",
+const STATUS_TONES: Record<RiskStatus, StatusTone> = {
+  open: "danger",
+  mitigated: "success",
+  accepted: "info",
+};
+
+// "high" and "critical" both render as "danger" — the app's token set has no
+// fourth semantically distinct hue, and the label text already says which
+// one it is, so reusing "danger" stays within the existing design system
+// rather than inventing a new color for this one page.
+const RISK_LEVEL_TONES: Record<"low" | "medium" | "high" | "critical", StatusTone> = {
+  low: "info",
+  medium: "warning",
+  high: "danger",
+  critical: "danger",
 };
 
 const EMPTY_FORM: RiskAssessmentFormValues = {
@@ -61,6 +72,7 @@ function RisksPage() {
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
 
   const form = useForm<RiskAssessmentFormValues>({
     resolver: zodResolver(riskAssessmentSchema),
@@ -117,6 +129,12 @@ function RisksPage() {
 
   const high = risks.filter((r) => r.status === "open" && r.risk_score >= 12).length;
 
+  const filteredRisks = risks.filter((r) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return r.title.toLowerCase().includes(q) || (r.description ?? "").toLowerCase().includes(q);
+  });
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -153,9 +171,9 @@ function RisksPage() {
       </div>
 
       {high > 0 && (
-        <Card className="border-red-200 bg-red-50/30">
+        <Card className="border-destructive/25 bg-destructive/5">
           <CardContent className="py-3 flex items-center gap-2 text-sm">
-            <DangerTriangleBoldDuotone size={16} className="text-red-600 shrink-0" />
+            <DangerTriangleBoldDuotone size={16} className="text-destructive shrink-0" />
             <span>
               <strong>{high}</strong> high-risk assessment{high !== 1 ? "s" : ""} require immediate attention.
             </span>
@@ -251,20 +269,46 @@ function RisksPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2">
-          {risks.map((r) => (
-            <Card key={r.id} className={r.status === "open" && r.risk_score >= 12 ? "border-red-200" : ""}>
+        <>
+          <div className="relative max-w-sm">
+            <MinimalisticMagniferBoldDuotone
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              placeholder="Search risks by title or description…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 h-8 text-sm"
+            />
+          </div>
+
+          {filteredRisks.length === 0 ? (
+            <Card>
+              <CardContent className="py-10">
+                <EmptyState
+                  icon={<MinimalisticMagniferBoldDuotone size={28} />}
+                  title="No risks match your search"
+                />
+              </CardContent>
+            </Card>
+          ) : (
+          <div className="space-y-2">
+          {filteredRisks.map((r) => {
+            const level = RiskService.riskLevel(r.risk_score);
+            return (
+            <Card key={r.id} className={r.status === "open" && r.risk_score >= 12 ? "border-destructive/25" : ""}>
               <CardContent className="py-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-sm">{r.title}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${RiskService.riskColor(r.risk_score)}`}>
-                        Score {r.risk_score} · {RiskService.riskLevel(r.risk_score)}
-                      </span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[r.status]}`}>
+                      <StatusBadge tone={RISK_LEVEL_TONES[level]} className="text-xs">
+                        Score {r.risk_score} · {level}
+                      </StatusBadge>
+                      <StatusBadge tone={STATUS_TONES[r.status]} className="text-xs">
                         {STATUS_LABELS[r.status]}
-                      </span>
+                      </StatusBadge>
                     </div>
                     {r.description && (
                       <p className="text-xs text-muted-foreground mt-0.5">{r.description}</p>
@@ -294,8 +338,11 @@ function RisksPage() {
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
+            );
+          })}
+          </div>
+          )}
+        </>
       )}
 
       {/* Add dialog */}

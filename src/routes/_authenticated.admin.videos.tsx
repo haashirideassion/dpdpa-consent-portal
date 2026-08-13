@@ -34,8 +34,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/StatusBadge";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import {
   UploadMinimalisticBoldDuotone,
@@ -480,11 +481,13 @@ function AdminVideosPage() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    Loading…
-                  </TableCell>
-                </TableRow>
+                Array.from({ length: 3 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell colSpan={6} className="py-3">
+                      <Skeleton className="h-8 w-full" />
+                    </TableCell>
+                  </TableRow>
+                ))
               ) : videos.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="py-8">
@@ -507,11 +510,11 @@ function AdminVideosPage() {
                     <TableCell>{vid.resolution ?? "—"}</TableCell>
                     <TableCell>
                       {vid.is_active || vid.status === "active" ? (
-                        <Badge className="bg-green-500 text-white">Active</Badge>
+                        <StatusBadge tone="success">Active</StatusBadge>
                       ) : vid.status === "draft" ? (
-                        <Badge variant="outline">Draft</Badge>
+                        <StatusBadge tone="warning">Draft</StatusBadge>
                       ) : (
-                        <Badge variant="secondary">Inactive</Badge>
+                        <StatusBadge tone="neutral">Inactive</StatusBadge>
                       )}
                     </TableCell>
                     <TableCell className="text-right">

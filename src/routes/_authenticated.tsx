@@ -8,6 +8,7 @@ import { IdeassionLogo } from "@/components/IdeassionLogo";
 import { AuditService } from "@/services/audit.service";
 import { supabase } from "@/integrations/supabase/client";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { CommandBar } from "@/components/CommandBar";
 import { MinimalisticMagniferBoldDuotone } from "solar-icon-set";
 
@@ -155,6 +156,8 @@ function AuthenticatedLayout() {
             <div className="hidden sm:flex flex-col items-end mr-2">
               <span className="text-xs font-medium text-foreground">{user.email}</span>
             </div>
+
+            <ThemeToggle />
 
             <NotificationDropdown userId={user.id} />
 

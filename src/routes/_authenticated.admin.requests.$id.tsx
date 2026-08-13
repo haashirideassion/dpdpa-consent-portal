@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { DsrService, type DataRequest, type DataRequestMessage, type DsrStatus, type DsrPriority } from "@/services/dsr.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge, type StatusTone } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -34,6 +35,21 @@ const STATUS_TRANSITIONS: Record<DsrStatus, DsrStatus[]> = {
   resolved: ["closed"],
   closed: [],
   rejected: [],
+};
+
+const PRIORITY_TONES: Record<string, StatusTone> = {
+  low: "info",
+  medium: "warning",
+  high: "danger",
+};
+
+const STATUS_TONES: Record<string, StatusTone> = {
+  new: "warning",
+  in_review: "info",
+  action_required: "warning",
+  resolved: "success",
+  closed: "neutral",
+  rejected: "danger",
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -155,7 +171,7 @@ function RequestDetail() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
-            {overdue && <DangerTriangleBoldDuotone size={18} className="text-red-500" />}
+            {overdue && <DangerTriangleBoldDuotone size={18} className="text-destructive" />}
             {request.subject || "(no subject)"}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -163,20 +179,13 @@ function RequestDetail() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="outline">{request.status.replace("_", " ")}</Badge>
-          <Badge
-            variant="outline"
-            className={
-              request.priority === "high"
-                ? "border-red-300 text-red-700"
-                : request.priority === "medium"
-                ? "border-yellow-300 text-yellow-700"
-                : "border-blue-300 text-blue-700"
-            }
-          >
+          <StatusBadge tone={STATUS_TONES[request.status] ?? "neutral"}>
+            {STATUS_LABELS[request.status] ?? request.status.replace("_", " ")}
+          </StatusBadge>
+          <StatusBadge tone={PRIORITY_TONES[request.priority] ?? "neutral"}>
             {request.priority} priority
-          </Badge>
-          {overdue && <Badge variant="destructive">Overdue</Badge>}
+          </StatusBadge>
+          {overdue && <StatusBadge tone="danger">Overdue</StatusBadge>}
         </div>
       </div>
 
@@ -197,8 +206,8 @@ function RequestDetail() {
                 </div>
               )}
               {request.resolution_note && (
-                <div className="mt-3 rounded-lg bg-green-50 border border-green-200 p-3">
-                  <p className="text-xs font-semibold text-green-700 mb-1">Resolution Note</p>
+                <div className="mt-3 rounded-lg bg-success/5 border border-success/20 p-3">
+                  <p className="text-xs font-semibold text-success mb-1">Resolution Note</p>
                   <p className="text-sm">{request.resolution_note}</p>
                 </div>
               )}
@@ -219,7 +228,7 @@ function RequestDetail() {
                     key={m.id}
                     className={`rounded-lg p-3 ${
                       m.is_internal
-                        ? "bg-yellow-50 border border-yellow-200"
+                        ? "bg-warning/5 border border-warning/25"
                         : "bg-muted/40 border border-border"
                     }`}
                   >
@@ -227,7 +236,7 @@ function RequestDetail() {
                       <span className="text-xs font-medium">
                         {m.author_id ? m.author_id.slice(0, 8) + "…" : "System"}
                         {m.is_internal && (
-                          <span className="ml-2 text-yellow-600 text-[10px] font-semibold uppercase">
+                          <span className="ml-2 text-warning-foreground text-[10px] font-semibold uppercase">
                             Internal
                           </span>
                         )}
@@ -305,7 +314,7 @@ function RequestDetail() {
               {request.sla_due_at && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">SLA Due</span>
-                  <span className={overdue ? "text-red-600 font-medium" : ""}>
+                  <span className={overdue ? "text-destructive font-medium" : ""}>
                     {formatDate(request.sla_due_at)}
                     {overdue && " ⚠ Overdue"}
                   </span>

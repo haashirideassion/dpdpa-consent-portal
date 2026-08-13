@@ -153,13 +153,13 @@ function AuditAdminPage() {
       return (
         <div className="text-xs">
           <span className="font-medium text-foreground capitalize mr-1">{log.metadata.field.replace(/_/g, " ")}:</span>
-          <span className="text-red-500 line-through mr-1">
+          <span className="text-destructive line-through mr-1">
             {shouldMask(log.metadata.field) && log.metadata.old_value
               ? maskValue(log.metadata.old_value, 4)
               : (log.metadata.old_value || "null")}
           </span>
           <span className="text-muted-foreground">→</span>
-          <span className="text-green-600 dark:text-green-400 font-semibold ml-1">
+          <span className="text-success font-semibold ml-1">
             {shouldMask(log.metadata.field) && log.metadata.new_value
               ? maskValue(log.metadata.new_value, 4)
               : (log.metadata.new_value || "null")}

@@ -56,11 +56,26 @@ export const Route = createRootRoute({
   notFoundComponent: NotFoundComponent,
 });
 
+// Applies the stored/system theme preference to <html> before first paint,
+// so switching themes never shows a light->dark flash on load. Mirrors the
+// resolution logic in useTheme (hooks/use-theme.tsx) but must run inline
+// since it executes before React hydrates.
+const THEME_INIT_SCRIPT = `
+(function () {
+  try {
+    var pref = localStorage.getItem("dpdpa-theme");
+    var dark = pref === "dark" || (pref !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    if (dark) document.documentElement.classList.add("dark");
+  } catch (e) {}
+})();
+`;
+
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
         <HeadContent />
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body>
         {children}
@@ -71,6 +86,7 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 import { AuthProvider } from "@/hooks/use-auth";
+import { ThemeProvider } from "@/hooks/use-theme";
 import { Toaster } from "sonner";
 import { validateConfig } from "@/lib/config";
 
@@ -79,9 +95,11 @@ function RootComponent() {
   validateConfig();
 
   return (
-    <AuthProvider>
-      <Outlet />
-      <Toaster position="top-right" richColors />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <Outlet />
+        <Toaster position="top-right" richColors />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

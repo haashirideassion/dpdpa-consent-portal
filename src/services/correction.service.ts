@@ -345,6 +345,33 @@ export const CorrectionService = {
   },
 
   /**
+   * Returns the set of record IDs within a section that currently have a
+   * pending edit or delete request — so the UI can show a persistent
+   * "Pending HR review" badge on those records instead of leaving employees
+   * to wonder whether an "Add"/"Update" they clicked actually saved.
+   * One query for the whole section instead of one per record.
+   */
+  async getPendingRecordIds(employeeId: string, sectionKey: string): Promise<Set<string>> {
+    const { data } = await (supabase.from("correction_requests") as any)
+      .select("old_value")
+      .eq("employee_id", employeeId)
+      .in("field_name", ["__section_edit__", "__section_delete__"])
+      .eq("table_name", sectionKey)
+      .eq("status", "pending");
+
+    const ids = new Set<string>();
+    (data ?? []).forEach((req: any) => {
+      try {
+        const parsed = JSON.parse(req.old_value ?? "{}");
+        if (parsed.recordId) ids.add(parsed.recordId);
+      } catch {
+        // malformed old_value — skip
+      }
+    });
+    return ids;
+  },
+
+  /**
    * @deprecated Use hasPendingEditForRecord for per-record precision.
    * Kept for backward compatibility — checks if ANY pending edit/add exists
    * for the given section.

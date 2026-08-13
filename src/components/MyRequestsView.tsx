@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { DsrService, type DataRequest, type DsrType } from "@/services/dsr.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge, type StatusTone } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,8 +16,9 @@ import {
 } from "@/components/ui/dialog";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
-import { AddSquareBoldDuotone, DangerTriangleBoldDuotone } from "solar-icon-set";
+import { AddSquareBoldDuotone, DangerTriangleBoldDuotone, ClipboardListBoldDuotone } from "solar-icon-set";
 import { dsrRequestSchema, type DsrRequestFormValues } from "@/lib/validation/dsr";
 
 interface Props {
@@ -33,13 +35,13 @@ const STATUS_LABELS: Record<string, string> = {
   rejected: "Rejected",
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  new: "bg-yellow-100 text-yellow-700",
-  in_review: "bg-blue-100 text-blue-700",
-  action_required: "bg-orange-100 text-orange-700",
-  resolved: "bg-green-100 text-green-700",
-  closed: "bg-gray-100 text-gray-600",
-  rejected: "bg-red-100 text-red-700",
+const STATUS_TONES: Record<string, StatusTone> = {
+  new: "warning",
+  in_review: "info",
+  action_required: "warning",
+  resolved: "success",
+  closed: "neutral",
+  rejected: "danger",
 };
 
 const TYPE_OPTIONS: { value: DsrType; label: string; desc: string }[] = [
@@ -140,8 +142,18 @@ export function MyRequestsView({ employeeId, userId }: Props) {
       {/* Request list */}
       {requests.length === 0 ? (
         <Card>
-          <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            You have not raised any data requests yet.
+          <CardContent>
+            <EmptyState
+              icon={<ClipboardListBoldDuotone size={28} />}
+              title="No requests yet"
+              description="Raise a request to access, correct, erase, or port your data — or to nominate a representative or file a grievance."
+              cta={
+                <Button size="sm" onClick={() => setShowDialog(true)}>
+                  <AddSquareBoldDuotone size={14} className="mr-1.5" />
+                  Raise a Request
+                </Button>
+              }
+            />
           </CardContent>
         </Card>
       ) : (
@@ -159,16 +171,16 @@ export function MyRequestsView({ employeeId, userId }: Props) {
                     </div>
                     <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{r.description}</p>
                     {r.resolution_note && (
-                      <div className="mt-2 rounded-lg bg-green-50 border border-green-200 p-2">
-                        <p className="text-xs text-green-700 font-medium">DPO Response:</p>
+                      <div className="mt-2 rounded-lg bg-success/5 border border-success/30 p-2">
+                        <p className="text-xs text-success font-medium">DPO Response:</p>
                         <p className="text-xs mt-0.5">{r.resolution_note}</p>
                       </div>
                     )}
                   </div>
                   <div className="text-right shrink-0 space-y-1">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[r.status] ?? ""}`}>
+                    <StatusBadge tone={STATUS_TONES[r.status] ?? "neutral"} className="text-xs">
                       {STATUS_LABELS[r.status] ?? r.status}
-                    </span>
+                    </StatusBadge>
                     <p className="text-xs text-muted-foreground">{formatDate(r.created_at)}</p>
                     {r.sla_due_at && !["resolved", "closed", "rejected"].includes(r.status) && (
                       <p className="text-xs text-muted-foreground">

@@ -22,7 +22,9 @@ import {
   ClockCircleBoldDuotone,
   ClipboardListBoldDuotone,
   ShieldCheckBoldDuotone,
+  CheckCircleBoldDuotone,
 } from "solar-icon-set";
+import { StatusBadge } from "@/components/StatusBadge";
 import type { Tables } from "@/integrations/supabase/types";
 
 export const Route = createFileRoute("/_authenticated/")({
@@ -223,6 +225,29 @@ function EmployeePortal() {
         </div>
       </div>
 
+      {/* ── Getting started checklist ──────────────────────────────────────────
+          Employees currently have to infer "what's left" from four separate
+          tabs. This surfaces the two things that actually gate a fully-set-up
+          profile — using state already loaded above, no extra fetch — so the
+          answer to "what's pending / what's next" is visible at a glance. */}
+      {!(completion === 100 && hasConsented) && (
+        <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+          <p className="field-label mb-2.5">Getting started</p>
+          <div className="flex flex-col sm:flex-row gap-2.5">
+            <ChecklistItem
+              done={completion === 100}
+              label="Complete your profile"
+              hint={completion === 100 ? "All sections filled in" : `${completion}% filled in`}
+            />
+            <ChecklistItem
+              done={hasConsented}
+              label="Give your consent"
+              hint={hasConsented ? "Recorded" : "Review and submit below"}
+            />
+          </div>
+        </div>
+      )}
+
       <Tabs defaultValue="my-data">
         <TabsList className="mb-5">
           <TabsTrigger value="my-data" className="gap-1.5">
@@ -304,6 +329,23 @@ function EmployeePortal() {
           <DpdpaActContent />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function ChecklistItem({ done, label, hint }: { done: boolean; label: string; hint: string }) {
+  return (
+    <div className="flex flex-1 items-center gap-2.5 rounded-xl border border-border bg-muted/20 px-3 py-2.5">
+      {done ? (
+        <CheckCircleBoldDuotone size={18} color="var(--success)" className="shrink-0" />
+      ) : (
+        <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2 border-muted-foreground/30" />
+      )}
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-foreground leading-tight">{label}</p>
+        <p className="text-xs text-muted-foreground leading-tight mt-0.5">{hint}</p>
+      </div>
+      {done && <StatusBadge tone="success" className="ml-auto shrink-0">Done</StatusBadge>}
     </div>
   );
 }

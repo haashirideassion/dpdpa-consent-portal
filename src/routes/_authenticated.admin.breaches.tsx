@@ -5,6 +5,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { BreachService, type BreachIncident, type BreachSeverity, type BreachStatus } from "@/services/breach.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge, type StatusTone } from "@/components/StatusBadge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +16,7 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { DangerTriangleBoldDuotone, AddSquareBoldDuotone, CheckCircleBoldDuotone } from "solar-icon-set";
+import { DangerTriangleBoldDuotone, AddSquareBoldDuotone, CheckCircleBoldDuotone, MinimalisticMagniferBoldDuotone } from "solar-icon-set";
 import { breachIncidentSchema, type BreachIncidentFormValues } from "@/lib/validation/breach";
 
 export const Route = createFileRoute("/_authenticated/admin/breaches")({
@@ -22,19 +24,22 @@ export const Route = createFileRoute("/_authenticated/admin/breaches")({
   component: BreachesPage,
 });
 
-const SEVERITY_COLORS: Record<BreachSeverity, string> = {
-  low: "bg-blue-100 text-blue-700",
-  medium: "bg-yellow-100 text-yellow-700",
-  high: "bg-orange-100 text-orange-700",
-  critical: "bg-red-100 text-red-700",
+// "high" and "critical" both render as "danger" — same reasoning as the
+// Risks page: the token set has 3 semantic hues + neutral, and the label
+// text already distinguishes them.
+const SEVERITY_TONES: Record<BreachSeverity, StatusTone> = {
+  low: "info",
+  medium: "warning",
+  high: "danger",
+  critical: "danger",
 };
 
-const STATUS_COLORS: Record<BreachStatus, string> = {
-  reported: "bg-yellow-100 text-yellow-700",
-  investigating: "bg-blue-100 text-blue-700",
-  contained: "bg-purple-100 text-purple-700",
-  notified: "bg-green-100 text-green-700",
-  closed: "bg-gray-100 text-gray-600",
+const STATUS_TONES: Record<BreachStatus, StatusTone> = {
+  reported: "warning",
+  investigating: "info",
+  contained: "info",
+  notified: "success",
+  closed: "neutral",
 };
 
 const STATUS_LABELS: Record<BreachStatus, string> = {
@@ -68,6 +73,7 @@ function BreachesPage() {
   const [showDetail, setShowDetail] = useState<BreachIncident | null>(null);
   const [saving, setSaving] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [search, setSearch] = useState("");
 
   const form = useForm<BreachIncidentFormValues>({
     resolver: zodResolver(breachIncidentSchema),
@@ -162,6 +168,12 @@ function BreachesPage() {
 
   const openCount = incidents.filter((i) => !["notified", "closed"].includes(i.status)).length;
 
+  const filteredIncidents = incidents.filter((i) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return i.title.toLowerCase().includes(q) || (i.description ?? "").toLowerCase().includes(q);
+  });
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -191,9 +203,9 @@ function BreachesPage() {
       </div>
 
       {openCount > 0 && (
-        <Card className="border-red-200 bg-red-50/30">
+        <Card className="border-destructive/25 bg-destructive/5">
           <CardContent className="py-3 flex items-center gap-2 text-sm">
-            <DangerTriangleBoldDuotone size={16} className="text-red-600 shrink-0" />
+            <DangerTriangleBoldDuotone size={16} className="text-destructive shrink-0" />
             <span>
               <strong>{openCount}</strong> open breach incident{openCount !== 1 ? "s" : ""} require action or notification.
             </span>
@@ -203,17 +215,42 @@ function BreachesPage() {
 
       {incidents.length === 0 ? (
         <Card>
-          <CardContent className="py-16 text-center text-sm text-muted-foreground">
-            No breach incidents logged. Log your first incident above.
+          <CardContent className="py-16">
+            <EmptyState
+              icon={<DangerTriangleBoldDuotone size={32} />}
+              title="No breach incidents logged"
+              description="Log your first incident above."
+            />
           </CardContent>
         </Card>
       ) : (
+        <>
+          <div className="relative max-w-sm">
+            <MinimalisticMagniferBoldDuotone
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              placeholder="Search incidents by title or description…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 h-8 text-sm"
+            />
+          </div>
+
+          {filteredIncidents.length === 0 ? (
+            <Card>
+              <CardContent className="py-10">
+                <EmptyState icon={<MinimalisticMagniferBoldDuotone size={28} />} title="No incidents match your search" />
+              </CardContent>
+            </Card>
+          ) : (
         <div className="space-y-3">
-          {incidents.map((incident) => (
+          {filteredIncidents.map((incident) => (
             <Card
               key={incident.id}
               className={`cursor-pointer hover:border-primary/50 transition-colors ${
-                !["notified", "closed"].includes(incident.status) ? "border-yellow-200" : ""
+                !["notified", "closed"].includes(incident.status) ? "border-warning/30" : ""
               }`}
               onClick={() => setShowDetail(incident)}
             >
@@ -222,12 +259,12 @@ function BreachesPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-sm">{incident.title}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${SEVERITY_COLORS[incident.severity]}`}>
+                      <StatusBadge tone={SEVERITY_TONES[incident.severity]} className="text-xs capitalize">
                         {incident.severity}
-                      </span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[incident.status]}`}>
+                      </StatusBadge>
+                      <StatusBadge tone={STATUS_TONES[incident.status]} className="text-xs">
                         {STATUS_LABELS[incident.status]}
-                      </span>
+                      </StatusBadge>
                     </div>
                     {incident.description && (
                       <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
@@ -250,6 +287,8 @@ function BreachesPage() {
             </Card>
           ))}
         </div>
+          )}
+        </>
       )}
 
       {/* New incident dialog */}
@@ -396,12 +435,12 @@ function BreachesPage() {
             </DialogHeader>
             <div className="space-y-4 py-2 text-sm">
               <div className="flex gap-2 flex-wrap">
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${SEVERITY_COLORS[showDetail.severity]}`}>
+                <StatusBadge tone={SEVERITY_TONES[showDetail.severity]} className="capitalize">
                   {showDetail.severity}
-                </span>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[showDetail.status]}`}>
+                </StatusBadge>
+                <StatusBadge tone={STATUS_TONES[showDetail.status]}>
                   {STATUS_LABELS[showDetail.status]}
-                </span>
+                </StatusBadge>
               </div>
               {showDetail.description && <p className="text-muted-foreground">{showDetail.description}</p>}
 
@@ -451,7 +490,7 @@ function BreachesPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-xs">Data Protection Board</span>
                     {showDetail.board_notified_at ? (
-                      <span className="text-xs text-green-600 flex items-center gap-1">
+                      <span className="text-xs text-success flex items-center gap-1">
                         <CheckCircleBoldDuotone size={12} />
                         {new Date(showDetail.board_notified_at).toLocaleDateString("en-IN")}
                       </span>
@@ -470,7 +509,7 @@ function BreachesPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-xs">Affected Data Principals</span>
                     {showDetail.principals_notified_at ? (
-                      <span className="text-xs text-green-600 flex items-center gap-1">
+                      <span className="text-xs text-success flex items-center gap-1">
                         <CheckCircleBoldDuotone size={12} />
                         {new Date(showDetail.principals_notified_at).toLocaleDateString("en-IN")}
                       </span>
