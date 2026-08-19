@@ -35,6 +35,12 @@ interface AttachmentFieldProps {
   isAdmin: boolean;
 }
 
+// Single source of truth for accepted formats — used both as the actual
+// file input constraint and in the empty-state hint, so the two can never
+// drift apart. (AttachmentService.validate enforces the same set server-side.)
+const ACCEPTED_EXTENSIONS = ".pdf,.jpg,.jpeg,.png,.webp";
+const ACCEPTED_FORMATS_LABEL = "PDF, JPG, PNG or WEBP";
+
 /** e.g. 245000 → "245 KB", 2_400_000 → "2.4 MB". No fabricated units. */
 function formatFileSize(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return "";
@@ -129,7 +135,7 @@ export function AttachmentField({
         <input
           ref={fileRef}
           type="file"
-          accept=".pdf,.jpg,.jpeg,.png,.webp"
+          accept={ACCEPTED_EXTENSIONS}
           className="sr-only"
           onChange={handleFile}
           disabled={uploading}
@@ -180,11 +186,15 @@ export function AttachmentField({
       ) : canUpload ? (
         // ── No attachment, upload allowed — same pill as the "Update" chip,
         // just in the primary/dashed tone reserved for pending actions.
+        // Accepted formats surfaced via title (hover) — matches the file
+        // input's own `accept` list exactly (ACCEPTED_EXTENSIONS above), so
+        // this can never claim a format the input doesn't actually accept.
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
-          aria-label={uploading ? "Uploading…" : `Attach ${label}`}
+          aria-label={uploading ? "Uploading…" : `Attach ${label} — accepted formats: ${ACCEPTED_FORMATS_LABEL}`}
+          title={uploading ? "Uploading…" : `Accepted formats: ${ACCEPTED_FORMATS_LABEL}`}
           className="inline-flex items-center gap-1 rounded-full border border-dashed border-primary/30 bg-primary/5 px-2 py-0.5 text-[10px] font-medium text-primary hover:bg-primary/15 transition-colors disabled:opacity-40"
         >
           <PaperclipBoldDuotone size={11} />
@@ -192,7 +202,10 @@ export function AttachmentField({
         </button>
       ) : (
         // ── No attachment, upload not allowed (post-consent employee) ──────
-        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground/60 italic">
+        <span
+          className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground/60 italic"
+          title="No document on file. Use the field's Update button to request a correction with a replacement document."
+        >
           No document on file
         </span>
       )}

@@ -5,6 +5,7 @@ import { VideoService } from "@/services/video.service";
 import { EducationService } from "@/services/education.service";
 import { ConsentService, type ConsentTemplate } from "@/services/consent.service";
 import { EmployeeService } from "@/services/employee.service";
+import { JurisdictionService } from "@/services/jurisdiction.service";
 import { OnboardingService } from "@/services/onboarding.service";
 import { EmployeeDataView } from "@/components/EmployeeDataView";
 import { GranularConsentForm } from "@/components/GranularConsentForm";
@@ -49,6 +50,11 @@ function EmployeePortal() {
   const [hasConsented, setHasConsented] = useState(false);
   const [loading, setLoading] = useState(true);
   const [noVideo, setNoVideo] = useState(false);
+  // Phase 4 (Region / Regulatory Framework): true only if this employee has
+  // an explicit jurisdiction assignment that resolves to no active
+  // framework at all. Never set for the default (no-jurisdiction) case —
+  // that keeps resolving to the existing India/DPDPA experience.
+  const [noFrameworkConfigured, setNoFrameworkConfigured] = useState(false);
 
   // ── Shared toggle state for consent purposes ───────────────────────────────
   // Initialized from the active template: mandatory=ON (locked), others=OFF.
@@ -113,11 +119,26 @@ function EmployeePortal() {
       }
 
       const empRes = await EmployeeService.getByUserId(user.id).catch(() => null);
-      const activeTemplateData = await ConsentService.getActiveTemplate().catch(() => null);
       const employeeData = empRes;
       const resolvedEmployeeId = employeeData?.id ?? employeeId;
 
       if (!resolvedEmployeeId) return;
+
+      // Phase 4: resolve the employee's applicable regulatory framework
+      // (employee_jurisdiction_details → country → regulatory_framework_countries
+      // → regulatory_frameworks) before fetching the active consent
+      // template. No jurisdiction row → existing India/DPDPA default,
+      // identical to pre-Phase-4 behavior.
+      const frameworkResolution = await JurisdictionService
+        .resolveFrameworkForEmployee(resolvedEmployeeId)
+        .catch(() => ({ framework: null, source: "none" as const }));
+
+      setNoFrameworkConfigured(frameworkResolution.source === "none");
+
+      const activeTemplateData =
+        frameworkResolution.source === "none"
+          ? null
+          : await ConsentService.getActiveTemplate(frameworkResolution.framework!.id).catch(() => null);
 
       let consentedToActive = false;
       if (activeTemplateData) {
@@ -277,6 +298,15 @@ function EmployeePortal() {
 
             {/* Right: data fields + consent */}
             <div className="space-y-5 min-w-0">
+              {/* Phase 4: only ever shown if this employee's explicit jurisdiction
+                  resolves to no active regulatory framework — never shown for the
+                  default (no-jurisdiction) India/DPDPA case. */}
+              {noFrameworkConfigured && (
+                <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
+                  No regulatory framework configured for this jurisdiction.
+                </div>
+              )}
+
               {/* DPDPA banner: shown only once until dismissed or consented */}
               {!dpdpaInfoDismissed && <DpdpaInfo onDismiss={dismissDpdpa} />}
 

@@ -65,11 +65,9 @@ function DprAdminPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Data Principal Rights (DPR)</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage employee requests for data access, correction, erasure, and portability.
-        </p>
+      <div className="page-header pb-0">
+        <h1>Data Principal Rights (DPR)</h1>
+        <p>Manage employee requests for data access, correction, erasure, and portability.</p>
       </div>
 
       <Card>

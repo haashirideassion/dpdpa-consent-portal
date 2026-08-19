@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { EmployeeDataView } from "@/components/EmployeeDataView";
 import { EmployeeService } from "@/services/employee.service";
 import { DpdpaLegend } from "@/components/DpdpaLegend";
+import { JurisdictionSection } from "@/components/JurisdictionSection";
 import { ProfileSidebar } from "@/components/ProfileSidebar";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -32,7 +33,7 @@ export const Route = createFileRoute("/_authenticated/admin/employees/$id")({
 
 function EmployeeDetail() {
   const { id } = Route.useParams();
-  const { hasRole } = useAuth();
+  const { hasRole, user } = useAuth();
   const canManage = hasRole("admin") || hasRole("hr_manager");
   const [employee, setEmployee] = useState<Tables<"employees"> | null>(null);
   const [consentLogs, setConsentLogs] = useState<Tables<"consent_logs">[]>([]);
@@ -111,6 +112,8 @@ function EmployeeDetail() {
         {/* Right: fields + consent history */}
         <div className="space-y-5 min-w-0">
           <DpdpaLegend />
+
+          <JurisdictionSection employeeId={id} canManage={canManage} currentUserId={user?.id} />
 
           <EmployeeDataView
             key={id}

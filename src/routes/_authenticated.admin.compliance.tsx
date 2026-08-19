@@ -163,7 +163,7 @@ function CompliancePage() {
         </div>
         <div className="flex items-center gap-4">
           <div className="text-right">
-            <p className="text-3xl font-bold">{score}%</p>
+            <p className="stat-card-value">{score}%</p>
             <p className="text-xs text-muted-foreground">Compliance Score</p>
           </div>
           <Button variant="outline" size="sm" onClick={() => setDetailsOpen(true)}>
@@ -324,7 +324,7 @@ function CompliancePage() {
             <CardContent className="py-4">
               <div className="flex items-center justify-between mb-2">
                 <div>
-                  <p className="text-3xl font-bold">{score}%</p>
+                  <p className="stat-card-value">{score}%</p>
                   <p className="text-xs text-muted-foreground">Compliance Score</p>
                 </div>
                 <Badge variant="outline" className={riskLevel.badgeClassName}>

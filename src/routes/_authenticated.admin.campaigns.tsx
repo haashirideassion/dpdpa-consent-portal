@@ -113,11 +113,9 @@ function CampaignsAdminPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Consent Campaigns</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage rolling consent updates and trigger new invites.
-          </p>
+        <div className="page-header pb-0">
+          <h1>Consent Campaigns</h1>
+          <p>Manage rolling consent updates and trigger new invites.</p>
         </div>
         
         <Dialog open={open} onOpenChange={setOpen}>

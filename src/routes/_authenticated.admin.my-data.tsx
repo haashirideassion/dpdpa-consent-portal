@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { EmployeeService } from "@/services/employee.service";
 import { ConsentService, type ConsentTemplate } from "@/services/consent.service";
+import { JurisdictionService } from "@/services/jurisdiction.service";
 import { EmployeeDataView } from "@/components/EmployeeDataView";
 import { GranularConsentForm } from "@/components/GranularConsentForm";
 import { MyConsentsView } from "@/components/MyConsentsView";
@@ -35,6 +36,9 @@ function AdminMyData() {
   const [activeTemplate, setActiveTemplate] = useState<ConsentTemplate | null>(null);
   const [hasConsented, setHasConsented] = useState(false);
   const [toggles, setToggles] = useState<Record<string, boolean>>({});
+  // Phase 4: see _authenticated.index.tsx — only true if this admin's own
+  // explicit jurisdiction resolves to no active framework at all.
+  const [noFrameworkConfigured, setNoFrameworkConfigured] = useState(false);
 
   const handleToggle = useCallback((key: string, val: boolean) => {
     setToggles((prev) => ({ ...prev, [key]: val }));
@@ -61,7 +65,19 @@ function AdminMyData() {
         } else {
           setEmployee(record);
 
-          const activeTemplateData = await ConsentService.getActiveTemplate().catch(() => null);
+          // Phase 4: resolve this employee's applicable regulatory
+          // framework before fetching the active template — see
+          // _authenticated.index.tsx for the full explanation.
+          const frameworkResolution = await JurisdictionService
+            .resolveFrameworkForEmployee(record.id)
+            .catch(() => ({ framework: null, source: "none" as const }));
+
+          setNoFrameworkConfigured(frameworkResolution.source === "none");
+
+          const activeTemplateData =
+            frameworkResolution.source === "none"
+              ? null
+              : await ConsentService.getActiveTemplate(frameworkResolution.framework!.id).catch(() => null);
           let consentedToActive = false;
           if (activeTemplateData) {
             consentedToActive = await ConsentService.hasConsentedToVersion(
@@ -140,6 +156,12 @@ function AdminMyData() {
 
             {/* Right: profile fields + consent */}
             <div className="space-y-5 min-w-0">
+              {noFrameworkConfigured && (
+                <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
+                  No regulatory framework configured for this jurisdiction.
+                </div>
+              )}
+
               <DpdpaLegend />
 
               <EmployeeDataView

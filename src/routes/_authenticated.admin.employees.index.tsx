@@ -35,7 +35,12 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { MinimalisticMagniferBoldDuotone, EyeBoldDuotone, AddSquareBoldDuotone } from "solar-icon-set";
+import { MinimalisticMagniferBoldDuotone, EyeBoldDuotone, AddSquareBoldDuotone, GlobalBoldDuotone } from "solar-icon-set";
+import { CountryService, type Country } from "@/services/country.service";
+import { FrameworkService, type RegulatoryFramework } from "@/services/framework.service";
+import { JurisdictionService } from "@/services/jurisdiction.service";
+import { EmployeeService } from "@/services/employee.service";
+import { BulkImportEmployeesModal } from "@/components/BulkImportEmployeesModal";
 
 export const Route = createFileRoute("/_authenticated/admin/employees/")({
   head: () => ({
@@ -52,15 +57,24 @@ interface AddEmployeeForm {
   first_name: string;
   last_name: string;
   employee_code: string;
-  work_email: string;
-  phone_number: string;
-  personal_email: string;
-  alternate_phone: string;
-  gender: string;
   date_of_birth: string;
+  gender: string;
+  blood_group: string;
   marital_status: string;
   nationality: string;
-  blood_group: string;
+  // Employment — stored in employee_employment_details, same table/columns
+  // the CSV bulk importer and Employee Details view already use. Not part
+  // of create_employee_with_details(); persisted via EmployeeService right
+  // after the RPC succeeds (see handleSave).
+  department: string;
+  designation: string;
+  employment_type: string;
+  date_of_joining: string;
+  work_location: string;
+  work_email: string;
+  personal_email: string;
+  phone_number: string;
+  alternate_phone: string;
   current_address: string;
   permanent_address: string;
   city: string;
@@ -72,21 +86,32 @@ const EMPTY_FORM: AddEmployeeForm = {
   first_name: "",
   last_name: "",
   employee_code: "",
-  work_email: "",
-  phone_number: "",
-  personal_email: "",
-  alternate_phone: "",
-  gender: "",
   date_of_birth: "",
+  gender: "",
+  blood_group: "",
   marital_status: "",
   nationality: "",
-  blood_group: "",
+  department: "",
+  designation: "",
+  employment_type: "",
+  date_of_joining: "",
+  work_location: "",
+  work_email: "",
+  personal_email: "",
+  phone_number: "",
+  alternate_phone: "",
   current_address: "",
   permanent_address: "",
   city: "",
   state: "",
   pincode: "",
 };
+
+// Same enumeration EmployeeDataView.tsx / BulkImportEmployeesModal.tsx use
+// for Employment Type — kept in sync manually since it isn't exported as a
+// shared constant today. Department/Designation stay free text, matching
+// their existing behavior everywhere else in the app.
+const EMPLOYMENT_TYPES = ["Full-time", "Part-time", "Contract", "Intern", "Consultant"];
 
 // ── Validation ─────────────────────────────────────────────────────────────────
 function validateAddForm(form: AddEmployeeForm): Record<string, string> {
@@ -130,12 +155,52 @@ function AddEmployeeModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [sameAddress, setSameAddress] = useState(false);
+  const { user } = useAuth();
+
+  // ── Jurisdiction / Region (optional — HR/Admin controlled, Phase 3) ──────
+  // Not part of the atomic create_employee_with_details RPC/payload: this is
+  // a separate, best-effort insert into employee_jurisdiction_details after
+  // the employee record exists, exactly as scoped. Leaving country
+  // unselected is a valid choice — the employee simply has no jurisdiction
+  // row yet, identical to every existing employee today, and keeps seeing
+  // the default DPDPA experience.
+  const [countries, setCountries] = useState<Country[]>([]);
+  const [frameworks, setFrameworks] = useState<RegulatoryFramework[]>([]);
+  const [jurisdictionCountryId, setJurisdictionCountryId] = useState("");
+  const [jurisdictionFrameworkId, setJurisdictionFrameworkId] = useState("");
+  const [frameworksLoading, setFrameworksLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    CountryService.getActive()
+      .then(setCountries)
+      .catch((err) => console.error("AddEmployeeModal: failed to load countries", err));
+  }, [open]);
+
+  async function handleJurisdictionCountryChange(countryId: string) {
+    setJurisdictionCountryId(countryId);
+    setJurisdictionFrameworkId("");
+    setFrameworksLoading(true);
+    try {
+      const fw = await FrameworkService.getForCountry(countryId);
+      setFrameworks(fw);
+      if (fw.length === 1) setJurisdictionFrameworkId(fw[0].id);
+    } catch (err) {
+      console.error("AddEmployeeModal: failed to load frameworks for country", err);
+      toast.error("Failed to load regulatory frameworks for this country.");
+    } finally {
+      setFrameworksLoading(false);
+    }
+  }
 
   function handleClose() {
     if (saving) return;
     setForm(EMPTY_FORM);
     setErrors({});
     setSameAddress(false);
+    setJurisdictionCountryId("");
+    setJurisdictionFrameworkId("");
+    setFrameworks([]);
     onClose();
   }
 
@@ -250,11 +315,57 @@ function AddEmployeeModal({
         },
       });
 
-      const { error: createError } = await (supabase as any).rpc(
+      const { data: newEmployeeId, error: createError } = await (supabase as any).rpc(
         "create_employee_with_details",
         rpcPayload,
       );
       if (createError) throw createError;
+
+      // 4. Employment details (department, designation, employment type,
+      // date of joining, work location). Not part of the RPC's payload —
+      // routed through the existing EmployeeService translation layer
+      // (employee_employment_details), the same path the CSV bulk importer
+      // uses. Best-effort: the employee record already exists at this
+      // point, so a failure here is surfaced as a warning, not a failed
+      // employee creation.
+      const employmentUpdates: Record<string, string> = {};
+      if (form.department.trim()) employmentUpdates.department = form.department.trim();
+      if (form.designation.trim()) employmentUpdates.designation = form.designation.trim();
+      if (form.employment_type) employmentUpdates.employment_type = form.employment_type;
+      if (form.date_of_joining) employmentUpdates.date_of_joining = form.date_of_joining;
+      if (form.work_location.trim()) employmentUpdates.work_location = form.work_location.trim();
+      if (newEmployeeId && Object.keys(employmentUpdates).length > 0) {
+        try {
+          await EmployeeService.updateEmployee(newEmployeeId, employmentUpdates);
+        } catch (employmentErr) {
+          console.error("Add employee: employment details failed to save", employmentErr);
+          toast.warning(
+            "Employee created, but employment details failed to save. Edit them from the employee's detail page.",
+          );
+        }
+      }
+
+      // 5. Jurisdiction assignment (optional, best-effort — Phase 3).
+      // Does not touch create_employee_with_details or its transaction:
+      // employee creation has already fully succeeded by this point, so a
+      // failure here is surfaced as a warning, not a failed employee
+      // creation. Leaving the country unselected is a valid HR choice —
+      // it simply means this employee has no jurisdiction row yet, same
+      // as every existing employee today.
+      if (newEmployeeId && jurisdictionCountryId) {
+        try {
+          await JurisdictionService.assignForEmployee(
+            newEmployeeId,
+            { countryId: jurisdictionCountryId, regulatoryFrameworkId: jurisdictionFrameworkId || null },
+            user?.id,
+          );
+        } catch (jurisdictionErr) {
+          console.error("Add employee: jurisdiction assignment failed", jurisdictionErr);
+          toast.warning(
+            "Employee created, but jurisdiction assignment failed. Assign it from the employee's detail page.",
+          );
+        }
+      }
 
       toast.success(`Employee ${form.first_name} ${form.last_name} added successfully.`);
       handleClose();
@@ -399,6 +510,73 @@ function AddEmployeeModal({
             </div>
           </section>
 
+          {/* Employment Information */}
+          <section>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+              Employment Information
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+              {/* Department — free text, matches Employee Details */}
+              <div>
+                <Label className="text-xs mb-1 block">Department</Label>
+                <Input
+                  value={form.department}
+                  onChange={(e) => set("department", e.target.value)}
+                  placeholder="e.g. Engineering"
+                  className="h-8 text-sm"
+                />
+              </div>
+
+              {/* Designation — free text, matches Employee Details */}
+              <div>
+                <Label className="text-xs mb-1 block">Designation</Label>
+                <Input
+                  value={form.designation}
+                  onChange={(e) => set("designation", e.target.value)}
+                  placeholder="e.g. Software Engineer"
+                  className="h-8 text-sm"
+                />
+              </div>
+
+              {/* Employment Type */}
+              <div>
+                <Label className="text-xs mb-1 block">Employment Type</Label>
+                <Select value={form.employment_type} onValueChange={(v) => set("employment_type", v)}>
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EMPLOYMENT_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Date of Joining */}
+              <div>
+                <Label className="text-xs mb-1 block">Date of Joining</Label>
+                <Input
+                  type="date"
+                  value={form.date_of_joining}
+                  onChange={(e) => set("date_of_joining", e.target.value)}
+                  className="h-8 text-sm"
+                />
+              </div>
+
+              {/* Work Location — free text, matches Employee Details */}
+              <div>
+                <Label className="text-xs mb-1 block">Work Location</Label>
+                <Input
+                  value={form.work_location}
+                  onChange={(e) => set("work_location", e.target.value)}
+                  placeholder="e.g. Bengaluru"
+                  className="h-8 text-sm"
+                />
+              </div>
+            </div>
+          </section>
+
           {/* Contact Information */}
           <section>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">
@@ -534,6 +712,57 @@ function AddEmployeeModal({
               </div>
             </div>
           </section>
+
+          {/* Jurisdiction / Region — optional, HR/Admin-controlled (Phase 3) */}
+          <section>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1 flex items-center gap-1.5">
+              <GlobalBoldDuotone size={12} />
+              Jurisdiction / Region
+            </p>
+            <p className="text-[11px] text-muted-foreground mb-3">
+              Optional. Leave unset to keep the default — India / DPDPA applies automatically until HR assigns a jurisdiction.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+              <div>
+                <Label className="text-xs mb-1 block">Country</Label>
+                <Select value={jurisdictionCountryId} onValueChange={handleJurisdictionCountryChange}>
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="Default (India / DPDPA)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {countries.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs mb-1 block">Applicable Framework</Label>
+                {!jurisdictionCountryId ? (
+                  <div className="h-8 flex items-center text-xs text-muted-foreground">Select a country first</div>
+                ) : frameworksLoading ? (
+                  <div className="h-8 flex items-center text-xs text-muted-foreground">Loading…</div>
+                ) : frameworks.length === 0 ? (
+                  <div className="h-8 flex items-center text-xs text-warning">No regulatory framework configured for this jurisdiction.</div>
+                ) : frameworks.length === 1 ? (
+                  <div className="h-8 flex items-center rounded-md border border-border bg-muted/30 px-3 text-xs font-medium truncate">
+                    {frameworks[0].name}
+                  </div>
+                ) : (
+                  <Select value={jurisdictionFrameworkId} onValueChange={setJurisdictionFrameworkId}>
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Select framework" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {frameworks.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            </div>
+          </section>
         </div>
 
         <DialogFooter className="gap-2 pt-2 border-t mt-2">
@@ -575,12 +804,11 @@ function EmployeeList() {
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [uploading, setUploading] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("code");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
-  const { user } = useAuth();
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -697,58 +925,6 @@ function EmployeeList() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
-    setUploading(true);
-
-    try {
-      const text = await file.text();
-      const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
-      if (lines.length < 2) throw new Error("File must contain headers and at least one row");
-
-      const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/\s+/g, "_"));
-
-      const DATE_FIELDS = new Set(["date_of_birth", "date_of_joining"]);
-      const convertDate = (val: string): string => {
-        const match = val.match(/^(\d{2})-(\d{2})-(\d{4})$/);
-        return match ? `${match[3]}-${match[2]}-${match[1]}` : val;
-      };
-
-      const rowsToInsert = lines
-        .slice(1)
-        .map((line) => {
-          const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-          const row: Record<string, string> = {};
-          headers.forEach((h, i) => {
-            if (h) {
-              let val = values[i]?.trim() || "";
-              if (val.startsWith('"') && val.endsWith('"')) {
-                val = val.substring(1, val.length - 1);
-              }
-              if (DATE_FIELDS.has(h) && val) {
-                val = convertDate(val);
-              }
-              row[h] = val;
-            }
-          });
-          return row;
-        })
-        .filter((row) => Object.values(row).some((v) => v !== ""));
-
-      // Use the RPC to safely handle mapping to the normalized tables
-      const { error } = await supabase.rpc("bulk_import_employees", { payload: rowsToInsert });
-      if (error) throw error;
-
-      window.location.reload();
-    } catch (err: any) {
-      console.error("CSV Upload Error:", err);
-      alert(`Failed to upload CSV: ${err.message || "Unknown error"}`);
-    } finally {
-      setUploading(false);
-    }
-  };
-
   // Count employees who have consented OR submitted
   const consentedCount = employees.filter(
     (e) => e.consent_status === "consented" || e.consent_status === "submitted"
@@ -773,21 +949,13 @@ function EmployeeList() {
           <p>{employees.length} employees &bull; {consentedCount} consented</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Input
-            type="file"
-            accept=".csv"
-            id="csv-upload"
-            className="hidden"
-            onChange={handleFileUpload}
-          />
           <Button
             variant="outline"
             size="sm"
             className="h-8 gap-1.5 text-xs"
-            onClick={() => document.getElementById("csv-upload")?.click()}
-            disabled={uploading}
+            onClick={() => setImportModalOpen(true)}
           >
-            {uploading ? "Uploading…" : "Bulk Import (CSV)"}
+            Bulk Import (CSV)
           </Button>
           <Button
             size="sm"
@@ -805,6 +973,24 @@ function EmployeeList() {
         onClose={() => setAddModalOpen(false)}
         onCreated={() => {
           setLoading(true);
+          loadEmployees();
+        }}
+      />
+
+      <BulkImportEmployeesModal
+        open={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        onImported={() => {
+          // NOT setLoading(true) here — the root cause of the "modal
+          // unexpectedly reopens" bug: EmployeeList has an early-return
+          // loading skeleton (`if (loading) return ...`) that unmounts
+          // this whole subtree, including the still-open
+          // BulkImportEmployeesModal. When loadEmployees() finishes and
+          // flips loading back to false, the modal remounts fresh — with
+          // its `open` prop (importModalOpen) untouched at `true` — so it
+          // pops back open even after the admin has moved on. A silent
+          // background refresh (no skeleton) keeps the modal's own
+          // open/close state authoritative.
           loadEmployees();
         }}
       />

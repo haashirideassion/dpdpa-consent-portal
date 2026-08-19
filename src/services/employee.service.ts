@@ -152,6 +152,24 @@ function aliasToUi(obj: Record<string, any> | null | undefined): Record<string, 
 // ---------------------------------------------------------------------------
 export const EmployeeService = {
   /**
+   * Existing employee_code/email values, lower-cased, for duplicate
+   * pre-checks (e.g. the CSV bulk importer). One query instead of a
+   * per-row lookup — callers diff their candidate rows against these sets
+   * client-side.
+   */
+  async getExistingIdentifiers(): Promise<{ codes: Set<string>; emails: Set<string> }> {
+    const { data, error } = await supabase.from("employees").select("employee_code, email");
+    if (error) throw error;
+    const codes = new Set<string>();
+    const emails = new Set<string>();
+    for (const row of (data ?? []) as any[]) {
+      if (row.employee_code) codes.add(String(row.employee_code).toLowerCase());
+      if (row.email) emails.add(String(row.email).toLowerCase());
+    }
+    return { codes, emails };
+  },
+
+  /**
    * Fetches the full employee profile for a given auth user ID.
    * Joins all normalized detail tables and flattens into a single object,
    * aliasing DB column names back to the UI field keys used by EmployeeDataView.

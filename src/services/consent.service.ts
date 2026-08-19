@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { AuditService } from "@/services/audit.service";
+import { JurisdictionService } from "@/services/jurisdiction.service";
 
 // ── Purpose type classification ──────────────────────────────────────────────
 export type PurposeType = "mandatory" | "conditional" | "optional";
@@ -78,14 +79,29 @@ export const ConsentService = {
    * Fetches the active consent template, its purposes, and section groupings.
    * For v2.0+ templates that have sections, returns purposes grouped by section.
    * For legacy v1.0 templates (no sections), sections array will be empty.
+   *
+   * @param regulatoryFrameworkId - Phase 4 (Region / Regulatory Framework):
+   *   when provided, restricts the match to templates tagged with this
+   *   framework (consent_templates.regulatory_framework_id, set by
+   *   migration 20260819000001). Omitting it preserves the exact
+   *   pre-Phase-4 behavior (any active template) — existing callers that
+   *   have not yet been updated to resolve a framework keep working
+   *   unchanged. Today only one framework/template pair exists
+   *   (DPDPA_2023), so passing it changes nothing observable yet; it's
+   *   the hook multi-framework configuration will use later without any
+   *   further change to this method.
    */
-  async getActiveTemplate(): Promise<ConsentTemplate | null> {
-    const templateResult = await (supabase as any)
+  async getActiveTemplate(regulatoryFrameworkId?: string): Promise<ConsentTemplate | null> {
+    let templateQuery = (supabase as any)
       .from("consent_templates")
       .select("*")
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle();
+      .eq("is_active", true);
+
+    if (regulatoryFrameworkId) {
+      templateQuery = templateQuery.eq("regulatory_framework_id", regulatoryFrameworkId);
+    }
+
+    const templateResult = await templateQuery.limit(1).maybeSingle();
 
     if (templateResult.error || !templateResult.data) {
       console.error("Failed to fetch active template", templateResult.error);
@@ -254,13 +270,28 @@ export const ConsentService = {
   /**
    * Returns per-purpose consent statuses for an employee, grouped by section
    * for v2.0+ templates.
+   *
+   * Phase 4: resolves the employee's applicable regulatory framework first
+   * (employee_jurisdiction_details → country → regulatory_framework_countries
+   * → regulatory_frameworks, via JurisdictionService.resolveFrameworkForEmployee),
+   * then fetches the active template tagged to that framework. An employee
+   * with no jurisdiction row resolves to the existing India/DPDPA default —
+   * identical behavior to before this phase. `noFrameworkConfigured: true`
+   * is returned (never a silent DPDPA fallback) only if an employee's
+   * explicit jurisdiction resolves to no active framework at all.
    */
   async getConsentStatuses(employeeId: string): Promise<{
     template: ConsentTemplate | null;
     statuses: PurposeConsentStatus[];
     sectionedStatuses: Array<{ section: ConsentSection; statuses: PurposeConsentStatus[] }>;
+    noFrameworkConfigured?: boolean;
   }> {
-    const template = await ConsentService.getActiveTemplate();
+    const resolution = await JurisdictionService.resolveFrameworkForEmployee(employeeId);
+    if (resolution.source === "none") {
+      return { template: null, statuses: [], sectionedStatuses: [], noFrameworkConfigured: true };
+    }
+
+    const template = await ConsentService.getActiveTemplate(resolution.framework!.id);
     if (!template) return { template: null, statuses: [], sectionedStatuses: [] };
 
     // Fetch all grant records for this employee (immutable history)

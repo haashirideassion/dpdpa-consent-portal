@@ -515,11 +515,9 @@ function AdminDashboard() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Compliance Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Live overview of DPDPA compliance across the organization.
-          </p>
+        <div className="page-header pb-0">
+          <h1>Compliance Dashboard</h1>
+          <p>Live overview of DPDPA compliance across the organization.</p>
         </div>
         <Button
           variant="outline"
@@ -608,7 +606,7 @@ function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="flex items-baseline gap-2 mb-3">
-              <span className="text-4xl font-bold">{data.compliancePct}%</span>
+              <span className="stat-card-value">{data.compliancePct}%</span>
               <StatusBadge
                 tone={
                   data.compliancePct >= 80 ? "success" : data.compliancePct >= 50 ? "warning" : "danger"
@@ -637,7 +635,7 @@ function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-bold">{data.openBreaches}</span>
+              <span className="stat-card-value">{data.openBreaches}</span>
               {data.openBreaches > 0 && (
                 <StatusBadge tone="danger">Requires Action</StatusBadge>
               )}
