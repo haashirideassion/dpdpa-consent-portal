@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { AuditService } from "@/services/audit.service";
 const db = supabase as any;
 
 export interface DataInventoryItem {
@@ -31,6 +32,14 @@ export const InventoryService = {
 
   async create(item: Omit<DataInventoryItem, "id" | "created_at" | "updated_at">): Promise<void> {
     const { error } = await db.from("data_inventory").insert(item);
+    await AuditService.log({
+      action: "compliance.updated",
+      entityType: "Data_inventory_item",
+      metadata: { change: "created", activity_name: item.activity_name },
+      source: "web_portal",
+      success: !error,
+      failureReason: error ? (error.message ?? "Data inventory item creation failed") : undefined,
+    });
     if (error) throw error;
   },
 
@@ -39,6 +48,15 @@ export const InventoryService = {
       .from("data_inventory")
       .update(patch)
       .eq("id", id);
+    await AuditService.log({
+      action: "compliance.updated",
+      entityType: "Data_inventory_item",
+      entityId: id,
+      metadata: { fields: Object.keys(patch), change: "updated" },
+      source: "web_portal",
+      success: !error,
+      failureReason: error ? (error.message ?? "Data inventory item update failed") : undefined,
+    });
     if (error) throw error;
   },
 
@@ -47,6 +65,15 @@ export const InventoryService = {
       .from("data_inventory")
       .update({ reviewed_at: new Date().toISOString() })
       .eq("id", id);
+    await AuditService.log({
+      action: "compliance.updated",
+      entityType: "Data_inventory_item",
+      entityId: id,
+      metadata: { change: "reviewed" },
+      source: "web_portal",
+      success: !error,
+      failureReason: error ? (error.message ?? "Marking data inventory item reviewed failed") : undefined,
+    });
     if (error) throw error;
   },
 

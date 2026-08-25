@@ -24,13 +24,34 @@ import { DependentsSection } from "./sections/DependentsSection";
 import { computeSectionConsentStatus, UI_SECTION_CONSENT_MAP } from "@/lib/section-consent";
 import type { SectionConsentStatus } from "@/lib/section-consent";
 import { SectionConsentArea } from "./SectionConsentArea";
+import { isDirectEditField } from "@/lib/employeeFieldPolicy";
 
 type Employee = any;
 
 interface EmployeeDataViewProps {
   employee: Employee;
   onEmployeeUpdated: (updated?: Employee) => void;
+  /**
+   * Whether the employee has consented to the CURRENTLY ACTIVE template
+   * version specifically (see ConsentService.hasConsentedToVersion). Used
+   * only to decide whether to show the pre-consent purpose toggles vs the
+   * post-consent purpose-status view for the *current* template — i.e.
+   * whether the employee still needs to complete/re-affirm consent for
+   * whatever is active right now.
+   */
   hasConsented?: boolean;
+  /**
+   * Whether the employee has EVER completed the consent flow, for any
+   * template version (see ConsentService.hasAnyConsent). This — not
+   * `hasConsented` — is what gates the post-consent data-editing UI: the
+   * "Locked" pill, direct-edit fields, and the correction-request "Update"
+   * pill. A later template-version activation must not retroactively
+   * re-lock an employee out of editing their own data or filing
+   * corrections just because they haven't re-consented to the new version
+   * yet. Defaults to `hasConsented` when omitted, so existing callers that
+   * haven't been updated keep their current (version-specific) behavior.
+   */
+  hasAnyConsent?: boolean;
   /**
    * When true the viewer has admin privileges — sensitive fields are shown
    * unmasked. Does NOT imply read-only mode; use `adminReview` for that.
@@ -61,6 +82,7 @@ export function EmployeeDataView({
   employee,
   onEmployeeUpdated: _onEmployeeUpdated,
   hasConsented = false,
+  hasAnyConsent = hasConsented,
   isAdmin = false,
   adminReview = false,
   readOnly = false,
@@ -86,7 +108,7 @@ export function EmployeeDataView({
 
   useEffect(() => {
     refreshStatuses();
-  }, [refreshStatuses, hasConsented]); // re-fetch when consent is submitted
+  }, [refreshStatuses, hasConsented, hasAnyConsent]); // re-fetch when consent is submitted
 
   /** Returns the aggregate status for a UI section key. */
   function sectionStatus(key: string): SectionConsentStatus {
@@ -298,22 +320,73 @@ export function EmployeeDataView({
       Object.entries(updates).filter(([key]) => !UNEDITABLE_SELF_FIELDS.has(key))
     );
     await EmployeeService.updateEmployee(e.id, safeUpdates);
-    await _onEmployeeUpdated();
+    // Pass the merged employee straight back to the parent instead of
+    // calling _onEmployeeUpdated() with no argument — some callers (e.g.
+    // the employee-facing route) only call setEmployee when an `updated`
+    // value is actually given, so an argument-less call silently drops the
+    // write from local state and the UI keeps showing the stale value
+    // until a full page reload re-fetches it.
+    await _onEmployeeUpdated({ ...e, ...safeUpdates });
   }
 
   /**
-   * Flat sections — read-only for everyone except an admin viewing their own
-   * profile (see canSelfEditFlat above). Employees never get a direct-save
-   * button here; allowCorrection stays false since the admin path saves
-   * directly and doesn't need the per-field correction-request pill.
+   * Direct-edit fields (low-risk, employee-maintained — phone, personal
+   * email, current/permanent address, emergency contact) are self-editable
+   * by ANY owner viewing their own profile, not just admins — this is the
+   * actual fix for MoM #2: previously only an admin/HR/DPO editing their
+   * OWN profile got any direct-save affordance at all, so plain employees
+   * had to file a correction request even for these low-risk fields.
+   * `isDirectEditField` is a UI convenience; the server independently
+   * enforces the same classification (see
+   * supabase/migrations/20260825000006_field_level_modification_approval.sql),
+   * so a stale/bypassed client still can't write an approval-required field
+   * through this path.
+   */
+  const directFieldSaveEnabled = isOwner && !readOnly && !adminReview;
+
+  async function handleDirectFieldSave(key: string, value: string) {
+    if (!isDirectEditField(key)) {
+      throw new Error(`${key} requires approval and cannot be updated directly.`);
+    }
+    await EmployeeService.updateEmployee(e.id, { [key]: value });
+    // Same fix as handleFlatSave above: hand the parent the merged employee
+    // (existing fields + this one changed key) rather than calling
+    // _onEmployeeUpdated() with nothing. DataSection's `fields` array is
+    // rebuilt from `employee` on every render, so updating this single
+    // field in parent state is enough for the new value to show up
+    // immediately — no refetch, no extra state, no page reload.
+    await _onEmployeeUpdated({ ...e, [key]: value });
+  }
+
+  /**
+   * Flat sections — DataSection resolves each field independently into one
+   * of three states (see `@/lib/employeeFieldPolicy`): direct-edit fields
+   * (see above) get their own inline per-field save regardless of role,
+   * once the viewer owns the profile; the employee's own protected fields
+   * (DOB, gender, financial, govt ID, health, etc.) get a "Request
+   * correction" pill; organization-controlled fields (department,
+   * designation, employee code, work email, etc.) get neither — just a
+   * "Managed by HR/Admin" / "System managed" read-only indicator. Only an
+   * admin/HR/DPO viewing their OWN profile (see canSelfEditFlat above) can
+   * still bulk-save an entire section directly — in that one case
+   * allowCorrection is suppressed since the admin path saves directly and
+   * doesn't need the per-field correction-request pill. Bug fix: this used
+   * to be hardcoded `false` unconditionally, which also silently disabled
+   * the correction-request pill for ordinary employees viewing their OWN
+   * protected fields — the only UI path to CorrectionRequestModal for
+   * those fields. Tying it to canSelfEditFlat restores that pill for
+   * everyone except the admin-bulk-edit case it was actually meant for.
    */
   const readOnlySectionProps = {
-    hasConsented,
+    // Version-independent: unlocks Locked/direct-edit/Update once the
+    // employee has EVER completed consent — see hasAnyConsent prop doc.
+    hasConsented: hasAnyConsent,
     isAdmin,
     isOwner,
     employeeId: e.id as string,
     onSave: canSelfEditFlat ? handleFlatSave : undefined,
-    allowCorrection: false,
+    onDirectFieldSave: directFieldSaveEnabled ? handleDirectFieldSave : undefined,
+    allowCorrection: !canSelfEditFlat,
   };
 
   /**
@@ -326,7 +399,7 @@ export function EmployeeDataView({
   const editableMultiProps = {
     employeeId: e.id as string,
     isAdmin,
-    hasConsented,
+    hasConsented: hasAnyConsent,
     viewOnly: readOnly,
   };
 
@@ -340,7 +413,7 @@ export function EmployeeDataView({
   const lockedMultiProps = {
     employeeId: e.id as string,
     isAdmin,
-    hasConsented,
+    hasConsented: hasAnyConsent,
     allowUpdate: true,
     viewOnly: readOnly,
   };
@@ -354,7 +427,7 @@ export function EmployeeDataView({
   const additionalNotesProps = {
     employeeId: e.id as string,
     isAdmin,
-    hasConsented,
+    hasConsented: hasAnyConsent,
     allowUpdate: false,
     viewOnly: readOnly || !isAdmin,
   };

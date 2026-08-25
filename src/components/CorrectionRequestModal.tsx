@@ -89,7 +89,7 @@ export function CorrectionRequestModal({
         attachmentUrl,
       });
 
-      toast.success("Update request submitted! HR will review it shortly.");
+      toast.success("Correction request submitted! HR will review it shortly.");
       form.reset({ newValue: "" });
       setFile(null);
       onClose();
@@ -113,9 +113,9 @@ export function CorrectionRequestModal({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Update Data</DialogTitle>
+          <DialogTitle>Request Correction</DialogTitle>
           <DialogDescription>
-            Your data is locked after consent. Submit an update request and HR will review it.
+            This field requires approval to change. Submit a correction request and HR/Admin will review it.
           </DialogDescription>
         </DialogHeader>
 
@@ -216,7 +216,7 @@ export function CorrectionRequestModal({
             Cancel
           </Button>
           <Button size="sm" onClick={form.handleSubmit(onSubmit)} disabled={submitting}>
-            {submitting ? "Submitting…" : "Submit Update"}
+            {submitting ? "Submitting…" : "Submit Request"}
           </Button>
         </DialogFooter>
       </DialogContent>

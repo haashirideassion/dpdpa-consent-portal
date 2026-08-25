@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { AuditService } from "@/services/audit.service";
 const db = supabase as any;
 
 export type RiskStatus = "open" | "mitigated" | "accepted";
@@ -31,6 +32,14 @@ export const RiskService = {
 
   async create(input: Omit<RiskAssessment, "id" | "risk_score" | "created_at" | "updated_at">): Promise<void> {
     const { error } = await db.from("risk_assessments").insert(input);
+    await AuditService.log({
+      action: "compliance.updated",
+      entityType: "Risk_assessment",
+      metadata: { change: "created", status: input.status },
+      source: "web_portal",
+      success: !error,
+      failureReason: error ? (error.message ?? "Risk assessment creation failed") : undefined,
+    });
     if (error) throw error;
   },
 
@@ -39,6 +48,16 @@ export const RiskService = {
       .from("risk_assessments")
       .update(patch)
       .eq("id", id);
+    // Field names only — description/mitigation are free text.
+    await AuditService.log({
+      action: "compliance.updated",
+      entityType: "Risk_assessment",
+      entityId: id,
+      metadata: { fields: Object.keys(patch), change: "updated" },
+      source: "web_portal",
+      success: !error,
+      failureReason: error ? (error.message ?? "Risk assessment update failed") : undefined,
+    });
     if (error) throw error;
   },
 

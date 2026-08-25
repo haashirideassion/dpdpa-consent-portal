@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { config } from "@/lib/config";
+import { AuditService } from "@/services/audit.service";
 
 export const VideoService = {
   /**
@@ -45,7 +46,6 @@ export const VideoService = {
     }
     
     const isDone = !!data?.completed;
-    console.log(`[VideoService] Completion check for ${employeeId}:`, isDone);
     return isDone;
   },
 
@@ -145,7 +145,26 @@ export const VideoService = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      await AuditService.log({
+        action: "video.created",
+        entityType: "Video_version",
+        metadata: { language: payload.language, version: payload.version, change: "failed" },
+        source: "web_portal",
+        success: false,
+        failureReason: error.message ?? "Video draft creation failed",
+      });
+      throw error;
+    }
+
+    await AuditService.log({
+      action: "video.created",
+      entityType: "Video_version",
+      entityId: (data as any)?.id,
+      metadata: { language: payload.language, version: payload.version },
+      source: "web_portal",
+      success: true,
+    });
     return data;
   },
 
@@ -168,10 +187,30 @@ export const VideoService = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      await AuditService.log({
+        action: "video.published",
+        entityType: "Video_version",
+        entityId: videoId,
+        metadata: { language },
+        source: "web_portal",
+        success: false,
+        failureReason: error.message ?? "Video publish failed",
+      });
+      throw error;
+    }
+
+    await AuditService.log({
+      action: "video.published",
+      entityType: "Video_version",
+      entityId: videoId,
+      metadata: { language, version: (data as any)?.version },
+      source: "web_portal",
+      success: true,
+    });
     return data;
   },
-  
+
   /**
    * Admin API: Deactivates a video
    */
@@ -183,7 +222,26 @@ export const VideoService = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      await AuditService.log({
+        action: "video.deactivated",
+        entityType: "Video_version",
+        entityId: videoId,
+        source: "web_portal",
+        success: false,
+        failureReason: error.message ?? "Video deactivation failed",
+      });
+      throw error;
+    }
+
+    await AuditService.log({
+      action: "video.deactivated",
+      entityType: "Video_version",
+      entityId: videoId,
+      metadata: { version: (data as any)?.version },
+      source: "web_portal",
+      success: true,
+    });
     return data;
   },
 

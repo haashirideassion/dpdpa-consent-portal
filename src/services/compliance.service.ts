@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { AuditService } from "@/services/audit.service";
 const db = supabase as any;
 
 export type ComplianceStatus = "not_started" | "in_progress" | "compliant" | "at_risk";
@@ -36,11 +37,30 @@ export const ComplianceService = {
       .from("compliance_items")
       .update(patch)
       .eq("id", id);
+    // Field names only — description/evidence_url can carry free text not
+    // vetted for sensitivity, so values are never logged here.
+    await AuditService.log({
+      action: "compliance.updated",
+      entityType: "Compliance_item",
+      entityId: id,
+      metadata: { fields: Object.keys(patch), change: "updated" },
+      source: "web_portal",
+      success: !error,
+      failureReason: error ? (error.message ?? "Compliance item update failed") : undefined,
+    });
     if (error) throw error;
   },
 
   async create(item: Omit<ComplianceItem, "id" | "created_at" | "updated_at">): Promise<void> {
     const { error } = await db.from("compliance_items").insert(item);
+    await AuditService.log({
+      action: "compliance.updated",
+      entityType: "Compliance_item",
+      metadata: { category: item.category, change: "created" },
+      source: "web_portal",
+      success: !error,
+      failureReason: error ? (error.message ?? "Compliance item creation failed") : undefined,
+    });
     if (error) throw error;
   },
 

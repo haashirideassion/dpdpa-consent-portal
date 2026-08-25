@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { FrameworkService, type RegulatoryFramework } from "@/services/framework.service";
+import { AuditService } from "@/services/audit.service";
+import type { AuditSource } from "@/lib/auditActions";
 const db = supabase as any;
 
 /**
@@ -73,7 +75,12 @@ export const JurisdictionService = {
     employeeId: string,
     input: { countryId?: string | null; regulatoryFrameworkId?: string | null; notes?: string | null },
     assignedByUserId?: string,
+    source: AuditSource = "web_portal",
   ): Promise<void> {
+    // Best-effort — only needed for the FAILURE log's metadata below; the
+    // success case no longer needs this (see comment on the trigger call).
+    const previous = await this.getForEmployee(employeeId).catch(() => null);
+
     const { error } = await db.from("employee_jurisdiction_details").upsert(
       {
         employee_id: employeeId,
@@ -86,7 +93,30 @@ export const JurisdictionService = {
       },
       { onConflict: "employee_id" },
     );
-    if (error) throw error;
+    if (error) {
+      await AuditService.log({
+        action: "jurisdiction.assigned",
+        entityType: "Employee",
+        entityId: employeeId,
+        metadata: {
+          change: previous ? "updated" : "assigned",
+          new_country_id: input.countryId ?? null,
+          new_regulatory_framework_id: input.regulatoryFrameworkId ?? null,
+        },
+        source,
+        success: false,
+        failureReason: error.message ?? "Jurisdiction assignment failed",
+      });
+      throw error;
+    }
+
+    // Phase 4: the SUCCESS event is now written server-side by a trigger on
+    // employee_jurisdiction_details itself (trg_audit_jurisdiction_assignment,
+    // see 20260821000013_audit_log_transactional_integrity.sql), in the same
+    // transaction as this upsert — logging it again here would be a
+    // duplicate, and would be rejected by the new audit_logs integrity
+    // trigger anyway (this client call has no way to set the trusted-write
+    // flag the DB trigger sets internally).
   },
 
   /**

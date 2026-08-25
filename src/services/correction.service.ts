@@ -1,4 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
+import { AuditService } from "@/services/audit.service";
+
+/** Best-effort audit context looked up before approve/reject — see both methods below. */
+interface CorrectionAuditContext {
+  employee_id?: string;
+  field_name?: string;
+  table_name?: string;
+}
 
 // Maps UI field keys to their actual DB table + column.
 // Must stay in sync with employee.service.ts FIELD_MAP.
@@ -116,7 +124,29 @@ export const CorrectionService = {
       attachment_url: params.attachmentUrl ?? null,
     });
 
-    if (error) throw error;
+    if (error) {
+      await AuditService.log({
+        action: "correction.submitted",
+        entityType: "Correction",
+        entityId: params.employeeId,
+        // Field NAME only — old_value/new_value can be financial, government
+        // ID, address, or health data, which must never appear in audit_logs.
+        metadata: { field: dbColumn, table: tableName, change: "failed" },
+        source: "web_portal",
+        success: false,
+        failureReason: error.message ?? "Correction submission failed",
+      });
+      throw error;
+    }
+
+    await AuditService.log({
+      action: "correction.submitted",
+      entityType: "Correction",
+      entityId: params.employeeId,
+      metadata: { field: dbColumn, table: tableName },
+      source: "web_portal",
+      success: true,
+    });
   },
 
   /**
@@ -153,10 +183,46 @@ export const CorrectionService = {
    * Admin: approve a correction. Calls the backend RPC.
    */
   async approve(requestId: string, comments?: string): Promise<void> {
-    const { data, error } = await supabase.rpc("approve_correction", {
+    const { data, error } = (await supabase.rpc("approve_correction", {
       p_request_id: requestId,
       p_comments:   comments ?? null,
-    });
+    })) as { data: { success: boolean; error?: string } | null; error: { message?: string } | null };
+
+    const rpcFailed = !!error || (data != null && !data.success);
+
+    // Phase 4: on SUCCESS, approve_correction()'s own status-setting UPDATE
+    // now triggers a transactional server-side audit_logs insert
+    // (trg_audit_correction_review) — logging it again here would be a
+    // duplicate, and would be rejected by the new audit_logs integrity
+    // trigger anyway. Only the FAILURE case still needs a client-side log,
+    // since a failed/unauthorized attempt never reaches that trigger.
+    if (rpcFailed) {
+      // Best-effort context — field/table names only, never old/new values
+      // (financial/govt-ID/health/address data). A failed lookup just means
+      // a thinner audit row, never a blocked failure log.
+      let context: CorrectionAuditContext | null = null;
+      try {
+        const { data: contextData } = await (supabase as any)
+          .from("correction_requests")
+          .select("employee_id, field_name, table_name")
+          .eq("id", requestId)
+          .maybeSingle();
+        context = contextData as CorrectionAuditContext | null;
+      } catch {
+        // Best-effort only.
+      }
+
+      await AuditService.log({
+        action: "correction.approved",
+        entityType: "Correction",
+        entityId: context?.employee_id ?? requestId,
+        metadata: { request_id: requestId, field: context?.field_name, table: context?.table_name },
+        source: "web_portal",
+        success: false,
+        failureReason: error?.message ?? data?.error ?? "Approval failed",
+      });
+    }
+
     if (error) throw error;
     if (data && !data.success) throw new Error(data.error ?? "Approval failed");
   },
@@ -165,10 +231,41 @@ export const CorrectionService = {
    * Admin: reject a correction.
    */
   async reject(requestId: string, comments: string): Promise<void> {
-    const { data, error } = await supabase.rpc("reject_correction", {
+    const { data, error } = (await supabase.rpc("reject_correction", {
       p_request_id: requestId,
       p_comments:   comments,
-    });
+    })) as { data: { success: boolean; error?: string } | null; error: { message?: string } | null };
+
+    const rpcFailed = !!error || (data != null && !data.success);
+
+    // Phase 4: on SUCCESS, reject_correction()'s own status-setting UPDATE
+    // now triggers a transactional server-side audit_logs insert
+    // (trg_audit_correction_review) — see approve() above for the same
+    // reasoning. Only the FAILURE case still needs a client-side log.
+    if (rpcFailed) {
+      let context: CorrectionAuditContext | null = null;
+      try {
+        const { data: contextData } = await (supabase as any)
+          .from("correction_requests")
+          .select("employee_id, field_name, table_name")
+          .eq("id", requestId)
+          .maybeSingle();
+        context = contextData as CorrectionAuditContext | null;
+      } catch {
+        // Best-effort only.
+      }
+
+      await AuditService.log({
+        action: "correction.rejected",
+        entityType: "Correction",
+        entityId: context?.employee_id ?? requestId,
+        metadata: { request_id: requestId, field: context?.field_name, table: context?.table_name },
+        source: "web_portal",
+        success: false,
+        failureReason: error?.message ?? data?.error ?? "Rejection failed",
+      });
+    }
+
     if (error) throw error;
     if (data && !data.success) throw new Error(data.error ?? "Rejection failed");
   },
@@ -251,6 +348,19 @@ export const CorrectionService = {
       attachment_url: params.attachmentUrl ?? null,
     });
 
+    // Section values are never logged (they can hold anything from the
+    // FIELD_MAP, including financial/govt-ID/health data) — only the
+    // section identity and whether this was an add or edit request.
+    await AuditService.log({
+      action: "correction.submitted",
+      entityType: "Correction",
+      entityId: params.employeeId,
+      metadata: { section: params.sectionKey, change: params.type, record_id: params.recordId ?? null },
+      source: "web_portal",
+      success: !error,
+      failureReason: error ? (error.message ?? "Section correction submission failed") : undefined,
+    });
+
     if (error) throw error;
   },
 
@@ -282,6 +392,16 @@ export const CorrectionService = {
       }),
       new_value:   null,
       status:      "pending",
+    });
+
+    await AuditService.log({
+      action: "correction.submitted",
+      entityType: "Correction",
+      entityId: params.employeeId,
+      metadata: { section: params.sectionKey, change: "delete", record_id: params.recordId },
+      source: "web_portal",
+      success: !error,
+      failureReason: error ? (error.message ?? "Section delete request submission failed") : undefined,
     });
 
     if (error) throw error;

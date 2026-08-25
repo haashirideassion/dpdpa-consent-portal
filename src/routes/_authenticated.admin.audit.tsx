@@ -8,11 +8,23 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { ShieldCheckBoldDuotone, FileTextBoldDuotone, DownloadMinimalisticBoldDuotone } from "solar-icon-set";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import {
+  ShieldCheckBoldDuotone,
+  FileTextBoldDuotone,
+  DownloadMinimalisticBoldDuotone,
+  AltArrowRightBoldDuotone,
+} from "solar-icon-set";
 import { format, startOfDay, endOfDay } from "date-fns";
-import { maskValue, isDpdpaField } from "@/lib/dpdpa";
 import { downloadCsv } from "@/lib/csv";
 import { toast } from "sonner";
+import { AUDIT_ACTIONS } from "@/lib/auditActions";
+import {
+  formatAuditActionLabel,
+  summarizeAuditEvent,
+  getAuditDetailRows,
+  type AuditLogRow,
+} from "@/lib/auditPresentation";
 
 export const Route = createFileRoute("/_authenticated/admin/audit")({
   head: () => ({
@@ -21,18 +33,27 @@ export const Route = createFileRoute("/_authenticated/admin/audit")({
   component: AuditAdminPage,
 });
 
-interface AuditLog {
-  id: string;
-  action: string;
-  entity_type: string;
-  ip_address: string;
-  created_at: string;
-  user_email: string | null;
-  metadata?: any;
-}
+type AuditLog = AuditLogRow;
 
-const ADMIN_ACTIONS = ['admin.override', 'invite.sent', 'dpr.created', 'campaign.created', 'campaign.activated'];
-const USER_ACTIONS = ['USER_LOGIN', 'login', 'logout', 'consent.granted', 'consent.withdrawn', 'video.completed', 'education.completed', 'data.edited'];
+const ALL_VALUE = "__all__";
+
+// Action filter options — sourced directly from the canonical AUDIT_ACTIONS
+// allowlist (src/lib/auditActions.ts), sorted by their display label so the
+// dropdown reads alphabetically rather than in declaration order. No second,
+// manually-maintained action list.
+const ACTION_OPTIONS = [...AUDIT_ACTIONS]
+  .map((action) => ({ value: action, label: formatAuditActionLabel(action) }))
+  .sort((a, b) => a.label.localeCompare(b.label));
+
+// Actor filter options — the application's actual role model (see
+// src/hooks/use-auth.tsx AppRole). Not invented: every value here is a real
+// role the app assigns.
+const ACTOR_OPTIONS: { value: string; label: string }[] = [
+  { value: "admin", label: "Admin" },
+  { value: "hr_manager", label: "HR Manager" },
+  { value: "dpo", label: "DPO" },
+  { value: "employee", label: "Employee" },
+];
 
 function AuditAdminPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -44,39 +65,41 @@ function AuditAdminPage() {
   const [page, setPage] = useState(0);
   const pageSize = 10;
 
-  // Filters
-  const [actionFilter, setActionFilter] = useState("All Actions");
+  // Filters — Action ("what happened?") and Actor ("who performed it?") are
+  // now two independent concepts instead of one ambiguous "Admin/User
+  // Actions" dropdown that mixed both.
+  const [actionFilter, setActionFilter] = useState(ALL_VALUE);
+  const [actorFilter, setActorFilter] = useState(ALL_VALUE);
   const [searchEmail, setSearchEmail] = useState("");
   const [dateFilter, setDateFilter] = useState("");
 
-  const SENSITIVE_FIELDS = [
-    "aadhaar_number",
-    "passport_number",
-    "pan_number",
-    "bank_account_number",
-    "voter_id",
-    "driving_license",
-    "uan_number",
-  ];
+  // Details drawer
+  const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
-  const shouldMask = (field: string) => SENSITIVE_FIELDS.includes(field) || field.includes("id");
+  function openDetails(log: AuditLog) {
+    setSelectedLog(log);
+    setDetailsOpen(true);
+  }
 
-  // Shared by the paginated table fetch and the CSV export — applies the
-  // three active filters identically so export always matches what's on screen.
+  // Shared by the paginated table fetch and the CSV export — applies every
+  // active filter identically so export always matches what's on screen.
   const buildFilteredQuery = useCallback(
     (countMode: "exact" | "planned" = "exact") => {
       let query = supabase.from("audit_logs").select("*", { count: countMode });
 
-      if (actionFilter === "Admin Actions") {
-        query = query.in("action", ADMIN_ACTIONS);
-      } else if (actionFilter === "User Actions") {
-        query = query.in("action", USER_ACTIONS);
+      if (actionFilter !== ALL_VALUE) {
+        // Cast to `any` — audit_logs isn't in the generated (stale) Database
+        // type, so its .eq() overload only resolves to the "id" column; same
+        // pre-existing gap documented elsewhere in this file/codebase.
+        query = (query as any).eq("action", actionFilter);
       }
-
+      if (actorFilter !== ALL_VALUE) {
+        query = (query as any).eq("actor_role", actorFilter);
+      }
       if (searchEmail) {
         query = query.ilike("user_email", `%${searchEmail}%`);
       }
-
       if (dateFilter) {
         const date = new Date(dateFilter);
         if (!isNaN(date.getTime())) {
@@ -87,7 +110,7 @@ function AuditAdminPage() {
 
       return query;
     },
-    [actionFilter, searchEmail, dateFilter]
+    [actionFilter, actorFilter, searchEmail, dateFilter]
   );
 
   const fetchLogs = useCallback(async () => {
@@ -117,101 +140,13 @@ function AuditAdminPage() {
   // Reset page when filters change
   useEffect(() => {
     setPage(0);
-  }, [actionFilter, searchEmail, dateFilter]);
-
-  const formatAction = (action: string) => {
-    switch (action) {
-      case "admin.override":
-        return "Admin updated employee";
-      case "USER_LOGIN":
-      case "login":
-        return "User Login";
-      case "consent.granted":
-        return "Consent submitted";
-      case "data.edited":
-        return "Data edited";
-      case "invite.sent":
-        return "Invite sent";
-      case "campaign.created":
-        return "Campaign created";
-      case "campaign.activated":
-        return "Campaign activated";
-      default:
-        return action;
-    }
-  };
+  }, [actionFilter, actorFilter, searchEmail, dateFilter]);
 
   const getBadgeTone = (action: string): StatusTone => {
-    if (ADMIN_ACTIONS.includes(action)) return "warning";
-    if (action === "USER_LOGIN" || action === "login" || action === "logout") return "info";
-    if (action.includes("consent")) return "success";
+    if (action === "USER_LOGIN" || action === "logout") return "info";
+    if (action.startsWith("consent.")) return "success";
+    if (action.includes("rejected") || action === "bootstrap_admin") return "warning";
     return "neutral";
-  };
-
-  const renderMetadata = (log: AuditLog) => {
-    if (log.metadata?.field) {
-      return (
-        <div className="text-xs">
-          <span className="font-medium text-foreground capitalize mr-1">{log.metadata.field.replace(/_/g, " ")}:</span>
-          <span className="text-destructive line-through mr-1">
-            {shouldMask(log.metadata.field) && log.metadata.old_value
-              ? maskValue(log.metadata.old_value, 4)
-              : (log.metadata.old_value || "null")}
-          </span>
-          <span className="text-muted-foreground">→</span>
-          <span className="text-success font-semibold ml-1">
-            {shouldMask(log.metadata.field) && log.metadata.new_value
-              ? maskValue(log.metadata.new_value, 4)
-              : (log.metadata.new_value || "null")}
-          </span>
-        </div>
-      );
-    }
-
-    if (log.action === "USER_LOGIN" || log.action === "login") {
-      const provider = typeof log.metadata?.provider === "string" ? log.metadata.provider : "azure";
-      return (
-        <span className="text-xs text-muted-foreground">
-          Provider: <span className="font-medium text-foreground">{provider}</span>
-        </span>
-      );
-    }
-
-    if (log.metadata) {
-      return (
-        <span className="text-xs text-muted-foreground truncate block max-w-[280px]" title={JSON.stringify(log.metadata)}>
-          {JSON.stringify(log.metadata)}
-        </span>
-      );
-    }
-
-    return <span className="text-muted-foreground">—</span>;
-  };
-
-  // Plain-text equivalent of renderMetadata()'s three branches, for the CSV export.
-  // Reuses the same shouldMask/maskValue masking so the export can never show an
-  // unmasked value the table itself would have hidden.
-  const getChangeSummary = (log: AuditLog): string => {
-    if (log.metadata?.field) {
-      const oldVal = shouldMask(log.metadata.field) && log.metadata.old_value
-        ? maskValue(log.metadata.old_value, 4)
-        : (log.metadata.old_value || "null");
-      const newVal = shouldMask(log.metadata.field) && log.metadata.new_value
-        ? maskValue(log.metadata.new_value, 4)
-        : (log.metadata.new_value || "null");
-      return `${log.metadata.field.replace(/_/g, " ")}: ${oldVal} -> ${newVal}`;
-    }
-
-    if (log.action === "USER_LOGIN" || log.action === "login") {
-      const provider = typeof log.metadata?.provider === "string" ? log.metadata.provider : "azure";
-      return `Provider: ${provider}`;
-    }
-
-    if (log.metadata) {
-      return JSON.stringify(log.metadata);
-    }
-
-    return "—";
   };
 
   const EXPORT_ROW_CAP = 5000;
@@ -234,18 +169,49 @@ function AuditAdminPage() {
       }
 
       const rows: string[][] = [
-        ["Action", "User", "Entity", "Change", "Time"],
+        [
+          "Timestamp",
+          "Action",
+          "Actor",
+          "Actor Role",
+          "Entity",
+          "Entity ID",
+          "Change Summary",
+          "Source",
+          "Status",
+          "Failure Reason",
+          "Correlation ID",
+          "Event ID",
+        ],
         ...matched.map((log) => [
-          formatAction(log.action),
-          log.user_email || "System / Unknown",
-          log.entity_type || "—",
-          getChangeSummary(log),
           format(new Date(log.created_at), "MMM d, yyyy HH:mm"),
+          formatAuditActionLabel(log.action),
+          log.user_email || "System / Unknown",
+          log.actor_role || "—",
+          log.entity_type || "—",
+          log.entity_id || "—",
+          summarizeAuditEvent(log),
+          log.source || "—",
+          log.success === false ? "Failed" : "Success",
+          log.failure_reason || "",
+          log.correlation_id || "",
+          log.id,
         ]),
       ];
 
       const filename = `audit_logs_${format(new Date(), "yyyy-MM-dd")}.csv`;
-      downloadCsv(filename, rows);
+      // Exporting the audit trail is itself an audited action (source is
+      // fixed to "csv_export" by downloadCsv) — this fires exactly once per
+      // click, same as before this change.
+      downloadCsv(filename, rows, {
+        entityType: "Audit_log_export",
+        metadata: {
+          action_filter: actionFilter !== ALL_VALUE ? actionFilter : undefined,
+          actor_filter: actorFilter !== ALL_VALUE ? actorFilter : undefined,
+          search_email: searchEmail || undefined,
+          date_filter: dateFilter || undefined,
+        },
+      });
 
       if ((count ?? 0) > EXPORT_ROW_CAP) {
         toast.success(
@@ -278,23 +244,45 @@ function AuditAdminPage() {
           <CardDescription>Comprehensive tracking of user and admin activities.</CardDescription>
         </CardHeader>
         <CardContent>
-          
-          {/* Filters Row */}
-          <div className="flex flex-col sm:flex-row gap-3 mb-6">
-            <Select value={actionFilter} onValueChange={setActionFilter}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filter by Action" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All Actions">All Actions</SelectItem>
-                <SelectItem value="Admin Actions">Admin Actions</SelectItem>
-                <SelectItem value="User Actions">User Actions</SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Filters */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+            <div>
+              <Select value={actionFilter} onValueChange={setActionFilter}>
+                <SelectTrigger className="w-full" title="What happened?">
+                  <SelectValue placeholder="Action" />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  <SelectItem value={ALL_VALUE}>All Actions</SelectItem>
+                  {ACTION_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground mt-1 hidden lg:block">What happened?</p>
+            </div>
 
-            <Input 
-              type="date" 
-              className="w-full sm:w-[160px]"
+            <div>
+              <Select value={actorFilter} onValueChange={setActorFilter}>
+                <SelectTrigger className="w-full" title="Who performed it?">
+                  <SelectValue placeholder="Actor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_VALUE}>All Actors</SelectItem>
+                  {ACTOR_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground mt-1 hidden lg:block">Who performed it?</p>
+            </div>
+
+            <Input
+              type="date"
+              className="w-full"
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
             />
@@ -302,7 +290,7 @@ function AuditAdminPage() {
             <Input
               type="text"
               placeholder="Search user email..."
-              className="w-full sm:flex-1"
+              className="w-full"
               value={searchEmail}
               onChange={(e) => setSearchEmail(e.target.value)}
             />
@@ -310,7 +298,7 @@ function AuditAdminPage() {
             <Button
               variant="outline"
               size="sm"
-              className="shrink-0"
+              className="shrink-0 w-full"
               onClick={handleExportCsv}
               disabled={exportingCsv || (!loading && logs.length === 0)}
             >
@@ -341,28 +329,49 @@ function AuditAdminPage() {
                     <th className="px-4 py-3 font-medium text-muted-foreground uppercase tracking-wider text-xs">User</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground uppercase tracking-wider text-xs">Entity</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground uppercase tracking-wider text-xs">Change</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground uppercase tracking-wider text-xs">Source</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground uppercase tracking-wider text-xs">Status</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground uppercase tracking-wider text-xs text-right">Time</th>
+                    <th className="px-2 py-3 w-8" aria-hidden />
                   </tr>
                 </thead>
                 <tbody>
                   {logs.map((log) => (
-                    <tr key={log.id} className="border-b border-muted/50 hover:bg-muted/30 transition-colors">
+                    <tr
+                      key={log.id}
+                      className="border-b border-muted/50 hover:bg-muted/30 transition-colors cursor-pointer"
+                      onClick={() => openDetails(log)}
+                    >
                       <td className="px-4 py-3 align-top">
-                        <StatusBadge tone={getBadgeTone(log.action)} className="font-medium whitespace-nowrap capitalize">
-                          {formatAction(log.action)}
+                        <StatusBadge tone={getBadgeTone(log.action)} className="font-medium whitespace-nowrap">
+                          {formatAuditActionLabel(log.action)}
                         </StatusBadge>
                       </td>
                       <td className="px-4 py-3 align-top truncate max-w-[200px]">
                         {log.user_email || <span className="text-muted-foreground italic">System / Unknown</span>}
+                        {log.actor_role && (
+                          <div className="text-[11px] text-muted-foreground capitalize">{log.actor_role.replace(/_/g, " ")}</div>
+                        )}
                       </td>
                       <td className="px-4 py-3 align-top text-muted-foreground capitalize">
                         {log.entity_type || "—"}
                       </td>
-                      <td className="px-4 py-3 align-top max-w-[300px]">
-                        {renderMetadata(log)}
+                      <td className="px-4 py-3 align-top max-w-[300px] text-xs">
+                        {summarizeAuditEvent(log)}
+                      </td>
+                      <td className="px-4 py-3 align-top text-muted-foreground text-xs capitalize whitespace-nowrap">
+                        {log.source ? log.source.replace(/_/g, " ") : "—"}
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <StatusBadge tone={log.success === false ? "danger" : "success"} className="text-xs">
+                          {log.success === false ? "Failed" : "Success"}
+                        </StatusBadge>
                       </td>
                       <td className="px-4 py-3 align-top text-muted-foreground text-right whitespace-nowrap">
                         {format(new Date(log.created_at), "MMM d, yyyy HH:mm")}
+                      </td>
+                      <td className="px-2 py-3 align-top text-muted-foreground">
+                        <AltArrowRightBoldDuotone size={14} />
                       </td>
                     </tr>
                   ))}
@@ -397,9 +406,143 @@ function AuditAdminPage() {
               </div>
             </div>
           )}
-          
         </CardContent>
       </Card>
+
+      <AuditDetailsSheet open={detailsOpen} onOpenChange={setDetailsOpen} log={selectedLog} />
     </div>
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Details drawer — one row's full, privacy-safe detail. Never fetches
+// current employee data to reconstruct a historical value; only shows what
+// getAuditDetailRows() finds in the row's own stored metadata.
+// ─────────────────────────────────────────────────────────────────────────
+
+function AuditDetailsSheet({
+  open,
+  onOpenChange,
+  log,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  log: AuditLog | null;
+}) {
+  if (!log) return null;
+
+  const detailRows = getAuditDetailRows(log);
+  const failed = log.success === false;
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="flex w-full flex-col overflow-y-auto sm:max-w-[480px]">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
+            <ShieldCheckBoldDuotone size={18} />
+            Audit Event Details
+          </SheetTitle>
+          <SheetDescription>{summarizeAuditEvent(log)}</SheetDescription>
+        </SheetHeader>
+
+        <div className="space-y-5 mt-2">
+          <Card>
+            <CardContent className="py-4 space-y-1">
+              <div className="flex items-center justify-between">
+                <StatusBadge
+                  tone={
+                    log.action === "USER_LOGIN" || log.action === "logout"
+                      ? "info"
+                      : log.action.startsWith("consent.")
+                      ? "success"
+                      : "neutral"
+                  }
+                  className="font-medium"
+                >
+                  {formatAuditActionLabel(log.action)}
+                </StatusBadge>
+                <StatusBadge tone={failed ? "danger" : "success"} className="text-xs">
+                  {failed ? "Failed" : "Success"}
+                </StatusBadge>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Who &amp; What
+            </h3>
+            <div className="grid grid-cols-2 gap-2">
+              <DetailTile label="Performed By" value={log.user_email || "System / Unknown"} />
+              <DetailTile label="Actor Role" value={log.actor_role ? humanizeRole(log.actor_role) : "—"} />
+              <DetailTile label="Entity" value={log.entity_type || "—"} />
+              <DetailTile label="Entity ID" value={log.entity_id ? shortId(log.entity_id) : "—"} monospace />
+              <DetailTile label="Source" value={log.source ? humanizeRole(log.source) : "—"} />
+              <DetailTile label="Date &amp; Time" value={format(new Date(log.created_at), "d MMM yyyy, h:mm a")} />
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Change
+            </h3>
+            {detailRows && detailRows.length > 0 ? (
+              <div className="grid grid-cols-2 gap-2">
+                {detailRows.map((row, i) => (
+                  <DetailTile key={i} label={row.label} value={row.value} small />
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg py-2.5 px-3">
+                Detailed values were not recorded for this event.
+              </p>
+            )}
+          </div>
+
+          {failed && (
+            <div>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Failure Reason
+              </h3>
+              <p className="text-xs text-destructive bg-destructive/10 rounded-lg py-2.5 px-3">
+                {log.failure_reason || "No further detail was recorded."}
+              </p>
+            </div>
+          )}
+
+          <div>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Record
+            </h3>
+            <div className="grid grid-cols-2 gap-2">
+              <DetailTile label="Event ID" value={log.id} monospace small />
+              {log.correlation_id && <DetailTile label="Correlation ID" value={log.correlation_id} monospace small />}
+            </div>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function DetailTile({ label, value, monospace, small }: { label: string; value: string; monospace?: boolean; small?: boolean }) {
+  return (
+    <div className="bg-muted/40 rounded-lg py-2.5 px-3">
+      <p className={`${small ? "text-[11px]" : "text-sm"} font-medium leading-snug break-all ${monospace ? "font-mono" : ""}`}>
+        {value}
+      </p>
+      <p className="text-[11px] text-muted-foreground mt-0.5 leading-none">{label}</p>
+    </div>
+  );
+}
+
+function humanizeRole(value: string): string {
+  return value
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+function shortId(id: string): string {
+  return id.length > 12 ? `${id.slice(0, 8)}…` : id;
 }

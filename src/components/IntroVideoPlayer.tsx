@@ -4,6 +4,7 @@ import { Progress } from "@/components/ui/progress";
 import { PlayCircleBoldDuotone, PauseCircleBoldDuotone } from "solar-icon-set";
 import { VideoService } from "@/services/video.service";
 import { AuditService } from "@/services/audit.service";
+import { NotificationService } from "@/services/notification.service";
 import { useAuth } from "@/hooks/use-auth";
 
 interface IntroVideoPlayerProps {
@@ -83,6 +84,14 @@ export function IntroVideoPlayer({
                entityId: videoVersionId,
                metadata: { completion_pct: pct }
              });
+             // Best-effort — never blocks onboarding completion.
+             NotificationService.notifyStaff({
+               category: "video.completed",
+               title: "Required video completed",
+               message: "An employee has completed the required onboarding video.",
+               entityType: "video_version",
+               entityId: videoVersionId,
+             }).catch((err) => console.error("Failed to notify staff of video completion:", err));
              onCompleted();
           });
         }

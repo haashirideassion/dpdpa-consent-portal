@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import {
   CheckCircleBoldDuotone,
   ClockCircleBoldDuotone,
@@ -197,7 +198,7 @@ function PostConsentRow({
     }
     setLoading(true);
     setConfirming(false);
-    await ConsentService.withdrawConsent({
+    const ok = await ConsentService.withdrawConsent({
       employeeId,
       userId,
       purposeKey: status.purpose.purpose_key,
@@ -205,13 +206,23 @@ function PostConsentRow({
       employeeName,
     });
     setLoading(false);
+    if (ok) {
+      toast.success("Consent withdrawn", {
+        description: "Your consent withdrawal has been recorded.",
+      });
+    } else {
+      toast.error("Unable to withdraw consent", {
+        description: "We couldn't process your withdrawal. Please try again.",
+      });
+    }
     onRefresh();
   }
 
   async function handleReConsent() {
     if (!userId || !employeeName || !onRefresh) return;
+    const isReConsent = status.currentStatus === "withdrawn";
     setLoading(true);
-    await ConsentService.reGrantConsent({
+    const ok = await ConsentService.reGrantConsent({
       employeeId,
       userId,
       purposeKey: status.purpose.purpose_key,
@@ -220,8 +231,26 @@ function PostConsentRow({
       templateVersion: status.purpose.templateVersion,
       isMandatory: status.purpose.is_mandatory,
       employeeName,
+      isReConsent,
     });
     setLoading(false);
+    if (ok) {
+      if (isReConsent) {
+        toast.success("Consent restored", {
+          description: "Your consent has been successfully restored.",
+        });
+      } else {
+        toast.success("Consent recorded", {
+          description: "Your consent has been successfully recorded.",
+        });
+      }
+    } else {
+      toast.error(isReConsent ? "Unable to restore consent" : "Unable to record consent", {
+        description: isReConsent
+          ? "We couldn't restore your consent. Please try again."
+          : "We couldn't record your consent. Please try again.",
+      });
+    }
     onRefresh();
   }
 

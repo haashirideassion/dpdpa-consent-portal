@@ -153,6 +153,13 @@ export const ConsentService = {
    *
    * FIX (Deploy-Blocker #6): The `version` parameter was previously ignored.
    * This caused employees who consented to v1.0 to bypass the gate for v2.0.
+   *
+   * Use this ONLY to decide whether the employee must be re-prompted with the
+   * consent form for the currently-active template (e.g. GranularConsentForm,
+   * the inline pre-consent purpose toggles). Do NOT use it to gate whether
+   * previously-consented data-editing affordances (Locked/Update pills,
+   * direct-edit fields) should render — a template version bump is not a
+   * withdrawal of a prior valid consent. Use `hasAnyConsent` for that.
    */
   async hasConsentedToVersion(employeeId: string, version: string): Promise<boolean> {
     const result = await (supabase as any)
@@ -166,6 +173,39 @@ export const ConsentService = {
 
     if (result.error) {
       console.error("Failed to check existing consent", result.error);
+      return false;
+    }
+    return !!result.data;
+  },
+
+  /**
+   * Checks if the employee has a currently-valid recorded consent, for ANY
+   * template version — i.e. their consent_records master row (one per
+   * employee, upserted by submitConsent) has status = 'consented'.
+   *
+   * This is the correct gate for "has this employee ever completed the
+   * consent flow" — used to unlock the post-consent data UI (Locked pill,
+   * direct-edit fields, the correction-request "Update" pill). Unlike
+   * `hasConsentedToVersion`, it does NOT require the employee to have
+   * consented to whichever template happens to be active right now:
+   * activating a new template version must not retroactively erase a
+   * previously-valid consent and re-lock the employee out of editing their
+   * own low-risk fields or filing corrections. The database enforcement
+   * (supabase/migrations/20260825000006_field_level_modification_approval.sql)
+   * never conditions on template version either — this brings the UI gate
+   * in line with that.
+   */
+  async hasAnyConsent(employeeId: string): Promise<boolean> {
+    const result = await (supabase as any)
+      .from("consent_records")
+      .select("status")
+      .eq("employee_id", employeeId)
+      .eq("status", "consented")
+      .limit(1)
+      .maybeSingle();
+
+    if (result.error) {
+      console.error("Failed to check any existing consent", result.error);
       return false;
     }
     return !!result.data;
@@ -208,6 +248,15 @@ export const ConsentService = {
 
       if (statusError) {
         console.error("ConsentService: failed to update master consent status", statusError);
+        await AuditService.log({
+          action: "consent.granted",
+          entityType: "consent_record",
+          entityId: payload.employeeId,
+          metadata: { reason_code: "status_update_failed" },
+          source: "web_portal",
+          success: false,
+          failureReason: "status_update_failed",
+        });
         return false;
       }
 
@@ -240,17 +289,29 @@ export const ConsentService = {
 
       if (purposeError) {
         console.error("ConsentService: failed to save granular purpose records", purposeError);
+        await AuditService.log({
+          action: "consent.granted",
+          entityType: "consent_record",
+          entityId: payload.employeeId,
+          metadata: { reason_code: "purpose_records_failed" },
+          source: "web_portal",
+          success: false,
+          failureReason: "purpose_records_failed",
+        });
         return false;
       }
 
       // ── Step 3: Write to immutable audit log ─────────────────────────
+      // esign_name is NOT logged here (Audit Logs Phase 3 verification
+      // flagged this — it is PII, per the "DO NOT log payload" guard at the
+      // top of this function). It is already captured, appropriately, in
+      // consent_records/consent_purpose_records themselves.
       await AuditService.log({
         action: "consent.granted",
         entityType: "consent_record",
         entityId: payload.employeeId,
         metadata: {
           template_version:   payload.templateVersion,
-          esign_name:         payload.esignName,
           purposes_consented: payload.purposes
             .filter((p) => p.consented)
             .map((p) => p.purpose_key),
@@ -258,11 +319,38 @@ export const ConsentService = {
             .filter((p) => !p.consented && !p.is_mandatory)
             .map((p) => p.purpose_key),
         },
+        source: "web_portal",
+        success: true,
       });
+
+      // Staff-only notification — best-effort, never blocks the consent
+      // submission itself (already fully persisted above). One notification
+      // for the whole submission (not per purpose), since this is a single
+      // "employee grants consent" event. Per product requirement, the
+      // employee does NOT get a notification-center item for their own
+      // consent action — they already see a success toast in the UI
+      // (GranularConsentForm's onConsentSubmitted flow); only the
+      // admin/hr_manager/dpo audience is notified here.
+      try {
+        await supabase.rpc("notify_hr_dpo_consent_granted" as any, {
+          p_employee_id: payload.employeeId,
+        });
+      } catch (err) {
+        console.error("ConsentService: failed to notify staff of consent grant", err);
+      }
 
       return true;
     } catch (err) {
       console.error("ConsentService: unexpected error during submission", err);
+      await AuditService.log({
+        action: "consent.granted",
+        entityType: "consent_record",
+        entityId: payload.employeeId,
+        metadata: { reason_code: "unexpected_error" },
+        source: "web_portal",
+        success: false,
+        failureReason: "unexpected_error",
+      });
       return false;
     }
   },
@@ -373,6 +461,15 @@ export const ConsentService = {
 
       if (error) {
         console.error("ConsentService: failed to insert consent withdrawal", error);
+        await AuditService.log({
+          action: "consent.withdrawn",
+          entityType: "consent_withdrawal",
+          entityId: params.employeeId,
+          metadata: { reason_code: "withdrawal_insert_failed" },
+          source: "web_portal",
+          success: false,
+          failureReason: "withdrawal_insert_failed",
+        });
         return false;
       }
 
@@ -380,29 +477,53 @@ export const ConsentService = {
         action: "consent.withdrawn",
         entityType: "consent_withdrawal",
         entityId: params.employeeId,
+        // The free-text withdrawal reason is NOT logged here (Audit Logs
+        // Phase 3 verification flagged this — it's user-supplied narrative
+        // that could contain arbitrary personal detail); only whether one
+        // was provided. The reason itself is already captured, appropriately,
+        // in consent_withdrawals.reason.
         metadata: {
           purpose_key: params.purposeKey,
           purpose_label: params.purposeLabel,
-          reason: params.reason ?? null,
+          reason_provided: !!params.reason,
         },
+        source: "web_portal",
+        success: true,
       });
 
-      await supabase.from("notifications" as any).insert({
-        user_id: params.userId,
-        type: "CONSENT_WITHDRAWAL",
-        title: "Consent Withdrawal Recorded",
-        message: `Your consent for "${params.purposeLabel}" has been withdrawn. HR and DPO have been notified.`,
-      });
-
-      await supabase.rpc("notify_hr_dpo_consent_withdrawal" as any, {
-        p_employee_name: params.employeeName,
-        p_purpose_label: params.purposeLabel,
-        p_purpose_key: params.purposeKey,
-      });
+      // Staff-only notification — best-effort, wrapped so a notification
+      // failure (or a transient RPC error) can NEVER cause this function to
+      // report the withdrawal itself as failed. The withdrawal record above
+      // is already fully persisted and audited by this point; this was
+      // previously unguarded and would fall through to the catch block
+      // below on any RPC error, incorrectly returning `false` to the caller
+      // (and showing the caller's "failed to withdraw" toast) even though
+      // the withdrawal had already succeeded. Per product requirement, the
+      // employee does NOT get a notification-center item for their own
+      // withdrawal — they already see the existing success toast; only
+      // admin/hr_manager/dpo are notified, via the existing RPC below.
+      try {
+        await supabase.rpc("notify_hr_dpo_consent_withdrawal" as any, {
+          p_employee_name: params.employeeName,
+          p_purpose_label: params.purposeLabel,
+          p_purpose_key: params.purposeKey,
+        });
+      } catch (err) {
+        console.error("ConsentService: failed to notify staff of consent withdrawal", err);
+      }
 
       return true;
     } catch (err) {
       console.error("ConsentService: unexpected error during withdrawal", err);
+      await AuditService.log({
+        action: "consent.withdrawn",
+        entityType: "consent_withdrawal",
+        entityId: params.employeeId,
+        metadata: { reason_code: "unexpected_error" },
+        source: "web_portal",
+        success: false,
+        failureReason: "unexpected_error",
+      });
       return false;
     }
   },
@@ -421,6 +542,14 @@ export const ConsentService = {
     templateVersion: string;
     isMandatory: boolean;
     employeeName: string;
+    /**
+     * True when this purpose was previously withdrawn and is now being
+     * re-granted (drives the staff notification's wording: "Consent
+     * re-granted" vs "Consent granted" for a purpose granted for the first
+     * time). Defaults to false — callers giving consent for a purpose that
+     * was never withdrawn should omit this.
+     */
+    isReConsent?: boolean;
   }): Promise<boolean> {
     try {
       const { error } = await supabase
@@ -440,6 +569,15 @@ export const ConsentService = {
 
       if (error) {
         console.error("ConsentService: failed to insert re-grant record", error);
+        await AuditService.log({
+          action: "consent.granted",
+          entityType: "consent_purpose_records",
+          entityId: params.employeeId,
+          metadata: { reason_code: "re_grant_insert_failed", re_consent: true },
+          source: "web_portal",
+          success: false,
+          failureReason: "re_grant_insert_failed",
+        });
         return false;
       }
 
@@ -453,18 +591,33 @@ export const ConsentService = {
           template_version: params.templateVersion,
           re_consent: true,
         },
+        source: "web_portal",
+        success: true,
       });
 
-      await supabase.from("notifications" as any).insert({
-        user_id: params.userId,
-        type: "CONSENT_GRANTED",
-        title: "Consent Re-Granted",
-        message: `Your consent for "${params.purposeLabel}" has been recorded.`,
-      });
+      // Staff-only notification — see submitConsent() above for why the
+      // employee does not also get a notification-center item here.
+      try {
+        await supabase.rpc("notify_hr_dpo_consent_granted" as any, {
+          p_employee_id: params.employeeId,
+          p_is_regrant: !!params.isReConsent,
+        });
+      } catch (err) {
+        console.error("ConsentService: failed to notify staff of consent re-grant", err);
+      }
 
       return true;
     } catch (err) {
       console.error("ConsentService: unexpected error during re-grant", err);
+      await AuditService.log({
+        action: "consent.granted",
+        entityType: "consent_purpose_records",
+        entityId: params.employeeId,
+        metadata: { reason_code: "unexpected_error", re_consent: true },
+        source: "web_portal",
+        success: false,
+        failureReason: "unexpected_error",
+      });
       return false;
     }
   },

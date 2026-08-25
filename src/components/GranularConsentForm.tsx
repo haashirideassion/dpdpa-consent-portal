@@ -184,9 +184,14 @@ export function GranularConsentForm({
 
     setSubmitting(false);
     if (success) {
+      toast.success("Consent recorded", {
+        description: "Your consent has been successfully recorded.",
+      });
       onConsentSubmitted();
     } else {
-      toast.error("Failed to submit consent. Please try again.");
+      toast.error("Unable to record consent", {
+        description: "We couldn't record your consent. Please try again.",
+      });
     }
   };
 

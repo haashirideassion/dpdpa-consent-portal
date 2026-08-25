@@ -13,7 +13,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { AltArrowLeftBoldDuotone, DangerTriangleBoldDuotone } from "solar-icon-set";
-import { AuditService } from "@/services/audit.service";
 
 export const Route = createFileRoute("/_authenticated/admin/requests/$id")({
   component: RequestDetail,
@@ -102,13 +101,10 @@ function RequestDetail() {
     if (!newStatus || !request) return;
     setUpdatingStatus(true);
     try {
+      // Audit event is now written server-side by DsrService.updateStatus
+      // itself (see Audit Logs gap report — logging only from this route
+      // meant any other caller silently produced no audit row).
       await DsrService.updateStatus(id, newStatus as DsrStatus, resolutionNote || undefined);
-      await AuditService.log({
-        action: "dsr.status_updated",
-        entityType: "data_request",
-        entityId: id,
-        metadata: { from: request.status, to: newStatus },
-      });
       toast.success(`Status updated to ${STATUS_LABELS[newStatus]}`);
       setNewStatus("");
       setResolutionNote("");

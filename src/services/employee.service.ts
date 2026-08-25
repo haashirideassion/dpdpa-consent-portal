@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { AuditService } from "./audit.service";
+import { NotificationService } from "./notification.service";
+import type { AuditSource } from "@/lib/auditActions";
 
 /**
  * EMPLOYEE SERVICE
@@ -137,6 +139,29 @@ const DB_TO_UI: Record<string, string> = {
   contact_email: "emergency_contact_email",
 };
 
+// Fields whose VALUES must never appear in audit_logs.metadata — financial,
+// government ID, address, and health data (see Audit Logs Phase 3
+// verification: adminOverride previously logged old_value/new_value for
+// every field with no filter, including these categories). For these keys,
+// adminOverride logs only the field name and that a change occurred, same
+// as the generic updateEmployee path already does for every field.
+const SENSITIVE_OVERRIDE_FIELDS = new Set([
+  "bank_account_number",
+  "bank_name",
+  "ifsc_code",
+  "pan_number",
+  "aadhaar_number",
+  "uan_number",
+  "passport_number",
+  "voter_id",
+  "driving_license",
+  "current_address",
+  "permanent_address",
+  "disability_status",
+  "chronic_conditions",
+  "allergies",
+]);
+
 /** Rename DB fields → UI keys when flattening nested join data */
 function aliasToUi(obj: Record<string, any> | null | undefined): Record<string, any> {
   if (!obj) return {};
@@ -145,6 +170,162 @@ function aliasToUi(obj: Record<string, any> | null | undefined): Record<string, 
     result[DB_TO_UI[key] ?? key] = value;
   }
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Audit helpers (Phase 2 — see Audit Logs gap report)
+//
+// `applyFieldUpdates` is the actual DB-writing logic, shared by the public
+// `updateEmployee` (which audits generically — field names only, never
+// values) and `adminOverride` (which already writes its own detailed
+// per-field old/new audit entry). Routing both through the same private
+// writer means a plain update and an admin override never produce two audit
+// rows for the same write.
+// ---------------------------------------------------------------------------
+async function applyFieldUpdates(employeeId: string, updates: Record<string, any>): Promise<void> {
+  const byTable: Record<string, Record<string, any>> = {};
+
+  for (const [uiKey, value] of Object.entries(updates)) {
+    const mapping = FIELD_MAP[uiKey];
+    if (!mapping || value === undefined || value === "") continue;
+
+    if (!byTable[mapping.table]) byTable[mapping.table] = {};
+    byTable[mapping.table][mapping.column] = value;
+  }
+
+  for (const [tableName, tableUpdates] of Object.entries(byTable)) {
+    if (tableName === "employees") {
+      const { error } = await supabase
+        .from("employees")
+        .update({ ...tableUpdates, updated_at: new Date().toISOString() })
+        .eq("id", employeeId);
+
+      if (error) {
+        console.error(`EmployeeService: error updating ${tableName}:`, error);
+        throw error;
+      }
+    } else {
+      const { error } = await supabase
+        .from(tableName as any)
+        .upsert(
+          { employee_id: employeeId, ...tableUpdates, updated_at: new Date().toISOString() },
+          { onConflict: "employee_id" },
+        );
+
+      if (error) {
+        console.error(`EmployeeService: error upserting ${tableName}:`, error);
+        throw error;
+      }
+    }
+  }
+}
+
+/**
+ * Treats null, undefined, and "" as the same "empty" state for change
+ * comparison — prevents e.g. a persisted NULL vs. a submitted "" from being
+ * falsely reported as a change, while still catching real
+ * populated↔empty transitions (which do differ under this normalization).
+ */
+function normalizeForCompare(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "";
+  return String(value);
+}
+
+/**
+ * Determines which UI field keys in `updates` actually differ from their
+ * currently persisted value, by reading only the specific columns/tables
+ * FIELD_MAP says those keys live in (never a full profile fetch). Used
+ * solely to build accurate audit metadata — the persisted values it reads
+ * are NEVER returned, logged, or included in any error; only the list of
+ * UI keys that changed is returned.
+ *
+ * Unmapped keys are ignored, matching applyFieldUpdates' own behavior for
+ * such keys (they're not written either).
+ *
+ * Best-effort: if a persisted-value read fails for a table, this falls
+ * back to treating that table's requested fields as changed, so a read
+ * failure can never cause a real change to be silently dropped from the
+ * audit — the previous (over-inclusive) behavior for that subset only.
+ */
+async function computeChangedFields(employeeId: string, updates: Record<string, any>): Promise<string[]> {
+  const byTable: Record<string, { uiKey: string; column: string }[]> = {};
+
+  for (const uiKey of Object.keys(updates)) {
+    const mapping = FIELD_MAP[uiKey];
+    if (!mapping) continue;
+    if (!byTable[mapping.table]) byTable[mapping.table] = [];
+    byTable[mapping.table].push({ uiKey, column: mapping.column });
+  }
+
+  const changed: string[] = [];
+
+  for (const [tableName, cols] of Object.entries(byTable)) {
+    const columnList = cols.map((c) => c.column).join(",");
+    try {
+      let persisted: Record<string, any> | null = null;
+      if (tableName === "employees") {
+        const { data, error } = await supabase
+          .from("employees")
+          .select(columnList)
+          .eq("id", employeeId)
+          .maybeSingle();
+        if (error) throw error;
+        persisted = data as any;
+      } else {
+        const { data, error } = await supabase
+          .from(tableName as any)
+          .select(columnList)
+          .eq("employee_id", employeeId)
+          .maybeSingle();
+        if (error) throw error;
+        persisted = data as any;
+      }
+
+      for (const { uiKey, column } of cols) {
+        if (normalizeForCompare(persisted?.[column]) !== normalizeForCompare(updates[uiKey])) {
+          changed.push(uiKey);
+        }
+      }
+    } catch (err) {
+      console.error(`EmployeeService: failed to read persisted values for change comparison (${tableName}):`, err);
+      cols.forEach(({ uiKey }) => changed.push(uiKey));
+    }
+  }
+
+  return changed;
+}
+
+/**
+ * Best-effort audit event for a multi-entry section CRUD op (education,
+ * certifications, employment history, nominees, dependents, additional
+ * notes). Field VALUES are never logged here — only the section name, the
+ * operation, and the affected record id — since these sections can contain
+ * free-text the caller didn't explicitly vet for sensitivity (e.g. "notes").
+ */
+async function logEmployeeSectionChange(
+  employeeId: string | null,
+  section: string,
+  change: "added" | "updated" | "deleted",
+  recordId?: string,
+): Promise<void> {
+  await AuditService.log({
+    action: "employee.updated",
+    entityType: "Employee",
+    entityId: employeeId ?? undefined,
+    metadata: { section, change, record_id: recordId ?? null },
+    source: "web_portal",
+    success: true,
+  });
+}
+
+/** Looks up the owning employee_id for a section row, for update/delete calls that only receive the row's own id. */
+async function getSectionOwnerEmployeeId(table: string, rowId: string): Promise<string | null> {
+  try {
+    const { data } = await supabase.from(table as any).select("employee_id").eq("id", rowId).maybeSingle();
+    return (data as { employee_id?: string } | null)?.employee_id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -253,49 +434,67 @@ export const EmployeeService = {
    *
    * @param employeeId - The `employees.id` UUID (must exist in the employees table)
    * @param updates    - Key/value pairs using UI field keys (e.g. "date_of_birth", "phone_number")
+   * @param options    - `skipAudit`: true when the caller already audits this write at a higher
+   *                     level, or when the update is a best-effort follow-up to a creation flow
+   *                     that already logged `employee.created` (avoids a redundant, confusing
+   *                     "employee.updated" firing seconds after "employee.created"). `source`
+   *                     lets a CSV-driven caller attribute the write correctly (defaults to
+   *                     "web_portal").
    */
-  async updateEmployee(employeeId: string, updates: Record<string, any>) {
+  async updateEmployee(
+    employeeId: string,
+    updates: Record<string, any>,
+    options?: { skipAudit?: boolean; source?: AuditSource },
+  ) {
     if (!employeeId || Object.keys(updates).length === 0) return;
 
-    // 1. Group updates by target table, translating UI key → DB column name
-    const byTable: Record<string, Record<string, any>> = {};
+    // Audit-accuracy fix: `updates` is whatever the caller submitted (e.g.
+    // an entire form section), which is NOT the same as "what actually
+    // changed" — a field can be present in `updates` with its unchanged,
+    // already-persisted value. Compute the real diff BEFORE writing, so the
+    // audit event (below) reports only fields that actually changed,
+    // instead of every key the caller happened to include. This does not
+    // alter what gets written — applyFieldUpdates still receives the full
+    // `updates` object, unchanged.
+    const actualChangedFields = options?.skipAudit ? [] : await computeChangedFields(employeeId, updates);
 
-    for (const [uiKey, value] of Object.entries(updates)) {
-      const mapping = FIELD_MAP[uiKey];
-      if (!mapping || value === undefined || value === "") continue;
-
-      if (!byTable[mapping.table]) byTable[mapping.table] = {};
-      byTable[mapping.table][mapping.column] = value;
+    try {
+      await applyFieldUpdates(employeeId, updates);
+    } catch (err: any) {
+      // Audit Logs Phase 3 verification: a failed update previously threw
+      // before any audit call was reached, leaving zero trace of the
+      // attempt. Log the failure (field names only, same rule as success)
+      // then re-throw unchanged — audit logging must never mask or swallow
+      // the real error from the caller. Skipped entirely when nothing was
+      // actually going to change — there is nothing meaningful to report.
+      if (!options?.skipAudit && actualChangedFields.length > 0) {
+        await AuditService.log({
+          action: "employee.updated",
+          entityType: "Employee",
+          entityId: employeeId,
+          metadata: { fields: actualChangedFields, change: "failed" },
+          source: options?.source ?? "web_portal",
+          success: false,
+          failureReason: err?.message ?? "Employee update failed",
+        });
+      }
+      throw err;
     }
 
-    // 2. Execute one operation per affected table
-    for (const [tableName, tableUpdates] of Object.entries(byTable)) {
-      if (tableName === "employees") {
-        // Master table: simple UPDATE by primary key
-        const { error } = await supabase
-          .from("employees")
-          .update({ ...tableUpdates, updated_at: new Date().toISOString() })
-          .eq("id", employeeId);
-
-        if (error) {
-          console.error(`EmployeeService: error updating ${tableName}:`, error);
-          throw error;
-        }
-      } else {
-        // Detail tables: UPSERT on employee_id (trigger pre-creates the row,
-        // but upsert handles the case where it doesn't exist yet)
-        const { error } = await supabase
-          .from(tableName as any)
-          .upsert(
-            { employee_id: employeeId, ...tableUpdates, updated_at: new Date().toISOString() },
-            { onConflict: "employee_id" },
-          );
-
-        if (error) {
-          console.error(`EmployeeService: error upserting ${tableName}:`, error);
-          throw error;
-        }
-      }
+    if (!options?.skipAudit && actualChangedFields.length > 0) {
+      // Field NAMES only — never the actual values, since this generic path
+      // is used for both ordinary and sensitive fields (financial, govt ID,
+      // health). Anyone needing before/after detail should go through
+      // adminOverride, which already logs per-field old/new with masking
+      // applied in the audit UI.
+      await AuditService.log({
+        action: "employee.updated",
+        entityType: "Employee",
+        entityId: employeeId,
+        metadata: { fields: actualChangedFields, change: "updated" },
+        source: options?.source ?? "web_portal",
+        success: true,
+      });
     }
   },
 
@@ -312,8 +511,10 @@ export const EmployeeService = {
       .eq("id", employeeId)
       .single();
 
-    // 1. Perform the update first
-    await this.updateEmployee(employeeId, updates);
+    // 1. Perform the update first (shared writer — does NOT self-audit; the
+    // per-field audit below is more detailed than updateEmployee's generic
+    // one, so calling through applyFieldUpdates avoids a duplicate row).
+    await applyFieldUpdates(employeeId, updates);
 
     // 2. Process side-effects for each changed field
     for (const [key, newValue] of Object.entries(updates)) {
@@ -321,17 +522,23 @@ export const EmployeeService = {
 
       // Only log if the value actually changed
       if (newValue !== oldValue) {
-        // A. Audit Log
+        // A. Audit Log — never the actual value for financial/govt-ID/
+        // address/health fields (see SENSITIVE_OVERRIDE_FIELDS above).
+        const isSensitive = SENSITIVE_OVERRIDE_FIELDS.has(key);
         await AuditService.log({
           action: "admin.override",
           entityType: "employee",
           entityId: employeeId,
-          metadata: {
-            field: key,
-            old_value: oldValue ?? null,
-            new_value: newValue,
-            reason: "Admin manual override",
-          },
+          metadata: isSensitive
+            ? { field: key, change: "updated", reason: "Admin manual override" }
+            : {
+                field: key,
+                old_value: oldValue ?? null,
+                new_value: newValue,
+                reason: "Admin manual override",
+              },
+          source: "web_portal",
+          success: true,
         });
 
         // Skip notification & email if employee details couldn't be loaded
@@ -339,15 +546,21 @@ export const EmployeeService = {
 
         // Ensure user is fully linked before notifying them
         if (!employee.user_id) {
-          console.warn(`[EmployeeService] User ${employee.email} not linked, skipping in-app notification`);
+          console.warn("[EmployeeService] Employee not linked, skipping in-app notification");
         } else {
-          // B. In-App Notification (Wrapped in try/catch to prevent blocking)
+          // B. In-App Notification (Wrapped in try/catch to prevent blocking).
+          // Routed through create_notification() (SECURITY DEFINER RPC) —
+          // the field name is safe to include (matches the existing message
+          // wording), the actual old/new value is never sent.
           try {
-            await supabase.from("notifications").insert({
-              user_id: employee.user_id,
-              type: "ADMIN_UPDATE",
+            await NotificationService.create({
+              recipientUserId: employee.user_id,
+              category: "employee.updated",
               title: "Profile Updated",
-              message: `Your ${key.replace(/_/g, " ")} was updated by an Admin.`
+              message: `Your ${key.replace(/_/g, " ")} was updated by an Admin.`,
+              entityType: "employee",
+              entityId: employeeId,
+              actionUrl: "/",
             });
           } catch (err) {
             console.error("[EmployeeService] Failed to insert notification:", err);
@@ -422,20 +635,25 @@ export const EmployeeService = {
       .from("employee_education" as any)
       .insert({ ...record, employee_id: employeeId });
     if (error) throw error;
+    await logEmployeeSectionChange(employeeId, "employee_education", "added");
   },
   async updateEducation(id: string, record: Record<string, any>) {
+    const ownerId = await getSectionOwnerEmployeeId("employee_education", id);
     const { error } = await supabase
       .from("employee_education" as any)
       .update({ ...record, updated_at: new Date().toISOString() })
       .eq("id", id);
     if (error) throw error;
+    await logEmployeeSectionChange(ownerId, "employee_education", "updated", id);
   },
   async deleteEducation(id: string) {
+    const ownerId = await getSectionOwnerEmployeeId("employee_education", id);
     const { error } = await supabase
       .from("employee_education" as any)
       .delete()
       .eq("id", id);
     if (error) throw error;
+    await logEmployeeSectionChange(ownerId, "employee_education", "deleted", id);
   },
 
   async getCertifications(employeeId: string) {
@@ -452,20 +670,25 @@ export const EmployeeService = {
       .from("employee_certifications_v2" as any)
       .insert({ ...record, employee_id: employeeId });
     if (error) throw error;
+    await logEmployeeSectionChange(employeeId, "employee_certifications_v2", "added");
   },
   async updateCertification(id: string, record: Record<string, any>) {
+    const ownerId = await getSectionOwnerEmployeeId("employee_certifications_v2", id);
     const { error } = await supabase
       .from("employee_certifications_v2" as any)
       .update({ ...record, updated_at: new Date().toISOString() })
       .eq("id", id);
     if (error) throw error;
+    await logEmployeeSectionChange(ownerId, "employee_certifications_v2", "updated", id);
   },
   async deleteCertification(id: string) {
+    const ownerId = await getSectionOwnerEmployeeId("employee_certifications_v2", id);
     const { error } = await supabase
       .from("employee_certifications_v2" as any)
       .delete()
       .eq("id", id);
     if (error) throw error;
+    await logEmployeeSectionChange(ownerId, "employee_certifications_v2", "deleted", id);
   },
 
   async getEmploymentHistory(employeeId: string) {
@@ -482,20 +705,25 @@ export const EmployeeService = {
       .from("employee_employment_history" as any)
       .insert({ ...record, employee_id: employeeId });
     if (error) throw error;
+    await logEmployeeSectionChange(employeeId, "employee_employment_history", "added");
   },
   async updateEmploymentHistory(id: string, record: Record<string, any>) {
+    const ownerId = await getSectionOwnerEmployeeId("employee_employment_history", id);
     const { error } = await supabase
       .from("employee_employment_history" as any)
       .update({ ...record, updated_at: new Date().toISOString() })
       .eq("id", id);
     if (error) throw error;
+    await logEmployeeSectionChange(ownerId, "employee_employment_history", "updated", id);
   },
   async deleteEmploymentHistory(id: string) {
+    const ownerId = await getSectionOwnerEmployeeId("employee_employment_history", id);
     const { error } = await supabase
       .from("employee_employment_history" as any)
       .delete()
       .eq("id", id);
     if (error) throw error;
+    await logEmployeeSectionChange(ownerId, "employee_employment_history", "deleted", id);
   },
 
   async getNominees(employeeId: string) {
@@ -512,20 +740,25 @@ export const EmployeeService = {
       .from("employee_nominees" as any)
       .insert({ ...record, employee_id: employeeId });
     if (error) throw error;
+    await logEmployeeSectionChange(employeeId, "employee_nominees", "added");
   },
   async updateNominee(id: string, record: Record<string, any>) {
+    const ownerId = await getSectionOwnerEmployeeId("employee_nominees", id);
     const { error } = await supabase
       .from("employee_nominees" as any)
       .update({ ...record, updated_at: new Date().toISOString() })
       .eq("id", id);
     if (error) throw error;
+    await logEmployeeSectionChange(ownerId, "employee_nominees", "updated", id);
   },
   async deleteNominee(id: string) {
+    const ownerId = await getSectionOwnerEmployeeId("employee_nominees", id);
     const { error } = await supabase
       .from("employee_nominees" as any)
       .delete()
       .eq("id", id);
     if (error) throw error;
+    await logEmployeeSectionChange(ownerId, "employee_nominees", "deleted", id);
   },
 
   async getDependents(employeeId: string) {
@@ -542,20 +775,25 @@ export const EmployeeService = {
       .from("employee_dependents" as any)
       .insert({ ...record, employee_id: employeeId });
     if (error) throw error;
+    await logEmployeeSectionChange(employeeId, "employee_dependents", "added");
   },
   async updateDependent(id: string, record: Record<string, any>) {
+    const ownerId = await getSectionOwnerEmployeeId("employee_dependents", id);
     const { error } = await supabase
       .from("employee_dependents" as any)
       .update({ ...record, updated_at: new Date().toISOString() })
       .eq("id", id);
     if (error) throw error;
+    await logEmployeeSectionChange(ownerId, "employee_dependents", "updated", id);
   },
   async deleteDependent(id: string) {
+    const ownerId = await getSectionOwnerEmployeeId("employee_dependents", id);
     const { error } = await supabase
       .from("employee_dependents" as any)
       .delete()
       .eq("id", id);
     if (error) throw error;
+    await logEmployeeSectionChange(ownerId, "employee_dependents", "deleted", id);
   },
 
   // ── employee_additional_details (single row per employee, exposed as a 0/1-entry list) ──
@@ -583,6 +821,7 @@ export const EmployeeService = {
         { onConflict: "employee_id" }
       );
     if (error) throw error;
+    await logEmployeeSectionChange(employeeId, "employee_additional_details", "added");
   },
   async updateAdditionalNotes(employeeId: string, record: Record<string, any>) {
     const { error } = await supabase
@@ -592,6 +831,7 @@ export const EmployeeService = {
         { onConflict: "employee_id" }
       );
     if (error) throw error;
+    await logEmployeeSectionChange(employeeId, "employee_additional_details", "updated");
   },
   async deleteAdditionalNotes(employeeId: string) {
     const { data, error } = await supabase
@@ -603,5 +843,6 @@ export const EmployeeService = {
     if (!data || data.length === 0) {
       throw new Error("No matching additional notes record was found to delete.");
     }
+    await logEmployeeSectionChange(employeeId, "employee_additional_details", "deleted");
   },
 };

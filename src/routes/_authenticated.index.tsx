@@ -48,6 +48,13 @@ function EmployeePortal() {
   const [employee, setEmployee] = useState<Tables<"employees"> | null>(null);
   const [activeTemplate, setActiveTemplate] = useState<ConsentTemplate | null>(null);
   const [hasConsented, setHasConsented] = useState(false);
+  // Version-independent: has this employee EVER completed the consent flow
+  // (their consent_records master row is status='consented'), regardless of
+  // whether that was for the template version currently active. Drives the
+  // post-consent data-editing UI (Locked pill, direct-edit fields, the
+  // correction "Update" pill) — see ConsentService.hasAnyConsent for why
+  // this must not be tied to `hasConsented`'s exact-version check.
+  const [hasAnyConsent, setHasAnyConsent] = useState(false);
   const [loading, setLoading] = useState(true);
   const [noVideo, setNoVideo] = useState(false);
   // Phase 4 (Region / Regulatory Framework): true only if this employee has
@@ -147,10 +154,16 @@ function EmployeePortal() {
           activeTemplateData.version
         ).catch(() => false);
       }
+      // Independent of the active-template version check above — an
+      // employee who consented under an older template version still has a
+      // valid recorded consent and must not lose their editing affordances
+      // just because a newer template version has since been activated.
+      const anyConsent = await ConsentService.hasAnyConsent(resolvedEmployeeId).catch(() => false);
 
       setEmployee(employeeData as any);
       setActiveTemplate(activeTemplateData);
       setHasConsented(consentedToActive);
+      setHasAnyConsent(anyConsent);
 
       // Auto-dismiss banner if already consented or previously dismissed
       const alreadyDismissed =
@@ -315,6 +328,7 @@ function EmployeePortal() {
               <EmployeeDataView
                 employee={employee}
                 hasConsented={hasConsented}
+                hasAnyConsent={hasAnyConsent}
                 template={activeTemplate}
                 toggles={toggles}
                 onToggle={handleToggle}

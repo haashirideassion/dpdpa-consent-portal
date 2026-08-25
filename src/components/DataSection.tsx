@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { ArrowDownBoldDuotone, ArrowUpBoldDuotone } from "solar-icon-set";
-import { PenBoldDuotone, LockKeyholeMinimalisticBoldDuotone } from "solar-icon-set";
+import {
+  PenBoldDuotone,
+  LockKeyholeMinimalisticBoldDuotone,
+  ShieldKeyholeMinimalisticBoldDuotone,
+  BuildingsBoldDuotone,
+} from "solar-icon-set";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -12,6 +17,7 @@ import { SectionConsentBadge } from "./SectionConsentBadge";
 import { sectionConsentTone, type SectionConsentStatus } from "@/lib/section-consent";
 import { TONE_CSS_VAR } from "@/components/StatusBadge";
 import { requiresAttachment } from "@/lib/attachmentConfig";
+import { isDirectEditField, isAdminManagedField, adminManagedLabel } from "@/lib/employeeFieldPolicy";
 import { toast } from "sonner";
 
 interface DataSectionProps {
@@ -29,11 +35,34 @@ interface DataSectionProps {
   /** When true, indicates the user is viewing their own data */
   isOwner?: boolean;
   /**
-   * When false, suppresses per-field "Update" buttons even after consent.
-   * Use for sections employees are never allowed to update (e.g. Personal, Employment).
+   * When false, suppresses per-field "Request correction" buttons even
+   * after consent. Use for sections employees are never allowed to
+   * request a change on (e.g. the admin's own bulk-edit sections).
    * Defaults to true.
    */
   allowCorrection?: boolean;
+  /**
+   * Saves a single low-risk, employee-maintained field directly — no
+   * correction request, no approval. Only offered for fields where
+   * `isDirectEditField(key)` is true (e.g. phone, personal email, current/
+   * permanent address, emergency contact).
+   *
+   * Every other field is resolved independently, per field key, into one
+   * of the other two modification categories (see
+   * `@/lib/employeeFieldPolicy`):
+   *   - correction-required — the employee's own protected/confidential
+   *     data; locked from direct edit but a "Request correction" pill
+   *     opens the existing correction-request + HR/Admin approval flow.
+   *   - admin-managed — organization-controlled fields the employee does
+   *     not own at all (identity/system fields, HR/org assignments); no
+   *     Edit, no "Request correction" either — just a compact read-only
+   *     indicator ("Managed by HR/Admin" / "System managed").
+   * The server enforces this same three-way classification independently
+   * (see supabase/migrations/20260825000006_field_level_modification_approval.sql),
+   * so this prop and the policy module are a UX convenience, not the
+   * authorization boundary.
+   */
+  onDirectFieldSave?: (key: string, value: string) => Promise<void>;
   /** Aggregate consent status for this section — renders a status badge in the header. */
   consentStatus?: SectionConsentStatus;
   /** Inline consent area rendered at the bottom of the card content. */
@@ -51,6 +80,7 @@ export function DataSection({
   isAdmin = false,
   isOwner = false,
   allowCorrection = true,
+  onDirectFieldSave,
   consentStatus,
   consentArea,
 }: DataSectionProps) {
@@ -64,6 +94,37 @@ export function DataSection({
 
   // Correction modal state
   const [correctionField, setCorrectionField] = useState<FieldDef | null>(null);
+
+  // Per-field direct-edit state — independent of the whole-section
+  // editMode/draft above, which stays reserved for the admin self-edit flow.
+  const [directEditKey, setDirectEditKey] = useState<string | null>(null);
+  const [directDraft, setDirectDraft] = useState("");
+  const [directSaving, setDirectSaving] = useState(false);
+
+  function startDirectEdit(f: FieldDef) {
+    setDirectEditKey(f.key);
+    setDirectDraft(f.value ?? "");
+  }
+
+  function cancelDirectEdit() {
+    setDirectEditKey(null);
+    setDirectDraft("");
+  }
+
+  async function saveDirectField(f: FieldDef) {
+    if (!onDirectFieldSave) return;
+    setDirectSaving(true);
+    try {
+      await onDirectFieldSave(f.key, directDraft);
+      setDirectEditKey(null);
+      setDirectDraft("");
+      toast.success(`${f.label} updated successfully.`);
+    } catch {
+      toast.error(`Failed to update ${f.label}. Please try again.`);
+    } finally {
+      setDirectSaving(false);
+    }
+  }
 
   // Left accent color keyed to the section's aggregate consent status —
   // purely a visual cue, doesn't affect any consent logic. Reuses the same
@@ -206,6 +267,35 @@ export function DataSection({
                 // When address sync is on, permanent_address shows as locked read-only
                 const syncLocked = isPermanentAddress && addressSync && editMode;
 
+                // Direct-edit fields (low-risk, employee-maintained) get their
+                // own inline per-field edit affordance instead of the
+                // Locked + correction-request treatment, once consented and
+                // for non-admin viewers — see isDirectEditField.
+                const isDirectEditable =
+                  hasConsented && !isAdmin && !!employeeId && !!onDirectFieldSave && isDirectEditField(f.key);
+                const isEditingThisField = isDirectEditable && directEditKey === f.key;
+
+                // Organization-controlled field (see isAdminManagedField) —
+                // the employee gets neither Edit nor "Request correction"
+                // for these, only a compact read-only indicator, regardless
+                // of consent state (ownership of the field, not the consent
+                // gate, is what decides this). Suppressed for admin/HR
+                // viewers, who are the ones actually managing it.
+                const isFieldAdminManaged = !isAdmin && isAdminManagedField(f.key);
+
+                // "Request correction" is only offered for the employee's
+                // own protected/confidential fields — never for direct-edit
+                // fields (they already have their own Edit affordance) or
+                // admin-managed fields (no employee-initiated change path
+                // exists for those at all).
+                const showCorrectionButton =
+                  !isDirectEditable &&
+                  !isFieldAdminManaged &&
+                  hasConsented &&
+                  !f.uncorrectable &&
+                  !!employeeId &&
+                  allowCorrection;
+
                 return (
                   <div
                     key={f.key}
@@ -233,29 +323,76 @@ export function DataSection({
                       value={syncLocked ? draft["permanent_address"] ?? f.value : f.value}
                       type={f.type}
                       options={f.options}
-                      locked={(hasConsented && !isAdmin) || f.locked || syncLocked}
+                      locked={(hasConsented && !isAdmin && !isDirectEditable) || f.locked || syncLocked}
                       fieldKey={f.key}
-                      editMode={!hasConsented && editMode}
-                      draft={syncLocked ? draft["permanent_address"] ?? "" : draft[f.key]}
-                      onDraftChange={handleDraftChange}
+                      editMode={isEditingThisField || (!hasConsented && editMode)}
+                      draft={isEditingThisField ? directDraft : syncLocked ? draft["permanent_address"] ?? "" : draft[f.key]}
+                      onDraftChange={isEditingThisField ? (_key, val) => setDirectDraft(val) : handleDraftChange}
                       isAdmin={isAdmin}
                       isOwner={isOwner}
                     />
 
-                    {/* Action row — correction "Update" pill + document chip share
-                        one row so a field never grows two separate full-width
-                        rows underneath it. */}
-                    {((hasConsented && !f.uncorrectable && employeeId && allowCorrection) ||
+                    {/* Action row — direct-edit pencil/Save, "Request
+                        correction" pill, the admin-managed read-only
+                        indicator, and document chip share one row so a
+                        field never grows two separate full-width rows
+                        underneath it. Exactly one of the three states
+                        applies per field — the category is resolved
+                        independently for each field key, never for the
+                        section as a whole. */}
+                    {(isDirectEditable ||
+                      showCorrectionButton ||
+                      isFieldAdminManaged ||
                       (requiresAttachment(f.key) && employeeId)) && (
                       <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                        {hasConsented && !f.uncorrectable && employeeId && allowCorrection && (
+                        {isDirectEditable && (
+                          isEditingThisField ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={cancelDirectEdit}
+                                disabled={directSaving}
+                                className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground border border-border rounded-full px-2 py-0.5 transition-colors hover:bg-muted"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => saveDirectField(f)}
+                                disabled={directSaving}
+                                className="inline-flex items-center gap-1 text-[10px] font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-full px-2 py-0.5 transition-colors"
+                              >
+                                {directSaving ? "Saving…" : "Save"}
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => startDirectEdit(f)}
+                              className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground border border-border bg-muted/40 hover:bg-muted rounded-full px-2 py-0.5 transition-colors"
+                            >
+                              <PenBoldDuotone size={10} />
+                              Edit
+                            </button>
+                          )
+                        )}
+
+                        {showCorrectionButton && (
                           <button
                             type="button"
                             onClick={() => setCorrectionField(f)}
                             className="inline-flex items-center gap-1 text-[10px] font-medium text-primary border border-primary/30 bg-primary/5 hover:bg-primary/15 rounded-full px-2 py-0.5 transition-colors"
                           >
-                            Update
+                            <ShieldKeyholeMinimalisticBoldDuotone size={10} />
+                            Request correction
                           </button>
+                        )}
+
+                        {isFieldAdminManaged && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground px-2 py-0.5">
+                            <BuildingsBoldDuotone size={10} />
+                            {adminManagedLabel(f.key)}
+                          </span>
                         )}
 
                         {requiresAttachment(f.key) && employeeId && (

@@ -5,6 +5,7 @@ import { EducationService, type EducationModule as EducationModuleType } from "@
 import { EducationModule } from "@/components/EducationModule";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AuditService } from "@/services/audit.service";
+import { NotificationService } from "@/services/notification.service";
 
 export const Route = createFileRoute("/_authenticated/consent/education")({
   head: () => ({
@@ -80,6 +81,19 @@ function ConsentEducationStep() {
       entityId: moduleData.id,
       metadata: { version: moduleData.version }
     });
+
+    // Best-effort — never blocks the employee's onboarding flow.
+    try {
+      await NotificationService.notifyStaff({
+        category: "education.completed",
+        title: "Education completed",
+        message: "An employee has completed the required DPDPA education module.",
+        entityType: "education_module",
+        entityId: moduleData.id,
+      });
+    } catch (err) {
+      console.error("Failed to notify staff of education completion:", err);
+    }
 
     navigate({ to: "/" });
   };

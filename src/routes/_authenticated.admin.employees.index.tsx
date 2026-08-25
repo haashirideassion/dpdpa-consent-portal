@@ -41,6 +41,7 @@ import { FrameworkService, type RegulatoryFramework } from "@/services/framework
 import { JurisdictionService } from "@/services/jurisdiction.service";
 import { EmployeeService } from "@/services/employee.service";
 import { BulkImportEmployeesModal } from "@/components/BulkImportEmployeesModal";
+import { AuditService } from "@/services/audit.service";
 
 export const Route = createFileRoute("/_authenticated/admin/employees/")({
   head: () => ({
@@ -284,42 +285,37 @@ function AddEmployeeModal({
         p_city: form.city.trim() || null,
         p_state: form.state.trim() || null,
         p_pincode: form.pincode.trim() || null,
+        // Phase 4: the RPC itself now writes the employee.created audit
+        // event transactionally with the creation (see
+        // 20260821000013_audit_log_transactional_integrity.sql) — passing
+        // source here is what lets that server-side event still say
+        // "web_portal" correctly.
+        p_source: "web_portal",
       };
-      // Temporary diagnostic — remove once the persistence issue is confirmed
-      // resolved against the live database. Grouped to mirror the target
-      // tables so a NULL column can be traced back to a specific form field.
-      console.log("create_employee_with_details payload", {
-        employees: {
-          first_name: rpcPayload.p_first_name,
-          last_name: rpcPayload.p_last_name,
-          employee_code: rpcPayload.p_employee_code,
-          email: rpcPayload.p_work_email,
-        },
-        employee_personal_details: {
-          gender: rpcPayload.p_gender,
-          dob: rpcPayload.p_dob,
-          blood_group: rpcPayload.p_blood_group,
-          marital_status: rpcPayload.p_marital_status,
-          nationality: rpcPayload.p_nationality,
-        },
-        employee_contact_details: {
-          work_email: rpcPayload.p_work_email,
-          personal_email: rpcPayload.p_personal_email,
-          phone: rpcPayload.p_phone,
-          alternate_phone: rpcPayload.p_alternate_phone,
-          current_address: rpcPayload.p_current_address,
-          permanent_address: rpcPayload.p_permanent_address,
-          city: rpcPayload.p_city,
-          state: rpcPayload.p_state,
-          pincode: rpcPayload.p_pincode,
-        },
-      });
-
       const { data: newEmployeeId, error: createError } = await (supabase as any).rpc(
         "create_employee_with_details",
         rpcPayload,
       );
-      if (createError) throw createError;
+      if (createError) {
+        await AuditService.log({
+          action: "employee.created",
+          entityType: "Employee",
+          // employee_code only — never email/name in a failure event, since
+          // the failure itself (e.g. duplicate) doesn't need the full payload.
+          metadata: { employee_code: form.employee_code.trim(), change: "failed" },
+          source: "web_portal",
+          success: false,
+          failureReason: createError.message ?? "Employee creation failed",
+        });
+        throw createError;
+      }
+
+      // The success event is now written server-side, inside
+      // create_employee_with_details() itself, in the same transaction as
+      // the employee creation (Phase 4) — logging it again here would be a
+      // duplicate, and would in fact be rejected by the new audit_logs
+      // integrity trigger anyway, since this client call has no way to set
+      // the trusted-write flag the RPC sets internally.
 
       // 4. Employment details (department, designation, employment type,
       // date of joining, work location). Not part of the RPC's payload —
@@ -336,7 +332,10 @@ function AddEmployeeModal({
       if (form.work_location.trim()) employmentUpdates.work_location = form.work_location.trim();
       if (newEmployeeId && Object.keys(employmentUpdates).length > 0) {
         try {
-          await EmployeeService.updateEmployee(newEmployeeId, employmentUpdates);
+          // skipAudit: this is a follow-up to the employee.created event just
+          // logged above, not an independent update — logging it separately
+          // would look like someone edited the employee seconds after creation.
+          await EmployeeService.updateEmployee(newEmployeeId, employmentUpdates, { skipAudit: true });
         } catch (employmentErr) {
           console.error("Add employee: employment details failed to save", employmentErr);
           toast.warning(

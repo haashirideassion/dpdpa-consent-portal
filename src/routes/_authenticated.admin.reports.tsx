@@ -158,7 +158,7 @@ function ReportsPage() {
         consentMap.get(e.id) ?? "",
       ]),
     ];
-    downloadCsv("consent-report.csv", rows);
+    downloadCsv("consent-report.csv", rows, { entityType: "Consent_report" });
     toast.success("Consent report downloaded");
   }
 
@@ -180,7 +180,7 @@ function ReportsPage() {
         r.sla_due_at ? new Date(r.sla_due_at).toLocaleDateString("en-IN") : "",
       ]),
     ];
-    downloadCsv("dsr-report.csv", rows);
+    downloadCsv("dsr-report.csv", rows, { entityType: "DSR_report" });
     toast.success("DSR report downloaded");
   }
 
@@ -199,7 +199,7 @@ function ReportsPage() {
         b.principals_notified_at ? new Date(b.principals_notified_at).toLocaleDateString("en-IN") : "Pending",
       ]),
     ];
-    downloadCsv("breach-register.csv", rows);
+    downloadCsv("breach-register.csv", rows, { entityType: "Breach_register" });
     toast.success("Breach register downloaded");
   }
 
@@ -218,7 +218,7 @@ function ReportsPage() {
         i.reviewed_at ? new Date(i.reviewed_at).toLocaleDateString("en-IN") : "Never",
       ]),
     ];
-    downloadCsv("ropa-export.csv", rows);
+    downloadCsv("ropa-export.csv", rows, { entityType: "RoPA_export" });
     toast.success("RoPA exported");
   }
 

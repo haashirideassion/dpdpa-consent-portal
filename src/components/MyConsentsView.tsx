@@ -647,11 +647,15 @@ export function MyConsentsView({
     });
     setActionLoading(false);
     if (ok) {
-      toast.success(`Consent withdrawn for "${withdrawTarget.purpose.label}".`);
+      toast.success("Consent withdrawn", {
+        description: "Your consent withdrawal has been recorded.",
+      });
       setWithdrawTarget(null);
       fetchStatuses();
     } else {
-      toast.error("Failed to withdraw consent. Please try again.");
+      toast.error("Unable to withdraw consent", {
+        description: "We couldn't process your withdrawal. Please try again.",
+      });
     }
   };
 
@@ -666,14 +670,19 @@ export function MyConsentsView({
       templateVersion: reConsentTarget.purpose.templateVersion,
       isMandatory: reConsentTarget.purpose.is_mandatory,
       employeeName: employeeName ?? "Employee",
+      isReConsent: true,
     });
     setActionLoading(false);
     if (ok) {
-      toast.success(`Consent granted for "${reConsentTarget.purpose.label}".`);
+      toast.success("Consent restored", {
+        description: "Your consent has been successfully restored.",
+      });
       setReConsentTarget(null);
       fetchStatuses();
     } else {
-      toast.error("Failed to record consent. Please try again.");
+      toast.error("Unable to restore consent", {
+        description: "We couldn't restore your consent. Please try again.",
+      });
     }
   };
 
@@ -691,11 +700,15 @@ export function MyConsentsView({
     });
     setActionLoading(false);
     if (ok) {
-      toast.success(`Consent given for "${giveConsentTarget.purpose.label}".`);
+      toast.success("Consent recorded", {
+        description: "Your consent has been successfully recorded.",
+      });
       setGiveConsentTarget(null);
       fetchStatuses();
     } else {
-      toast.error("Failed to record consent. Please try again.");
+      toast.error("Unable to record consent", {
+        description: "We couldn't record your consent. Please try again.",
+      });
     }
   };
 

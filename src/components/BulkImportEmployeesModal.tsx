@@ -26,6 +26,7 @@ import { EmployeeService } from "@/services/employee.service";
 import { CountryService, type Country } from "@/services/country.service";
 import { FrameworkService, type RegulatoryFramework } from "@/services/framework.service";
 import { JurisdictionService } from "@/services/jurisdiction.service";
+import { AuditService } from "@/services/audit.service";
 
 /**
  * BULK IMPORT EMPLOYEES (CSV)
@@ -279,7 +280,7 @@ async function validateRows(
   return rows;
 }
 
-async function importRow(row: ParsedRow, assignedByUserId: string): Promise<ImportOutcome> {
+async function importRow(row: ParsedRow, assignedByUserId: string, correlationId: string): Promise<ImportOutcome> {
   const d = row.data;
   try {
     const { data: newId, error: createError } = await (supabase as any).rpc("create_employee_with_details", {
@@ -300,11 +301,37 @@ async function importRow(row: ParsedRow, assignedByUserId: string): Promise<Impo
       p_city: d.city?.trim() || null,
       p_state: d.state?.trim() || null,
       p_pincode: d.pincode?.trim() || null,
+      // Phase 4: the RPC itself now writes the employee.created audit event
+      // transactionally with the creation, using these two to correctly
+      // attribute source and group it with the rest of this import batch
+      // (see 20260821000013_audit_log_transactional_integrity.sql).
+      p_source: "csv_import",
+      p_correlation_id: correlationId,
     });
-    if (createError) throw createError;
+    if (createError) {
+      await AuditService.log({
+        action: "employee.created",
+        entityType: "Employee",
+        metadata: { employee_code: d.employee_code.trim(), row_number: row.rowNumber, change: "failed" },
+        source: "csv_import",
+        correlationId,
+        success: false,
+        failureReason: createError.message ?? "Employee creation failed",
+      });
+      throw createError;
+    }
 
     const employeeId = newId as string;
     let warning: string | undefined;
+
+    // The success event is now written server-side, inside
+    // create_employee_with_details() itself, in the same transaction as
+    // this row's employee creation (Phase 4) — logging it again here would
+    // be a duplicate, and would be rejected by the new audit_logs integrity
+    // trigger anyway (this client call has no way to set the trusted-write
+    // flag the RPC sets internally). correlation_id passed above still
+    // groups this row's server-generated event with the batch summary
+    // logged in handleImport below.
 
     // Employment fields + father/mother name are not part of the RPC's
     // payload (the Add Employee form doesn't collect them either) — routed
@@ -321,7 +348,9 @@ async function importRow(row: ParsedRow, assignedByUserId: string): Promise<Impo
     if (d.work_location?.trim()) followUp.work_location = d.work_location.trim();
     if (Object.keys(followUp).length > 0) {
       try {
-        await EmployeeService.updateEmployee(employeeId, followUp);
+        // skipAudit: follow-up to the employee.created event just logged
+        // above, not an independent update.
+        await EmployeeService.updateEmployee(employeeId, followUp, { skipAudit: true, source: "csv_import" });
       } catch (err: any) {
         warning = `Employee created, but employment details failed to save: ${err?.message ?? "unknown error"}`;
       }
@@ -335,6 +364,7 @@ async function importRow(row: ParsedRow, assignedByUserId: string): Promise<Impo
           employeeId,
           { countryId: row.countryId, regulatoryFrameworkId: row.regulatoryFrameworkId },
           assignedByUserId,
+          "csv_import",
         );
       } catch (err: any) {
         warning = warning
@@ -423,9 +453,14 @@ export function BulkImportEmployeesModal({
     setStep("importing");
     setProgress({ done: 0, total: validRows.length });
 
+    // One id groups every per-row employee.created event from this batch
+    // with the summary event logged below, so an admin/DPO can see the
+    // whole import as one logical operation in the Audit Logs UI.
+    const correlationId = crypto.randomUUID();
+
     const results: ImportOutcome[] = [];
     for (const row of validRows) {
-      const outcome = await importRow(row, user.id);
+      const outcome = await importRow(row, user.id, correlationId);
       results.push(outcome);
       setProgress((p) => ({ ...p, done: p.done + 1 }));
     }
@@ -435,6 +470,21 @@ export function BulkImportEmployeesModal({
     const created = results.filter((r) => r.success).length;
     const failed = results.filter((r) => !r.success).length;
     const hasWarnings = results.some((r) => r.warning);
+
+    await AuditService.log({
+      action: "employee.import_completed",
+      entityType: "Employee",
+      metadata: {
+        total_valid_rows: validRows.length,
+        skipped_invalid_rows: invalidRows.length,
+        created,
+        failed,
+      },
+      source: "csv_import",
+      correlationId,
+      success: failed === 0,
+      failureReason: failed > 0 ? `${failed} of ${validRows.length} row(s) failed to import` : undefined,
+    });
 
     if (created > 0) {
       toast.success(`Imported ${created} employee${created === 1 ? "" : "s"}.`);

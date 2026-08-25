@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { AuditService } from "@/services/audit.service";
 // New tables added in migration 20260625000001 — cast to any until types.ts is regenerated
 const db = supabase as any;
 
@@ -72,7 +73,27 @@ export const DsrService = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      await AuditService.log({
+        action: "dsr.created",
+        entityType: "DSR",
+        // subject/description are free-text employee narrative — never logged.
+        metadata: { request_type: input.request_type, change: "failed" },
+        source: "web_portal",
+        success: false,
+        failureReason: error.message ?? "DSR creation failed",
+      });
+      throw error;
+    }
+
+    await AuditService.log({
+      action: "dsr.created",
+      entityType: "DSR",
+      entityId: (data as DataRequest).id,
+      metadata: { request_type: input.request_type },
+      source: "web_portal",
+      success: true,
+    });
     return data as DataRequest;
   },
 
@@ -136,6 +157,19 @@ export const DsrService = {
     status: DsrStatus,
     resolutionNote?: string
   ): Promise<void> {
+    // Fetch the prior status first so the audit event carries a real
+    // from/to, rather than relying on whatever the caller happened to have
+    // in local state (the previous implementation logged this from the
+    // route component, which silently produced no audit row for any other
+    // caller of updateStatus — see Audit Logs gap report).
+    const previousStatus = await db
+      .from("data_requests")
+      .select("status")
+      .eq("id", id)
+      .maybeSingle()
+      .then(({ data }: { data: { status?: DsrStatus } | null }) => data?.status ?? null)
+      .catch(() => null);
+
     const update: Record<string, unknown> = { status };
     if (resolutionNote !== undefined) update.resolution_note = resolutionNote;
 
@@ -143,6 +177,16 @@ export const DsrService = {
       .from("data_requests")
       .update(update)
       .eq("id", id);
+
+    await AuditService.log({
+      action: "dsr.status_updated",
+      entityType: "DSR",
+      entityId: id,
+      metadata: { from: previousStatus, to: status },
+      source: "web_portal",
+      success: !error,
+      failureReason: error ? (error.message ?? "DSR status update failed") : undefined,
+    });
 
     if (error) throw error;
   },

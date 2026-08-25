@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { AuditService } from "@/services/audit.service";
 const db = supabase as any;
 
 export type BreachSeverity = "low" | "medium" | "high" | "critical";
@@ -48,6 +49,18 @@ export const BreachService = {
       .insert(input)
       .select()
       .single();
+    // description/root_cause/remediation are free text about a real incident
+    // (may reference affected individuals) — never logged; severity/status
+    // are plain classification values, safe to include.
+    await AuditService.log({
+      action: "breach.updated",
+      entityType: "Breach_incident",
+      entityId: (data as BreachIncident | null)?.id,
+      metadata: { change: "created", severity: input.severity, status: input.status },
+      source: "web_portal",
+      success: !error,
+      failureReason: error ? (error.message ?? "Breach incident creation failed") : undefined,
+    });
     if (error) throw error;
     return data as BreachIncident;
   },
@@ -57,6 +70,15 @@ export const BreachService = {
       .from("breach_incidents")
       .update(patch)
       .eq("id", id);
+    await AuditService.log({
+      action: "breach.updated",
+      entityType: "Breach_incident",
+      entityId: id,
+      metadata: { fields: Object.keys(patch), change: "updated" },
+      source: "web_portal",
+      success: !error,
+      failureReason: error ? (error.message ?? "Breach incident update failed") : undefined,
+    });
     if (error) throw error;
   },
 
@@ -65,6 +87,15 @@ export const BreachService = {
       .from("breach_incidents")
       .update({ board_notified_at: new Date().toISOString() })
       .eq("id", id);
+    await AuditService.log({
+      action: "breach.updated",
+      entityType: "Breach_incident",
+      entityId: id,
+      metadata: { change: "board_notified" },
+      source: "web_portal",
+      success: !error,
+      failureReason: error ? (error.message ?? "Recording board notification failed") : undefined,
+    });
     if (error) throw error;
   },
 
@@ -73,6 +104,15 @@ export const BreachService = {
       .from("breach_incidents")
       .update({ principals_notified_at: new Date().toISOString() })
       .eq("id", id);
+    await AuditService.log({
+      action: "breach.updated",
+      entityType: "Breach_incident",
+      entityId: id,
+      metadata: { change: "principals_notified" },
+      source: "web_portal",
+      success: !error,
+      failureReason: error ? (error.message ?? "Recording principal notification failed") : undefined,
+    });
     if (error) throw error;
   },
 

@@ -68,8 +68,6 @@ function AuthenticatedLayout() {
 
       if (error) {
         console.error("Linking failed:", error);
-      } else if (data) {
-        console.log("Employee linked:", data);
       }
     };
 
