@@ -68,6 +68,12 @@ export const NOTIFICATION_CATEGORIES = [
    *  ConsentService.reGrantConsent(), refactored onto create_notification().
    *  Pairs with audit action "consent.granted". */
   "consent.granted",
+  /** Admin/DPO → the employee who raised the request. Fired directly
+   *  (INSERT into notifications) from the process_erasure_request() RPC,
+   *  once, when an erasure request has actually been processed. A
+   *  high-level summary only — never field values or raw PII. Pairs with
+   *  audit action "dsr.erasure_processed". */
+  "dsr.erasure_processed",
 ] as const;
 
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
@@ -86,4 +92,5 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   "onboarding.reset": "Onboarding Reset",
   "consent.withdrawn": "Consent Withdrawn",
   "consent.granted": "Consent Granted",
+  "dsr.erasure_processed": "Data Removal Processed",
 };

@@ -252,26 +252,35 @@ export function EmployeeDataView({
   // relative to isOwner, so masking here as well as in DataField either
   // double-masks the value for non-owners or (previously) hid an owner's
   // own data from them whenever isAdmin was false.
+  // The 7 financial fields below (all except Bank Name/Branch) are one of
+  // the 15 field-level-encrypted PII fields — `value` is intentionally
+  // omitted (the initial profile load never fetches their plaintext or
+  // ciphertext, see EmployeeService.getByUserId/getById); `encrypted` +
+  // `hasValue` tell DataField to decrypt-on-demand instead (owner:
+  // automatic; admin: on reveal click) via the *_pii_presence flags merged
+  // into `e` by fetchPiiPresence.
   const payrollFields: FieldDef[] = [
     { label: "Bank Name", key: "bank_name", value: e.bank_name },
     { label: "Bank Branch", key: "bank_branch", value: e.bank_branch },
-    { label: "Bank Account Number", key: "bank_account_number", value: e.bank_account_number },
-    { label: "IFSC Code", key: "ifsc_code", value: e.ifsc_code },
-    { label: "UPI ID", key: "upi_id", value: e.upi_id },
-    { label: "PF Account Number", key: "pf_account", value: e.pf_account },
-    { label: "ESIC Number", key: "esic_number", value: e.esic_number },
-    { label: "PAN Number", key: "pan_number", value: e.pan_number },
-    { label: "CTC", key: "ctc", value: e.ctc },
+    { label: "Bank Account Number", key: "bank_account_number", value: undefined, encrypted: true, hasValue: e.bank_account_number_has_value },
+    { label: "IFSC Code", key: "ifsc_code", value: undefined, encrypted: true, hasValue: e.ifsc_code_has_value },
+    { label: "UPI ID", key: "upi_id", value: undefined, encrypted: true, hasValue: e.upi_id_has_value },
+    { label: "PF Account Number", key: "pf_account", value: undefined, encrypted: true, hasValue: e.pf_account_has_value },
+    { label: "ESIC Number", key: "esic_number", value: undefined, encrypted: true, hasValue: e.esic_number_has_value },
+    { label: "PAN Number", key: "pan_number", value: undefined, encrypted: true, hasValue: e.pan_number_has_value },
+    { label: "CTC", key: "ctc", value: undefined, encrypted: true, hasValue: e.ctc_has_value },
   ];
 
   // ── Government IDs ─────────────────────────────────────────────────────────
+  // All 5 of these (passport_expiry excluded — it's a date, not in scope)
+  // are field-level-encrypted — see payrollFields comment above.
   const govtFields: FieldDef[] = [
-    { label: "Aadhaar Number", key: "aadhaar_number", value: e.aadhaar_number },
-    { label: "UAN Number", key: "uan_number", value: e.uan_number },
-    { label: "Passport Number", key: "passport_number", value: e.passport_number },
+    { label: "Aadhaar Number", key: "aadhaar_number", value: undefined, encrypted: true, hasValue: e.aadhaar_number_has_value },
+    { label: "UAN Number", key: "uan_number", value: undefined, encrypted: true, hasValue: e.uan_number_has_value },
+    { label: "Passport Number", key: "passport_number", value: undefined, encrypted: true, hasValue: e.passport_number_has_value },
     { label: "Passport Expiry", key: "passport_expiry", value: e.passport_expiry, type: "date" },
-    { label: "Driving License", key: "driving_license", value: e.driving_license },
-    { label: "Voter ID", key: "voter_id", value: e.voter_id },
+    { label: "Driving License", key: "driving_license", value: undefined, encrypted: true, hasValue: e.driving_license_has_value },
+    { label: "Voter ID", key: "voter_id", value: undefined, encrypted: true, hasValue: e.voter_id_has_value },
   ];
 
   // ── Emergency Contact ──────────────────────────────────────────────────────
@@ -283,24 +292,35 @@ export function EmployeeDataView({
   ];
 
   // ── Health Information (optional, voluntary) ───────────────────────────────
+  // All 3 fields are field-level-encrypted — see payrollFields comment above.
+  // Note: DataField's edit-mode Select/Textarea render from `draft`, not
+  // `value` — direct-edit of these fields is not offered anyway (they're
+  // correction-required, see employeeFieldPolicy), so the missing `value`
+  // has no effect on the edit path.
   const healthFields: FieldDef[] = [
     {
       label: "Disability Status",
       key: "disability_status",
-      value: e.disability_status,
+      value: undefined,
+      encrypted: true,
+      hasValue: e.disability_status_has_value,
       type: "select",
       options: ["None", "Physical", "Visual", "Hearing", "Cognitive", "Other"],
     },
     {
       label: "Chronic Conditions",
       key: "chronic_conditions",
-      value: e.chronic_conditions,
+      value: undefined,
+      encrypted: true,
+      hasValue: e.chronic_conditions_has_value,
       type: "textarea",
     },
     {
       label: "Allergies (relevant for travel)",
       key: "allergies",
-      value: e.allergies,
+      value: undefined,
+      encrypted: true,
+      hasValue: e.allergies_has_value,
       type: "textarea",
     },
   ];
@@ -404,6 +424,7 @@ export function EmployeeDataView({
   const editableMultiProps = {
     employeeId: e.id as string,
     isAdmin,
+    isOwner,
     hasConsented: hasAnyConsent,
     viewOnly: readOnly,
   };
@@ -418,6 +439,7 @@ export function EmployeeDataView({
   const lockedMultiProps = {
     employeeId: e.id as string,
     isAdmin,
+    isOwner,
     hasConsented: hasAnyConsent,
     allowUpdate: true,
     viewOnly: readOnly,

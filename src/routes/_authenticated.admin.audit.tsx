@@ -23,6 +23,7 @@ import {
   formatAuditActionLabel,
   summarizeAuditEvent,
   getAuditDetailRows,
+  getSensitiveRevealField,
   type AuditLogRow,
 } from "@/lib/auditPresentation";
 
@@ -433,6 +434,10 @@ function AuditDetailsSheet({
 
   const detailRows = getAuditDetailRows(log);
   const failed = log.success === false;
+  // "sensitive_data.revealed" is a data-access event, not a modification —
+  // it never has old/new values to show, so it gets its own dedicated
+  // section below instead of the generic "Change" one.
+  const isSensitiveReveal = log.action === "sensitive_data.revealed";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -483,22 +488,41 @@ function AuditDetailsSheet({
             </div>
           </div>
 
-          <div>
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Change
-            </h3>
-            {detailRows && detailRows.length > 0 ? (
+          {isSensitiveReveal ? (
+            <div>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Sensitive Data Access
+              </h3>
               <div className="grid grid-cols-2 gap-2">
-                {detailRows.map((row, i) => (
-                  <DetailTile key={i} label={row.label} value={row.value} small />
-                ))}
+                <DetailTile label="Field" value={getSensitiveRevealField(log)} small />
+                <DetailTile label="Action" value="Value revealed" small />
+                <div className="col-span-2">
+                  <DetailTile
+                    label="Security Note"
+                    value="The sensitive value was not recorded in the audit log."
+                    small
+                  />
+                </div>
               </div>
-            ) : (
-              <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg py-2.5 px-3">
-                Detailed values were not recorded for this event.
-              </p>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Change
+              </h3>
+              {detailRows && detailRows.length > 0 ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {detailRows.map((row, i) => (
+                    <DetailTile key={i} label={row.label} value={row.value} small />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg py-2.5 px-3">
+                  Detailed values were not recorded for this event.
+                </p>
+              )}
+            </div>
+          )}
 
           {failed && (
             <div>

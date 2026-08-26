@@ -1,4 +1,5 @@
 import { MultiEntrySection, type EntryField } from "@/components/MultiEntrySection";
+import { MaskedFieldValue } from "@/components/MaskedFieldValue";
 import { EmployeeService } from "@/services/employee.service";
 import { UserHeartRoundedBoldDuotone } from "solar-icon-set";
 import type { SectionConsentStatus } from "@/lib/section-consent";
@@ -29,6 +30,8 @@ const FIELDS: EntryField[] = [
 interface Props {
   employeeId: string;
   isAdmin?: boolean;
+  /** Owner (viewing their own profile) always sees raw values — no masking. */
+  isOwner?: boolean;
   hasConsented?: boolean;
   hideAdd?: boolean;
   viewOnly?: boolean;
@@ -36,7 +39,7 @@ interface Props {
   consentArea?: React.ReactNode;
 }
 
-export function NomineesSection({ employeeId, isAdmin, hasConsented, hideAdd, viewOnly, consentStatus, consentArea }: Props) {
+export function NomineesSection({ employeeId, isAdmin, isOwner, hasConsented, hideAdd, viewOnly, consentStatus, consentArea }: Props) {
   return (
     <MultiEntrySection
       title="Insurance Nominees"
@@ -65,11 +68,26 @@ export function NomineesSection({ employeeId, isAdmin, hasConsented, hideAdd, vi
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
             {entry.relationship}
-            {entry.date_of_birth ? ` • DOB: ${new Date(entry.date_of_birth).toLocaleDateString("en-IN")}` : ""}
+            {entry.date_of_birth ? (
+              <>
+                {" • DOB: "}
+                <MaskedFieldValue
+                  fieldKey="date_of_birth"
+                  value={new Date(entry.date_of_birth).toLocaleDateString("en-IN")}
+                  isOwner={isOwner}
+                  isAdmin={isAdmin}
+                  employeeId={employeeId}
+                />
+              </>
+            ) : ""}
           </p>
           {entry.guardian_name && (
             <p className="text-xs text-muted-foreground mt-0.5">
-              Guardian: {entry.guardian_name} ({entry.guardian_relationship})
+              Guardian:{" "}
+              <MaskedFieldValue fieldKey="guardian_name" value={entry.guardian_name} isOwner={isOwner} isAdmin={isAdmin} employeeId={employeeId} />
+              {" ("}
+              <MaskedFieldValue fieldKey="guardian_relationship" value={entry.guardian_relationship} isOwner={isOwner} isAdmin={isAdmin} employeeId={employeeId} />
+              {")"}
             </p>
           )}
         </div>

@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { AuditService } from "@/services/audit.service";
+import { EncryptionService } from "@/services/encryption.service";
+import { isEncryptedField } from "@/lib/dpdpa";
 
 /** Best-effort audit context looked up before approve/reject — see both methods below. */
 interface CorrectionAuditContext {
@@ -80,6 +82,30 @@ const FIELD_MAP: Record<string, { table: string; column: string }> = {
   allergies:                   { table: "employee_health_info",          column: "allergies" },
 };
 
+// Reverse lookup: "table.column" (DB names, as stored in correction_requests
+// .table_name/.field_name) → UI field key (as used by dpdpa.ts's canonical
+// sensitivity/masking policy). Built once from FIELD_MAP above so the two
+// can never drift apart. Falls back to the raw field_name when no mapping
+// exists (e.g. a legacy/unmapped request) — maskSensitiveValueForDisplay
+// treats an unrecognized key as non-sensitive, which is the current
+// (unchanged) behavior for anything outside FIELD_MAP.
+const COLUMN_TO_UI_KEY: Record<string, string> = {};
+for (const [uiKey, mapping] of Object.entries(FIELD_MAP)) {
+  COLUMN_TO_UI_KEY[`${mapping.table}.${mapping.column}`] = uiKey;
+}
+
+/**
+ * Resolves a correction_requests row's (table_name, field_name) — which are
+ * DB table/column names, not UI keys — back to the UI field key the
+ * canonical masking/sensitivity policy (src/lib/dpdpa.ts) understands.
+ * Used only for display (e.g. the admin corrections queue); never affects
+ * what gets stored or how approval is applied.
+ */
+export function resolveUiFieldKey(tableName: string | null, fieldName: string): string {
+  if (!tableName) return fieldName;
+  return COLUMN_TO_UI_KEY[`${tableName}.${fieldName}`] ?? fieldName;
+}
+
 export interface CorrectionRequest {
   id: string;
   employee_id: string;
@@ -87,6 +113,8 @@ export interface CorrectionRequest {
   table_name: string | null;
   old_value: string | null;
   new_value: string | null;
+  /** Key version old_value/new_value were encrypted under, when this request targets one of the 15 encryption-scoped fields. NULL otherwise. */
+  encryption_key_version?: number | null;
   status: "pending" | "approved" | "rejected";
   attachment_url: string | null;
   comments: string | null;
@@ -114,15 +142,37 @@ export const CorrectionService = {
     const tableName = mapping?.table ?? null;
     const dbColumn = mapping?.column ?? params.fieldKey;
 
+    // For one of the 15 encryption-scoped fields, old_value/new_value are
+    // encrypted server-side BEFORE this row is ever written — the plaintext
+    // the employee typed is never persisted in correction_requests. The
+    // returned strings are base64 ciphertext; encryption_key_version is
+    // carried on the row so approve_correction()/decrypt_correction_value()
+    // know which key to use later.
+    let oldValueToStore = params.oldValue;
+    let newValueToStore = params.newValue;
+    let encryptionKeyVersion: number | null = null;
+
+    if (isEncryptedField(params.fieldKey)) {
+      const encrypted = await EncryptionService.encryptCorrectionValues(
+        params.fieldKey,
+        params.oldValue,
+        params.newValue,
+      );
+      oldValueToStore = encrypted.oldValueEncrypted ?? "";
+      newValueToStore = encrypted.newValueEncrypted ?? "";
+      encryptionKeyVersion = encrypted.keyVersion;
+    }
+
     const { error } = await supabase.from("correction_requests").insert({
       employee_id:    params.employeeId,
       field_name:     dbColumn,          // actual DB column name for RPC
       table_name:     tableName,
-      old_value:      params.oldValue,
-      new_value:      params.newValue,
+      old_value:      oldValueToStore,
+      new_value:      newValueToStore,
+      encryption_key_version: encryptionKeyVersion,
       status:         "pending",
       attachment_url: params.attachmentUrl ?? null,
-    });
+    } as any);
 
     if (error) {
       await AuditService.log({
@@ -177,6 +227,17 @@ export const CorrectionService = {
 
     if (error) throw error;
     return (data ?? []) as CorrectionRequest[];
+  },
+
+  /**
+   * Admin: decrypt an encrypted field's stored old_value/new_value for
+   * display in the corrections review queue. Thin wrapper around
+   * EncryptionService.decryptCorrectionValue (decrypt_correction_value
+   * RPC), which re-checks admin/hr_manager authorization server-side and
+   * audits the reveal there (sensitive_data.revealed, field name only).
+   */
+  async decryptValue(requestId: string, which: "old" | "new"): Promise<string | null> {
+    return EncryptionService.decryptCorrectionValue(requestId, which);
   },
 
   /**

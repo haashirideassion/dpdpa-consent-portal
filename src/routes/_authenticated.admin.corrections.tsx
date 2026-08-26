@@ -1,6 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CorrectionService, type CorrectionRequest } from "@/services/correction.service";
+import { CorrectionService, resolveUiFieldKey, type CorrectionRequest } from "@/services/correction.service";
+import { MaskedFieldValue } from "@/components/MaskedFieldValue";
+import { DpdpaBadge } from "@/components/DpdpaBadge";
+import { isSensitiveField, maskSensitiveValueForDisplay } from "@/lib/dpdpa";
 import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -72,9 +75,16 @@ function SectionRecordDiff({ req }: { req: CorrectionRequest }) {
               <span className="font-medium text-foreground capitalize">{k.replace(/_/g, " ")}</span>
               {": "}
               {oldVals[k] ? (
-                <><span className="line-through">{String(oldVals[k])}</span>{" → "}</>
+                <>
+                  <span className="line-through">
+                    <MaskedFieldValue fieldKey={k} value={String(oldVals[k])} isAdmin employeeId={req.employee_id} />
+                  </span>
+                  {" → "}
+                </>
               ) : null}
-              <span className="text-primary font-medium">{String(newVals[k])}</span>
+              <span className="text-primary font-medium">
+                <MaskedFieldValue fieldKey={k} value={String(newVals[k])} isAdmin employeeId={req.employee_id} />
+              </span>
             </p>
           ))}
         </div>
@@ -104,7 +114,9 @@ function SectionAddDiff({ req }: { req: CorrectionRequest }) {
           <p key={k} className="text-xs text-muted-foreground">
             <span className="font-medium text-foreground capitalize">{k.replace(/_/g, " ")}</span>
             {": "}
-            <span className="text-primary font-medium">{String(v)}</span>
+            <span className="text-primary font-medium">
+              <MaskedFieldValue fieldKey={k} value={String(v)} isAdmin employeeId={req.employee_id} />
+            </span>
           </p>
         ))}
       </div>
@@ -131,7 +143,9 @@ function SectionDeleteDisplay({ req }: { req: CorrectionRequest }) {
           <p key={k} className="text-xs text-muted-foreground">
             <span className="font-medium text-foreground capitalize">{k.replace(/_/g, " ")}</span>
             {": "}
-            <span className="line-through text-muted-foreground/70">{String(v)}</span>
+            <span className="line-through text-muted-foreground/70">
+              <MaskedFieldValue fieldKey={k} value={String(v)} isAdmin employeeId={req.employee_id} />
+            </span>
           </p>
         ))}
       </div>
@@ -242,7 +256,14 @@ function CorrectionsQueue() {
     if (type === "section_legacy") {
       try { return `${JSON.parse(req.old_value ?? "{}").section ?? "Section"} — ${req.new_value}`; } catch { return req.new_value ?? ""; }
     }
-    return `${req.field_name}: ${req.old_value || "—"} → ${req.new_value}`;
+    // Field-level correction: mask old/new values per the canonical
+    // sensitivity policy — this is a plain-text preview (no reveal toggle),
+    // so sensitive values stay masked here even for the admin who can
+    // reveal them in the list view below.
+    const uiKey = resolveUiFieldKey(req.table_name, req.field_name);
+    const oldDisplay = maskSensitiveValueForDisplay(uiKey, req.old_value);
+    const newDisplay = maskSensitiveValueForDisplay(uiKey, req.new_value);
+    return `${req.field_name}: ${oldDisplay} → ${newDisplay}`;
   }
 
   return (
@@ -331,14 +352,43 @@ function CorrectionsQueue() {
                       </p>
                     );
                   })()}
-                  {type === "field" && (
-                    <p className="text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground">{req.field_name}</span>
-                      {" · "}
-                      {req.old_value ? <><span className="line-through">{req.old_value}</span>{" → "}</> : null}
-                      <span className="text-primary font-medium">{req.new_value}</span>
-                    </p>
-                  )}
+                  {type === "field" && (() => {
+                    const uiKey = resolveUiFieldKey(req.table_name, req.field_name);
+                    return (
+                      <p className="text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">{req.field_name}</span>
+                        {isSensitiveField(uiKey) && (
+                          <span className="ml-1.5 inline-block align-middle"><DpdpaBadge /></span>
+                        )}
+                        {" · "}
+                        {req.old_value ? (
+                          <>
+                            <span className="line-through">
+                              <MaskedFieldValue
+                                fieldKey={uiKey}
+                                value={req.old_value}
+                                isAdmin
+                                employeeId={req.employee_id}
+                                hasValue={!!req.old_value}
+                                onReveal={() => CorrectionService.decryptValue(req.id, "old")}
+                              />
+                            </span>
+                            {" → "}
+                          </>
+                        ) : null}
+                        <span className="text-primary font-medium">
+                          <MaskedFieldValue
+                            fieldKey={uiKey}
+                            value={req.new_value}
+                            isAdmin
+                            employeeId={req.employee_id}
+                            hasValue={!!req.new_value}
+                            onReveal={() => CorrectionService.decryptValue(req.id, "new")}
+                          />
+                        </span>
+                      </p>
+                    );
+                  })()}
 
                   {/* Meta */}
                   <p className="text-xs text-muted-foreground">

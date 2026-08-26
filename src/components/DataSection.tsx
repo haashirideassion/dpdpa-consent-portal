@@ -95,6 +95,32 @@ export function DataSection({
   // Correction modal state
   const [correctionField, setCorrectionField] = useState<FieldDef | null>(null);
 
+  /**
+   * Opens the correction modal. For one of the 15 encryption-scoped fields,
+   * `f.value` is never the plaintext (see FieldDef.encrypted) — the modal's
+   * "current value" / oldValue must be the real value, so it's decrypted
+   * here first via decrypt_employee_field. This only ever runs for the
+   * record owner (correction requests are self-service, employee-on-their-
+   * own-data), matching the same auto-decrypt DataField performs for an
+   * owner's read-only view — same authorization, same (unaudited-for-owner)
+   * RPC.
+   */
+  async function openCorrectionModal(f: FieldDef) {
+    if (f.encrypted && employeeId) {
+      try {
+        const { EncryptionService } = await import("@/services/encryption.service");
+        const real = await EncryptionService.revealEmployeeField(employeeId, f.key);
+        setCorrectionField({ ...f, value: real ?? "" });
+        return;
+      } catch {
+        // Fall through and open with whatever value is available — the
+        // employee can still see/edit the "new value" field even if the
+        // "current value" prefill failed to load.
+      }
+    }
+    setCorrectionField(f);
+  }
+
   // Per-field direct-edit state — independent of the whole-section
   // editMode/draft above, which stays reserved for the admin self-edit flow.
   const [directEditKey, setDirectEditKey] = useState<string | null>(null);
@@ -330,6 +356,9 @@ export function DataSection({
                       onDraftChange={isEditingThisField ? (_key, val) => setDirectDraft(val) : handleDraftChange}
                       isAdmin={isAdmin}
                       isOwner={isOwner}
+                      employeeId={employeeId}
+                      encrypted={f.encrypted}
+                      hasValue={f.hasValue}
                     />
 
                     {/* Action row — direct-edit pencil/Save, "Request
@@ -380,7 +409,7 @@ export function DataSection({
                         {showCorrectionButton && (
                           <button
                             type="button"
-                            onClick={() => setCorrectionField(f)}
+                            onClick={() => void openCorrectionModal(f)}
                             className="inline-flex items-center gap-1 text-[10px] font-medium text-primary border border-primary/30 bg-primary/5 hover:bg-primary/15 rounded-full px-2 py-0.5 transition-colors"
                           >
                             <ShieldKeyholeMinimalisticBoldDuotone size={10} />

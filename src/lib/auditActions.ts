@@ -82,6 +82,28 @@ export const AUDIT_ACTIONS = [
   "compliance.updated",
   /** src/services/breach.service.ts — create/update/recordBoardNotification/recordPrincipalNotification */
   "breach.updated",
+
+  // ── Erasure request workflow (data_requests, request_type = 'erasure') ────
+  /** supabase/migrations/20260827000001_erasure_request_workflow.sql —
+   *  assess_erasure_request() RPC, on every save of the admin's per-category
+   *  retention decision. Metadata is structured category-name lists only
+   *  (eligible/retained/anonymized) — never raw employee data. */
+  "dsr.erasure_assessed",
+  /** supabase/migrations/20260827000001_erasure_request_workflow.sql —
+   *  process_erasure_request() RPC, once, when an erasure request is
+   *  actually processed. Metadata is the category names removed/anonymized/
+   *  retained plus the processing method — never raw employee data. */
+  "dsr.erasure_processed",
+
+  // ── MoM #3 confidentiality hardening ───────────────────────────────────────
+  /** src/components/MaskedFieldValue.tsx (correction queue, multi-entry
+   *  section cards) and src/components/DataField.tsx (employee profile) —
+   *  fired only when an authorized, non-owner viewer actually clicks the
+   *  "reveal" toggle on a masked sensitive value. Metadata is the field name
+   *  only (`{ field }`) — never the revealed value itself. Never fired for
+   *  an owner viewing their own data, and never fired just for rendering a
+   *  masked value. */
+  "sensitive_data.revealed",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

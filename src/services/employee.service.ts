@@ -1,8 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
 import { AuditService } from "./audit.service";
 import { NotificationService } from "./notification.service";
+import { EncryptionService } from "./encryption.service";
 import type { AuditSource } from "@/lib/auditActions";
-import { isSensitiveField } from "@/lib/dpdpa";
+import { isSensitiveField, isEncryptedField } from "@/lib/dpdpa";
 
 /**
  * EMPLOYEE SERVICE
@@ -167,6 +168,16 @@ async function applyFieldUpdates(employeeId: string, updates: Record<string, any
     const mapping = FIELD_MAP[uiKey];
     if (!mapping || value === undefined || value === "") continue;
 
+    // The 15 encryption-scoped fields are NEVER written as plaintext
+    // through this generic path — they must go through
+    // EncryptionService.encryptAndStoreField (see adminOverride below,
+    // the only caller with the admin/hr_manager privilege these fields
+    // require anyway). This is defense-in-depth: even if a future caller
+    // accidentally included one of these keys in `updates`, it is
+    // silently skipped here rather than ever landing in the plaintext
+    // column.
+    if (isEncryptedField(uiKey)) continue;
+
     if (!byTable[mapping.table]) byTable[mapping.table] = {};
     byTable[mapping.table][mapping.column] = value;
   }
@@ -296,6 +307,27 @@ async function logEmployeeSectionChange(
   });
 }
 
+/**
+ * Fetches "does this encrypted field have a value" flags for one employee
+ * from the presence-only views (public.*_pii_presence — see
+ * 20260828000003). Never touches the *_encrypted columns or any plaintext
+ * column for the 15 encryption-scoped fields — this is the ONLY thing the
+ * normal profile load learns about those fields; the actual value is only
+ * ever fetched via EncryptionService.revealEmployeeField on demand.
+ */
+async function fetchPiiPresence(employeeId: string): Promise<Record<string, boolean>> {
+  const [fin, govt, health] = await Promise.all([
+    supabase.from("employee_financial_details_pii_presence" as any).select("*").eq("employee_id", employeeId).maybeSingle(),
+    supabase.from("employee_govt_ids_pii_presence" as any).select("*").eq("employee_id", employeeId).maybeSingle(),
+    supabase.from("employee_health_info_pii_presence" as any).select("*").eq("employee_id", employeeId).maybeSingle(),
+  ]);
+  return {
+    ...((fin.data as unknown as Record<string, boolean>) ?? {}),
+    ...((govt.data as unknown as Record<string, boolean>) ?? {}),
+    ...((health.data as unknown as Record<string, boolean>) ?? {}),
+  };
+}
+
 /** Looks up the owning employee_id for a section row, for update/delete calls that only receive the row's own id. */
 async function getSectionOwnerEmployeeId(table: string, rowId: string): Promise<string | null> {
   try {
@@ -334,6 +366,12 @@ export const EmployeeService = {
    * aliasing DB column names back to the UI field keys used by EmployeeDataView.
    */
   async getByUserId(userId: string) {
+    // employee_financial_details/employee_govt_ids/employee_health_info are
+    // selected with an explicit column list that EXCLUDES the 15
+    // encryption-scoped fields (and their *_encrypted/encryption_key_version
+    // columns) — see fetchPiiPresence below for how the UI learns "does a
+    // value exist" instead. Actual plaintext is only ever fetched via
+    // EncryptionService.revealEmployeeField, on demand.
     const { data: employee, error } = await supabase
       .from("employees")
       .select(`
@@ -341,17 +379,19 @@ export const EmployeeService = {
         employee_personal_details (*),
         employee_contact_details (*),
         employee_employment_details (*),
-        employee_financial_details (*),
-        employee_govt_ids (*),
+        employee_financial_details (employee_id, bank_name, bank_branch),
+        employee_govt_ids (employee_id, passport_expiry),
         employee_emergency_contacts (*),
         employee_additional_details (*),
-        employee_health_info (*)
+        employee_health_info (employee_id)
       `)
       .eq("user_id", userId)
       .maybeSingle();
 
     if (error) throw error;
     if (!employee) return null;
+
+    const presence = await fetchPiiPresence(employee.id);
 
     // Flatten nested detail objects and apply UI-key aliases
     return {
@@ -364,6 +404,7 @@ export const EmployeeService = {
       ...aliasToUi(employee.employee_emergency_contacts as any),
       ...aliasToUi(employee.employee_additional_details as any),
       ...aliasToUi((employee as any).employee_health_info as any),
+      ...presence,
       // Always preserve the master id
       id: employee.id,
     };
@@ -380,17 +421,19 @@ export const EmployeeService = {
         employee_personal_details (*),
         employee_contact_details (*),
         employee_employment_details (*),
-        employee_financial_details (*),
-        employee_govt_ids (*),
+        employee_financial_details (employee_id, bank_name, bank_branch),
+        employee_govt_ids (employee_id, passport_expiry),
         employee_emergency_contacts (*),
         employee_additional_details (*),
-        employee_health_info (*)
+        employee_health_info (employee_id)
       `)
       .eq("id", employeeId)
       .maybeSingle();
 
     if (error) throw error;
     if (!employee) return null;
+
+    const presence = await fetchPiiPresence(employee.id);
 
     return {
       ...employee,
@@ -402,6 +445,7 @@ export const EmployeeService = {
       ...aliasToUi(employee.employee_emergency_contacts as any),
       ...aliasToUi(employee.employee_additional_details as any),
       ...aliasToUi((employee as any).employee_health_info as any),
+      ...presence,
       id: employee.id,
     };
   },
@@ -492,7 +536,16 @@ export const EmployeeService = {
     // 1. Perform the update first (shared writer — does NOT self-audit; the
     // per-field audit below is more detailed than updateEmployee's generic
     // one, so calling through applyFieldUpdates avoids a duplicate row).
+    // applyFieldUpdates silently skips the 15 encryption-scoped fields
+    // (see its own comment) — those are written here instead, via the
+    // SECURITY DEFINER encrypt_and_store_employee_field RPC, so the
+    // plaintext never passes through a plain UPDATE and the ciphertext is
+    // produced server-side under the current active key version.
     await applyFieldUpdates(employeeId, updates);
+    for (const [key, newValue] of Object.entries(updates)) {
+      if (!isEncryptedField(key) || newValue === undefined || newValue === "") continue;
+      await EncryptionService.encryptAndStoreField(employeeId, key, String(newValue));
+    }
 
     // 2. Process side-effects for each changed field
     for (const [key, newValue] of Object.entries(updates)) {

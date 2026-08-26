@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { DsrService, type DataRequest, type DsrType, type DsrStatus } from "@/services/dsr.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +8,11 @@ import { StatusBadge, type StatusTone } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -18,7 +23,142 @@ import {
   DangerTriangleBoldDuotone,
   EyeBoldDuotone,
   MinimalisticMagniferBoldDuotone,
+  AddSquareBoldDuotone,
 } from "solar-icon-set";
+
+interface EmployeeSearchResult {
+  id: string;
+  employee_code: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+}
+
+/**
+ * Admin-side "raise an erasure request on behalf of" — for an ex-employee
+ * who resigned/left and can no longer sign in to raise it themself. Reuses
+ * the exact same DsrService.create() / data_requests row every employee
+ * self-service request uses; the only difference is that an admin is the
+ * raiser (raised_by) and picks the target employee explicitly.
+ */
+function RaiseErasureRequestDialog({ open, onOpenChange, onCreated }: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onCreated: () => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [results, setResults] = useState<EmployeeSearchResult[]>([]);
+  const [selected, setSelected] = useState<EmployeeSearchResult | null>(null);
+  const [description, setDescription] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setSearch(""); setResults([]); setSelected(null); setDescription("");
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!search.trim() || selected) { setResults([]); return; }
+    const handle = setTimeout(async () => {
+      setSearching(true);
+      const { data } = await supabase
+        .from("employees")
+        .select("id, employee_code, first_name, last_name, email")
+        .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,employee_code.ilike.%${search}%,email.ilike.%${search}%`)
+        .limit(10);
+      setResults((data as EmployeeSearchResult[] | null) ?? []);
+      setSearching(false);
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [search, selected]);
+
+  async function handleSubmit() {
+    if (!selected) {
+      toast.error("Select an employee first.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await DsrService.create({
+        request_type: "erasure",
+        subject: "Data Removal Request (raised by admin)",
+        description: description.trim() || "Raised on behalf of an ex-employee who can no longer access the portal.",
+        employee_id: selected.id,
+      });
+      toast.success("Erasure request created.");
+      onOpenChange(false);
+      onCreated();
+    } catch {
+      toast.error("Failed to create request.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-base">Raise Erasure Request on Behalf of Employee</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            For an ex-employee (resigned/offboarded) who can no longer sign in to raise this
+            themself. This creates the same erasure data request an employee would submit.
+          </p>
+
+          {selected ? (
+            <div className="flex items-center justify-between rounded-lg border p-2 text-sm">
+              <span>{selected.first_name} {selected.last_name} <span className="text-xs text-muted-foreground">({selected.employee_code})</span></span>
+              <Button variant="ghost" size="sm" onClick={() => setSelected(null)}>Change</Button>
+            </div>
+          ) : (
+            <>
+              <Input
+                placeholder="Search by name, employee code, or email…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="text-sm"
+              />
+              {searching && <p className="text-xs text-muted-foreground">Searching…</p>}
+              {results.length > 0 && (
+                <div className="border rounded-lg divide-y max-h-48 overflow-auto">
+                  {results.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted/40"
+                      onClick={() => { setSelected(r); setResults([]); }}
+                    >
+                      {r.first_name} {r.last_name}{" "}
+                      <span className="text-xs text-muted-foreground">({r.employee_code} · {r.email})</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          <Textarea
+            placeholder="Additional context (optional)…"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            className="text-sm"
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSubmit} disabled={!selected || submitting}>
+            {submitting ? "Creating…" : "Create Request"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export const Route = createFileRoute("/_authenticated/admin/requests/")({
   head: () => ({
@@ -82,12 +222,17 @@ function RequestsQueue() {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
+  const [showRaiseErasure, setShowRaiseErasure] = useState(false);
 
-  useEffect(() => {
+  function refresh() {
     DsrService.getAll()
       .then(setRequests)
       .catch(() => toast.error("Failed to load requests"))
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    refresh();
   }, []);
 
   const filtered = requests.filter((r) => {
@@ -135,7 +280,17 @@ function RequestsQueue() {
             Manage DPDPA data principal rights requests with SLA tracking.
           </p>
         </div>
+        <Button size="sm" variant="outline" onClick={() => setShowRaiseErasure(true)}>
+          <AddSquareBoldDuotone size={14} className="mr-1.5" />
+          Raise Erasure Request
+        </Button>
       </div>
+
+      <RaiseErasureRequestDialog
+        open={showRaiseErasure}
+        onOpenChange={setShowRaiseErasure}
+        onCreated={refresh}
+      />
 
       {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

@@ -21,6 +21,7 @@ import { Route as AuthenticatedConsentEducationRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdminVideosRouteImport } from './routes/_authenticated.admin.videos'
 import { Route as AuthenticatedAdminRisksRouteImport } from './routes/_authenticated.admin.risks'
 import { Route as AuthenticatedAdminReportsRouteImport } from './routes/_authenticated.admin.reports'
+import { Route as AuthenticatedAdminPiiEncryptionBackfillRouteImport } from './routes/_authenticated.admin.pii-encryption-backfill'
 import { Route as AuthenticatedAdminMyDataRouteImport } from './routes/_authenticated.admin.my-data'
 import { Route as AuthenticatedAdminInventoryRouteImport } from './routes/_authenticated.admin.inventory'
 import { Route as AuthenticatedAdminDprRouteImport } from './routes/_authenticated.admin.dpr'
@@ -96,6 +97,12 @@ const AuthenticatedAdminReportsRoute =
   AuthenticatedAdminReportsRouteImport.update({
     id: '/reports',
     path: '/reports',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminPiiEncryptionBackfillRoute =
+  AuthenticatedAdminPiiEncryptionBackfillRouteImport.update({
+    id: '/pii-encryption-backfill',
+    path: '/pii-encryption-backfill',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminMyDataRoute =
@@ -190,6 +197,7 @@ export interface FileRoutesByFullPath {
   '/admin/dpr': typeof AuthenticatedAdminDprRoute
   '/admin/inventory': typeof AuthenticatedAdminInventoryRoute
   '/admin/my-data': typeof AuthenticatedAdminMyDataRoute
+  '/admin/pii-encryption-backfill': typeof AuthenticatedAdminPiiEncryptionBackfillRoute
   '/admin/reports': typeof AuthenticatedAdminReportsRoute
   '/admin/risks': typeof AuthenticatedAdminRisksRoute
   '/admin/videos': typeof AuthenticatedAdminVideosRoute
@@ -215,6 +223,7 @@ export interface FileRoutesByTo {
   '/admin/dpr': typeof AuthenticatedAdminDprRoute
   '/admin/inventory': typeof AuthenticatedAdminInventoryRoute
   '/admin/my-data': typeof AuthenticatedAdminMyDataRoute
+  '/admin/pii-encryption-backfill': typeof AuthenticatedAdminPiiEncryptionBackfillRoute
   '/admin/reports': typeof AuthenticatedAdminReportsRoute
   '/admin/risks': typeof AuthenticatedAdminRisksRoute
   '/admin/videos': typeof AuthenticatedAdminVideosRoute
@@ -243,6 +252,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/dpr': typeof AuthenticatedAdminDprRoute
   '/_authenticated/admin/inventory': typeof AuthenticatedAdminInventoryRoute
   '/_authenticated/admin/my-data': typeof AuthenticatedAdminMyDataRoute
+  '/_authenticated/admin/pii-encryption-backfill': typeof AuthenticatedAdminPiiEncryptionBackfillRoute
   '/_authenticated/admin/reports': typeof AuthenticatedAdminReportsRoute
   '/_authenticated/admin/risks': typeof AuthenticatedAdminRisksRoute
   '/_authenticated/admin/videos': typeof AuthenticatedAdminVideosRoute
@@ -271,6 +281,7 @@ export interface FileRouteTypes {
     | '/admin/dpr'
     | '/admin/inventory'
     | '/admin/my-data'
+    | '/admin/pii-encryption-backfill'
     | '/admin/reports'
     | '/admin/risks'
     | '/admin/videos'
@@ -296,6 +307,7 @@ export interface FileRouteTypes {
     | '/admin/dpr'
     | '/admin/inventory'
     | '/admin/my-data'
+    | '/admin/pii-encryption-backfill'
     | '/admin/reports'
     | '/admin/risks'
     | '/admin/videos'
@@ -323,6 +335,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/dpr'
     | '/_authenticated/admin/inventory'
     | '/_authenticated/admin/my-data'
+    | '/_authenticated/admin/pii-encryption-backfill'
     | '/_authenticated/admin/reports'
     | '/_authenticated/admin/risks'
     | '/_authenticated/admin/videos'
@@ -426,6 +439,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/admin/reports'
       preLoaderRoute: typeof AuthenticatedAdminReportsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/pii-encryption-backfill': {
+      id: '/_authenticated/admin/pii-encryption-backfill'
+      path: '/pii-encryption-backfill'
+      fullPath: '/admin/pii-encryption-backfill'
+      preLoaderRoute: typeof AuthenticatedAdminPiiEncryptionBackfillRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/my-data': {
@@ -532,6 +552,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminDprRoute: typeof AuthenticatedAdminDprRoute
   AuthenticatedAdminInventoryRoute: typeof AuthenticatedAdminInventoryRoute
   AuthenticatedAdminMyDataRoute: typeof AuthenticatedAdminMyDataRoute
+  AuthenticatedAdminPiiEncryptionBackfillRoute: typeof AuthenticatedAdminPiiEncryptionBackfillRoute
   AuthenticatedAdminReportsRoute: typeof AuthenticatedAdminReportsRoute
   AuthenticatedAdminRisksRoute: typeof AuthenticatedAdminRisksRoute
   AuthenticatedAdminVideosRoute: typeof AuthenticatedAdminVideosRoute
@@ -552,6 +573,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminDprRoute: AuthenticatedAdminDprRoute,
   AuthenticatedAdminInventoryRoute: AuthenticatedAdminInventoryRoute,
   AuthenticatedAdminMyDataRoute: AuthenticatedAdminMyDataRoute,
+  AuthenticatedAdminPiiEncryptionBackfillRoute:
+    AuthenticatedAdminPiiEncryptionBackfillRoute,
   AuthenticatedAdminReportsRoute: AuthenticatedAdminReportsRoute,
   AuthenticatedAdminRisksRoute: AuthenticatedAdminRisksRoute,
   AuthenticatedAdminVideosRoute: AuthenticatedAdminVideosRoute,

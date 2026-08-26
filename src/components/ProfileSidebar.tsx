@@ -82,8 +82,21 @@ function isFilled(v: unknown): boolean {
 export function calcProfileCompletionBreakdown(e: any): { overall: number; sections: CompletionSection[] } {
   const record = e ?? {};
 
+  // bank_account_number/ifsc_code/pan_number are 3 of the 15 field-level-
+  // encrypted PII fields (see src/lib/dpdpa.ts ENCRYPTED_FIELDS) — the
+  // profile load no longer fetches their plaintext (or ciphertext), only a
+  // `<key>_has_value` presence flag (see EmployeeService.getByUserId/getById
+  // → fetchPiiPresence). "Filled" for these must read that flag instead of
+  // the (now always-empty) raw key, or a genuinely complete profile would
+  // show as incomplete.
+  const isFieldFilled = (key: string) => {
+    const presenceKey = `${key}_has_value`;
+    if (presenceKey in record) return !!record[presenceKey];
+    return isFilled(record[key]);
+  };
+
   const sections = COMPLETION_SECTIONS.map(({ label, fields }) => {
-    const filled = fields.filter((key) => isFilled(record[key])).length;
+    const filled = fields.filter((key) => isFieldFilled(key)).length;
     return { label, filled, total: fields.length, percent: Math.round((filled / fields.length) * 100) };
   });
 

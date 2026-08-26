@@ -307,6 +307,13 @@ export function summarizeAuditEvent(log: AuditLogRow): string {
       return "Breach record updated";
     }
 
+    case "sensitive_data.revealed":
+      // Not a data modification — an authorized viewer revealed an existing
+      // sensitive value. Never include the field name here (or anywhere in
+      // this summary) beyond this fixed phrase — see getSensitiveRevealField
+      // below for where the (safe, label-only) field name is shown.
+      return "Sensitive field revealed";
+
     default:
       // Unknown/future action — never crash, never dump raw metadata that
       // hasn't been reviewed for sensitivity. Just say something happened.
@@ -321,6 +328,22 @@ export function summarizeAuditEvent(log: AuditLogRow): string {
 export interface AuditDetailRow {
   label: string;
   value: string;
+}
+
+/**
+ * The field a "sensitive_data.revealed" event was about, as a human label —
+ * reuses the same canonical formatFieldLabel() mapping every other action
+ * uses (no second field-name list). Falls back to a safe, generic label
+ * when metadata.field is missing or not a string, rather than rendering
+ * raw/undefined metadata. Never returns the revealed value itself — that is
+ * never present in this event's metadata in the first place (see
+ * src/components/DataField.tsx / MaskedFieldValue.tsx, the only two write
+ * sites for this action).
+ */
+export function getSensitiveRevealField(log: AuditLogRow): string {
+  const field = log.metadata?.field;
+  if (typeof field !== "string" || field.trim() === "") return "Sensitive field";
+  return formatFieldLabel(field);
 }
 
 /**
@@ -454,7 +477,7 @@ if (import.meta.env.DEV) {
     "reset_onboarding", "employee.created", "employee.updated", "employee.import_completed",
     "jurisdiction.assigned", "csv.exported", "video.created", "video.published",
     "video.deactivated", "correction.submitted", "correction.approved", "correction.rejected",
-    "dsr.created", "compliance.updated", "breach.updated",
+    "dsr.created", "compliance.updated", "breach.updated", "sensitive_data.revealed",
   ]);
   (AUDIT_ACTIONS as readonly string[]).forEach((a) => {
     if (!HANDLED.has(a)) {

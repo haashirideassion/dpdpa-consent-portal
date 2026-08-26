@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { DsrService, type DataRequest, type DataRequestMessage, type DsrStatus, type DsrPriority } from "@/services/dsr.service";
+import { DsrService, parseErasureRequestReason, type DataRequest, type DataRequestMessage, type DsrStatus, type DsrPriority } from "@/services/dsr.service";
+import { ErasureAssessmentPanel } from "@/components/ErasureAssessmentPanel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge, type StatusTone } from "@/components/StatusBadge";
@@ -12,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { AltArrowLeftBoldDuotone, DangerTriangleBoldDuotone } from "solar-icon-set";
+import { AltArrowLeftBoldDuotone, DangerTriangleBoldDuotone, InfoCircleBoldDuotone } from "solar-icon-set";
 
 export const Route = createFileRoute("/_authenticated/admin/requests/$id")({
   component: RequestDetail,
@@ -151,6 +152,8 @@ function RequestDetail() {
 
   const overdue = isOverdue(request);
   const transitions = STATUS_TRANSITIONS[request.status] ?? [];
+  const isErasure = request.request_type === "erasure";
+  const { reasonLabel } = isErasure ? parseErasureRequestReason(request.description) : { reasonLabel: null };
 
   return (
     <div className="space-y-5">
@@ -168,7 +171,7 @@ function RequestDetail() {
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
             {overdue && <DangerTriangleBoldDuotone size={18} className="text-destructive" />}
-            {request.subject || "(no subject)"}
+            {isErasure ? "Erasure Request" : (request.subject || "(no subject)")}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {TYPE_LABELS[request.request_type] ?? request.request_type}
@@ -184,6 +187,39 @@ function RequestDetail() {
           {overdue && <StatusBadge tone="danger">Overdue</StatusBadge>}
         </div>
       </div>
+
+      {isErasure && (
+        <Card>
+          <CardContent className="py-3 space-y-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+              <div>
+                <p className="text-xs text-muted-foreground">Employee</p>
+                <p className="font-medium">{request.employee_name ?? "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Employee Code</p>
+                <p className="font-medium">{request.employee_code ?? "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Request Reason</p>
+                <p className="font-medium">{reasonLabel ?? "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Submitted</p>
+                <p className="font-medium">{formatDate(request.created_at)}</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2 rounded-lg bg-muted/40 px-3 py-2">
+              <InfoCircleBoldDuotone size={14} className="text-muted-foreground shrink-0 mt-0.5" />
+              <p className="text-xs text-muted-foreground">
+                An erasure request does not automatically remove all information. Data required for
+                legal, statutory, contractual, audit, compliance, or other applicable retention
+                requirements may need to be retained.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Left: details + messages */}
@@ -209,6 +245,11 @@ function RequestDetail() {
               )}
             </CardContent>
           </Card>
+
+          {/* Retention Assessment — erasure requests only */}
+          {request.request_type === "erasure" && (
+            <ErasureAssessmentPanel request={request} onProcessed={load} />
+          )}
 
           {/* Messages / thread */}
           <Card>

@@ -364,7 +364,7 @@ function EmployeePortal() {
         {/* ── Tab 3: My Requests ── */}
         <TabsContent value="requests" className="mt-0">
           {user && (
-            <MyRequestsView employeeId={employee.id} userId={user.id} />
+            <MyRequestsView employeeId={employee.id} userId={user.id} template={activeTemplate} />
           )}
         </TabsContent>
 

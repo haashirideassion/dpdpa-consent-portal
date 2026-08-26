@@ -5,6 +5,10 @@ export const DPDPA_FIELDS: Set<string> = new Set([
   "bank_account_number",
   "ifsc_code",
   "bank_name",
+  "bank_branch",
+  "upi_id",
+  "pf_account",
+  "esic_number",
   "ctc",
   "phone_number",
   "alternate_phone",
@@ -26,24 +30,76 @@ export const DPDPA_FIELDS: Set<string> = new Set([
   "driving_license",
   "voter_id",
   "blood_group",
+  "gender",
+  "marital_status",
+  "nationality",
+  "father_name",
+  "mother_name",
+  "disability_status",
+  "chronic_conditions",
+  "allergies",
+  // ── Multi-entry section fields (nominees/dependents/employment history) ──
+  // These share the same key namespace as the flat fields above wherever the
+  // underlying data is the same kind of thing (e.g. "date_of_birth"), and
+  // introduce new keys only for fields with no flat-table equivalent.
+  "last_drawn_salary",
+  "address",
+  "mobile",
+  "guardian_name",
+  "guardian_relationship",
 ]);
 
 export function isDpdpaField(fieldName: string): boolean {
   return DPDPA_FIELDS.has(fieldName);
 }
 
-// Fields that are confidential but not already covered by DPDPA_FIELDS above
-// (health info and parent names) — folded into `isSensitiveField` below so
-// there is exactly one place, not several drifting copies, that decides
-// "does this field's raw value ever get persisted in an audit log or sent in
-// a raw-value notification". See isSensitiveField's doc comment.
-const EXTRA_SENSITIVE_FIELDS: Set<string> = new Set([
-  "bank_name",
-  "father_name",
-  "mother_name",
+/**
+ * The 15 fields management has designated for field-level (pgcrypto +
+ * Supabase Vault) encryption at rest — see supabase/migrations/
+ * 20260828000001-5. This is the SAME set used by the encryption RPCs'
+ * server-side allowlists (encrypt_and_store_employee_field,
+ * decrypt_employee_field, encrypt_correction_values,
+ * approve_correction's v_encrypted_cols) — keep in sync with those if this
+ * set ever changes; the DB-side allowlists are the actual security
+ * boundary, this is only the client's read of "which fields should be
+ * treated as decrypt-on-demand rather than already-present".
+ */
+export const ENCRYPTED_FIELDS: Set<string> = new Set([
+  // Government IDs
+  "aadhaar_number",
+  "pan_number",
+  "passport_number",
+  "driving_license",
+  "voter_id",
+  "uan_number",
+  // Financial
+  "bank_account_number",
+  "ifsc_code",
+  "upi_id",
+  "pf_account",
+  "esic_number",
+  "ctc",
+  // Health
   "disability_status",
   "chronic_conditions",
   "allergies",
+]);
+
+export function isEncryptedField(fieldName: string): boolean {
+  return ENCRYPTED_FIELDS.has(fieldName);
+}
+
+// Fields that are confidential but not already covered by DPDPA_FIELDS above
+// — folded into `isSensitiveField` below so there is exactly one place, not
+// several drifting copies, that decides "does this field's raw value ever
+// get persisted in an audit log or sent in a raw-value notification". See
+// isSensitiveField's doc comment. (father_name/mother_name/disability_status/
+// chronic_conditions/allergies used to live only here — they are now also
+// badged/maskable via DPDPA_FIELDS above, so this set only needs to carry
+// fields that are sensitive but intentionally NOT part of the badge/masking
+// UI treatment, e.g. bank_name.)
+const EXTRA_SENSITIVE_FIELDS: Set<string> = new Set([
+  "bank_name",
 ]);
 
 /**
@@ -98,6 +154,37 @@ export const MASKED_FIELDS: Record<string, FieldMaskRule> = {
   alternate_phone: { visible: 4, direction: "prefix" },
   emergency_contact_phone: { visible: 4, direction: "prefix" },
   personal_email: { visible: 4, direction: "prefix" },
+  // ── PRD financial fields (same treatment as bank_account_number) ─────────
+  bank_branch: { visible: 4, direction: "suffix" },
+  upi_id: { visible: 4, direction: "suffix" },
+  pf_account: { visible: 4, direction: "suffix" },
+  esic_number: { visible: 4, direction: "suffix" },
+  // ── Contact fields previously badged but not masked ───────────────────────
+  city: { visible: 2, direction: "suffix" },
+  state: { visible: 2, direction: "suffix" },
+  pincode: { visible: 2, direction: "suffix" },
+  emergency_contact_name: { visible: 3, direction: "suffix" },
+  emergency_contact_relation: { visible: 0, direction: "suffix" },
+  emergency_contact_email: { visible: 4, direction: "prefix" },
+  // ── Government field previously badged but not masked ─────────────────────
+  passport_expiry: { visible: 4, direction: "suffix" },
+  // ── Personal fields ────────────────────────────────────────────────────────
+  blood_group: { visible: 0, direction: "suffix" },
+  gender: { visible: 0, direction: "suffix" },
+  marital_status: { visible: 0, direction: "suffix" },
+  nationality: { visible: 0, direction: "suffix" },
+  father_name: { visible: 3, direction: "suffix" },
+  mother_name: { visible: 3, direction: "suffix" },
+  // ── Health fields (special-category data — fully masked) ──────────────────
+  disability_status: { visible: 0, direction: "suffix" },
+  chronic_conditions: { visible: 0, direction: "suffix" },
+  allergies: { visible: 0, direction: "suffix" },
+  // ── Multi-entry section fields ────────────────────────────────────────────
+  last_drawn_salary: { visible: 0, direction: "suffix" },
+  address: { visible: 6, direction: "suffix" },
+  mobile: { visible: 4, direction: "prefix" },
+  guardian_name: { visible: 3, direction: "suffix" },
+  guardian_relationship: { visible: 0, direction: "suffix" },
 };
 
 export function isMaskableField(fieldName: string): boolean {
@@ -109,10 +196,17 @@ export function isMaskableField(fieldName: string): boolean {
  * end. Handles null/empty/short/unexpected-format values safely: empty or
  * nullish input renders as "-"; a value no longer than `visible` is
  * returned as-is (nothing meaningful to hide).
+ *
+ * `visible <= 0` means "fully masked" — handled as its own case because
+ * `value.slice(-0)` is NOT an empty string (negative zero coerces to plain
+ * 0, so `slice(-0)` behaves like `slice(0)` and returns the whole string).
+ * Without this branch, a `visible: 0` suffix rule would silently render the
+ * full original value with stars merely prepended in front of it.
  */
 export function maskValue(value: string, visible = 4, direction: MaskDirection = "suffix") {
   if (!value) return "-";
   const len = value.length;
+  if (visible <= 0) return "*".repeat(len);
   if (len <= visible) return value;
 
   return direction === "prefix"
@@ -131,4 +225,24 @@ export function maskFieldValue(fieldKey: string, value: string | null | undefine
   const rule = MASKED_FIELDS[fieldKey];
   if (!rule) return String(value);
   return maskValue(String(value), rule.visible, rule.direction);
+}
+
+/**
+ * Presentation-only helper for surfaces that display an *unverified*
+ * confidential value outside DataField's owner/admin flow — currently the
+ * correction-requests review queue (old_value/new_value can be any field
+ * from FIELD_MAP, including financial/govt-ID/health data) and multi-entry
+ * section cards (nominees/dependents/employment history).
+ *
+ * Unlike maskFieldValue, this is driven by isSensitiveField (the canonical
+ * "must never appear raw without authorization" list) rather than only
+ * MASKED_FIELDS, so it never silently shows a sensitive field's raw value
+ * just because that field has no partial-mask rule (e.g. ctc, bank_name) —
+ * those fall back to a flat "Confidential" label instead.
+ */
+export function maskSensitiveValueForDisplay(fieldKey: string, value: string | null | undefined): string {
+  if (value === null || value === undefined || String(value).trim() === "") return "—";
+  if (!isSensitiveField(fieldKey)) return String(value);
+  if (isMaskableField(fieldKey)) return maskFieldValue(fieldKey, value);
+  return "Confidential";
 }

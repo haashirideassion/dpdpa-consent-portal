@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { isDpdpaField, isMaskableField, maskFieldValue } from "@/lib/dpdpa";
+import { useEffect, useState } from "react";
+import { isDpdpaField, isMaskableField, maskFieldValue, isEncryptedField } from "@/lib/dpdpa";
 import { EyeBoldDuotone, EyeClosedBoldDuotone } from "solar-icon-set";
 import { DpdpaBadge } from "./DpdpaBadge";
+import { EncryptionService } from "@/services/encryption.service";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -22,6 +23,17 @@ export interface FieldDef {
   locked?: boolean;
   /** uncorrectable: field can NEVER be corrected by the employee (e.g. work email, system IDs). */
   uncorrectable?: boolean;
+  /**
+   * True for one of the 15 field-level-encrypted PII fields (see
+   * src/lib/dpdpa.ts ENCRYPTED_FIELDS). `value` for these fields is NOT the
+   * plaintext — the initial profile load never fetches it — it's just a
+   * presence flag surfaced via `hasValue` below. Plaintext only ever
+   * arrives via an explicit decrypt RPC call (owner: automatic; admin:
+   * on reveal click) — see DataField's effect/toggleReveal.
+   */
+  encrypted?: boolean;
+  /** Whether ciphertext exists for this field (from the *_pii_presence views) — only meaningful when `encrypted` is true. */
+  hasValue?: boolean;
 }
 
 // Omit 'key' from FieldDef because React's JSX treats 'key' as a special
@@ -42,6 +54,13 @@ interface DataFieldProps extends Omit<FieldDef, "key"> {
    * Owners see their own data unmasked.
    */
   isOwner?: boolean;
+  /**
+   * The employee this field belongs to — required for the reveal audit
+   * event ("sensitive_data.revealed") to carry a target. Optional because
+   * not every caller of DataField has one at hand (e.g. static/demo usage);
+   * when omitted, reveal still works but is not audited.
+   */
+  employeeId?: string;
 }
 
 export function DataField({
@@ -56,18 +75,86 @@ export function DataField({
   onDraftChange,
   isAdmin = false,
   isOwner = false,
+  employeeId,
+  encrypted = false,
+  hasValue = false,
 }: DataFieldProps) {
   const sensitive = isDpdpaField(fieldKey);
+  const isEncrypted = encrypted && isEncryptedField(fieldKey);
 
   // For admins, locked fields are still editable
   const effectivelyLocked = locked && !isAdmin;
 
   const [showUnmasked, setShowUnmasked] = useState(false);
+  const [revealedValue, setRevealedValue] = useState<string | null>(null);
+  const [revealing, setRevealing] = useState(false);
+  const [revealError, setRevealError] = useState(false);
+
+  // Owner convenience: for an encrypted field, the owner's own value is
+  // never fetched at profile-load time (see EmployeeService.getByUserId/
+  // getById) — only a hasValue flag is. To preserve the existing "owner
+  // sees their own data unmasked, no click needed" UX, decrypt it once
+  // automatically here. This call is NOT audited server-side (the
+  // decrypt_employee_field RPC only inserts a sensitive_data.revealed row
+  // when the caller is not the record owner), matching current behavior
+  // where an owner viewing their own data was never audited either.
+  useEffect(() => {
+    if (!isEncrypted || !isOwner || !hasValue || !employeeId) return;
+    if (revealedValue !== null || revealing) return;
+    setRevealing(true);
+    EncryptionService.revealEmployeeField(employeeId, fieldKey)
+      .then((v) => setRevealedValue(v ?? ""))
+      .catch(() => setRevealError(true))
+      .finally(() => setRevealing(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEncrypted, isOwner, hasValue, employeeId, fieldKey]);
+
+  // Admin reveal — now a real server round-trip (decrypt_employee_field),
+  // not a toggle over data already present client-side. The RPC re-checks
+  // authorization and, since the caller here is never the owner, always
+  // audits the reveal server-side as sensitive_data.revealed (field name
+  // only, never the value) — no separate client-side audit call is made,
+  // to avoid a duplicate event.
+  async function toggleReveal() {
+    if (isEncrypted) {
+      if (showUnmasked) {
+        setShowUnmasked(false);
+        return;
+      }
+      if (revealedValue === null && employeeId) {
+        setRevealing(true);
+        try {
+          const v = await EncryptionService.revealEmployeeField(employeeId, fieldKey);
+          setRevealedValue(v ?? "");
+        } catch {
+          setRevealError(true);
+          return;
+        } finally {
+          setRevealing(false);
+        }
+      }
+      setShowUnmasked(true);
+      return;
+    }
+    setShowUnmasked(!showUnmasked);
+  }
 
   // Masking logic
   const getDisplayValue = () => {
+    if (isEncrypted) {
+      if (revealError) return "Unable to load";
+      if (isOwner) return revealing ? "…" : (revealedValue ?? "—");
+      if (showUnmasked) return revealing ? "…" : (revealedValue ?? "—");
+      if (editMode) return revealing ? "…" : (revealedValue ?? "—");
+      if (!hasValue) return "—";
+      // Fully masked placeholder — real length is never shipped to the
+      // browser for an unrevealed encrypted field, so this is a fixed
+      // placeholder, not a partial reveal of the real value's length.
+      return "•••• •••• ••••";
+    }
+
     if (!value) return "—";
-    
+
     // Ownership check: Owners see their own data unmasked
     if (isOwner) return value;
 
@@ -139,10 +226,11 @@ export function DataField({
           >
             {getDisplayValue()}
           </span>
-          {isAdmin && !isOwner && isMaskableField(fieldKey) && value && (
+          {isAdmin && !isOwner && isMaskableField(fieldKey) && (isEncrypted ? hasValue : !!value) && (
             <button
-              onClick={() => setShowUnmasked(!showUnmasked)}
-              className="text-muted-foreground hover:text-foreground transition-colors ml-1"
+              onClick={() => void toggleReveal()}
+              disabled={revealing}
+              className="text-muted-foreground hover:text-foreground transition-colors ml-1 disabled:opacity-50"
               title={showUnmasked ? "Hide value" : "Show full value"}
             >
               {showUnmasked ? <EyeClosedBoldDuotone size={14} /> : <EyeBoldDuotone size={14} />}
