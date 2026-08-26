@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { isDpdpaField, maskValue } from "@/lib/dpdpa";
+import { isDpdpaField, isMaskableField, maskFieldValue } from "@/lib/dpdpa";
 import { EyeBoldDuotone, EyeClosedBoldDuotone } from "solar-icon-set";
 import { DpdpaBadge } from "./DpdpaBadge";
 import { Input } from "@/components/ui/input";
@@ -59,18 +59,6 @@ export function DataField({
 }: DataFieldProps) {
   const sensitive = isDpdpaField(fieldKey);
 
-  const SENSITIVE_FIELDS = [
-    "aadhaar_number",
-    "passport_number",
-    "pan_number",
-    "bank_account_number",
-    "voter_id",
-    "driving_license",
-    "uan_number",
-  ];
-
-  const shouldMask = (field: string) => SENSITIVE_FIELDS.includes(field);
-
   // For admins, locked fields are still editable
   const effectivelyLocked = locked && !isAdmin;
 
@@ -91,9 +79,9 @@ export function DataField({
     // CTC is always masked for admin/non-owner views.
     if (fieldKey === "ctc") return "Confidential";
 
-    // Strict sensitive fields masking
-    if (shouldMask(fieldKey)) {
-      return maskValue(value, 4);
+    // Centralized masking policy (see src/lib/dpdpa.ts MASKED_FIELDS)
+    if (isMaskableField(fieldKey)) {
+      return maskFieldValue(fieldKey, value);
     }
 
     return value;
@@ -151,7 +139,7 @@ export function DataField({
           >
             {getDisplayValue()}
           </span>
-          {isAdmin && !isOwner && shouldMask(fieldKey) && value && (
+          {isAdmin && !isOwner && isMaskableField(fieldKey) && value && (
             <button
               onClick={() => setShowUnmasked(!showUnmasked)}
               className="text-muted-foreground hover:text-foreground transition-colors ml-1"

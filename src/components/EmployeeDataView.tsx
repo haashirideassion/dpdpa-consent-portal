@@ -2,7 +2,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { DataSection } from "./DataSection";
 import type { FieldDef } from "./DataField";
-import { maskValue } from "@/lib/dpdpa";
 import {
   UserBoldDuotone,
   CaseMinimalisticBoldDuotone,
@@ -247,26 +246,32 @@ export function EmployeeDataView({
   ];
 
   // ── Payroll & Banking (with PRD additions) ─────────────────────────────────
+  // Values are passed RAW here — masking is applied once, centrally, by
+  // DataField (see src/lib/dpdpa.ts MASKED_FIELDS) based on isOwner/isAdmin.
+  // Do not re-mask here: EmployeeDataView doesn't know who the viewer is
+  // relative to isOwner, so masking here as well as in DataField either
+  // double-masks the value for non-owners or (previously) hid an owner's
+  // own data from them whenever isAdmin was false.
   const payrollFields: FieldDef[] = [
     { label: "Bank Name", key: "bank_name", value: e.bank_name },
     { label: "Bank Branch", key: "bank_branch", value: e.bank_branch },
-    { label: "Bank Account Number", key: "bank_account_number", value: isAdmin ? e.bank_account_number : maskValue(e.bank_account_number ?? "") },
-    { label: "IFSC Code", key: "ifsc_code", value: isAdmin ? e.ifsc_code : maskValue(e.ifsc_code ?? "") },
+    { label: "Bank Account Number", key: "bank_account_number", value: e.bank_account_number },
+    { label: "IFSC Code", key: "ifsc_code", value: e.ifsc_code },
     { label: "UPI ID", key: "upi_id", value: e.upi_id },
     { label: "PF Account Number", key: "pf_account", value: e.pf_account },
     { label: "ESIC Number", key: "esic_number", value: e.esic_number },
-    { label: "PAN Number", key: "pan_number", value: isAdmin ? e.pan_number : maskValue(e.pan_number ?? "") },
-    { label: "CTC", key: "ctc", value: isAdmin ? e.ctc : maskValue(e.ctc ?? "") },
+    { label: "PAN Number", key: "pan_number", value: e.pan_number },
+    { label: "CTC", key: "ctc", value: e.ctc },
   ];
 
   // ── Government IDs ─────────────────────────────────────────────────────────
   const govtFields: FieldDef[] = [
-    { label: "Aadhaar Number", key: "aadhaar_number", value: isAdmin ? e.aadhaar_number : maskValue(e.aadhaar_number ?? "") },
-    { label: "UAN Number", key: "uan_number", value: isAdmin ? e.uan_number : maskValue(e.uan_number ?? "") },
-    { label: "Passport Number", key: "passport_number", value: isAdmin ? e.passport_number : maskValue(e.passport_number ?? "") },
+    { label: "Aadhaar Number", key: "aadhaar_number", value: e.aadhaar_number },
+    { label: "UAN Number", key: "uan_number", value: e.uan_number },
+    { label: "Passport Number", key: "passport_number", value: e.passport_number },
     { label: "Passport Expiry", key: "passport_expiry", value: e.passport_expiry, type: "date" },
-    { label: "Driving License", key: "driving_license", value: isAdmin ? e.driving_license : maskValue(e.driving_license ?? "") },
-    { label: "Voter ID", key: "voter_id", value: isAdmin ? e.voter_id : maskValue(e.voter_id ?? "") },
+    { label: "Driving License", key: "driving_license", value: e.driving_license },
+    { label: "Voter ID", key: "voter_id", value: e.voter_id },
   ];
 
   // ── Emergency Contact ──────────────────────────────────────────────────────

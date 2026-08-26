@@ -102,8 +102,15 @@ export const AuditService = {
         entity_type: entityType ?? null,
         entity_id: entityId ?? null,
         metadata: metadata ?? null,
-        // IP is captured server-side; best-effort from client
-        ip_address: null,
+        // ip_address is intentionally NOT set here — the client cannot be
+        // trusted to self-report it. The enforce_audit_log_integrity()
+        // BEFORE INSERT trigger (see supabase/migrations/
+        // 20260826000002_audit_log_ip_capture.sql) unconditionally
+        // overwrites this column with the real IP derived from the
+        // request's own HTTP headers (PostgREST's `request.headers` GUC),
+        // the same way it already overwrites actor_role. Whatever is
+        // passed here is discarded, so it is left unset rather than
+        // implying the client controls it.
         // Phase 1 foundation fields — undefined values are dropped by
         // JSON serialization, so omitting them lets the column defaults
         // (success = true) or NULL apply exactly as before this change.

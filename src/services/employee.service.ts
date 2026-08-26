@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AuditService } from "./audit.service";
 import { NotificationService } from "./notification.service";
 import type { AuditSource } from "@/lib/auditActions";
+import { isSensitiveField } from "@/lib/dpdpa";
 
 /**
  * EMPLOYEE SERVICE
@@ -138,29 +139,6 @@ const DB_TO_UI: Record<string, string> = {
   contact_phone: "emergency_contact_phone",
   contact_email: "emergency_contact_email",
 };
-
-// Fields whose VALUES must never appear in audit_logs.metadata — financial,
-// government ID, address, and health data (see Audit Logs Phase 3
-// verification: adminOverride previously logged old_value/new_value for
-// every field with no filter, including these categories). For these keys,
-// adminOverride logs only the field name and that a change occurred, same
-// as the generic updateEmployee path already does for every field.
-const SENSITIVE_OVERRIDE_FIELDS = new Set([
-  "bank_account_number",
-  "bank_name",
-  "ifsc_code",
-  "pan_number",
-  "aadhaar_number",
-  "uan_number",
-  "passport_number",
-  "voter_id",
-  "driving_license",
-  "current_address",
-  "permanent_address",
-  "disability_status",
-  "chronic_conditions",
-  "allergies",
-]);
 
 /** Rename DB fields → UI keys when flattening nested join data */
 function aliasToUi(obj: Record<string, any> | null | undefined): Record<string, any> {
@@ -522,9 +500,10 @@ export const EmployeeService = {
 
       // Only log if the value actually changed
       if (newValue !== oldValue) {
-        // A. Audit Log — never the actual value for financial/govt-ID/
-        // address/health fields (see SENSITIVE_OVERRIDE_FIELDS above).
-        const isSensitive = SENSITIVE_OVERRIDE_FIELDS.has(key);
+        // A. Audit Log — never the actual value for a DPDPA-sensitive field
+        // (see isSensitiveField in src/lib/dpdpa.ts — the single canonical
+        // list shared with the audit-log display layer).
+        const isSensitive = isSensitiveField(key);
         await AuditService.log({
           action: "admin.override",
           entityType: "employee",
@@ -567,7 +546,10 @@ export const EmployeeService = {
           }
         }
 
-        // C. Email Alert (Wrapped in try/catch)
+        // C. Email Alert (Wrapped in try/catch). Same rule as the audit log
+        // above: a sensitive field's raw old/new value is never sent — the
+        // edge function renders a generic "value was updated" notice
+        // instead when oldValue/newValue are omitted.
         if (employee.email && employee.email.includes("@")) {
           try {
             await supabase.functions.invoke("send-email", {
@@ -575,8 +557,7 @@ export const EmployeeService = {
                 to: employee.email,
                 subject: "Update to Your Personal Data",
                 fieldName: key,
-                oldValue: oldValue,
-                newValue: newValue,
+                ...(isSensitive ? {} : { oldValue, newValue }),
                 employeeName: employee.first_name,
               }
             });

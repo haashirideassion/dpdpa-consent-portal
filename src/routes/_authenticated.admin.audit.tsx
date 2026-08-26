@@ -479,6 +479,7 @@ function AuditDetailsSheet({
               <DetailTile label="Entity ID" value={log.entity_id ? shortId(log.entity_id) : "—"} monospace />
               <DetailTile label="Source" value={log.source ? humanizeRole(log.source) : "—"} />
               <DetailTile label="Date &amp; Time" value={format(new Date(log.created_at), "d MMM yyyy, h:mm a")} />
+              <DetailTile label="IP Address" value={log.ip_address || "Unavailable"} monospace small />
             </div>
           </div>
 

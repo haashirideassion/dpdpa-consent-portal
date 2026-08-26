@@ -21,7 +21,7 @@
  *     doesn't explicitly recognize — never JSON.stringify()'s a metadata
  *     blob that might contain something sensitive nobody has reviewed yet.
  */
-import { isDpdpaField, maskValue } from "@/lib/dpdpa";
+import { isSensitiveField } from "@/lib/dpdpa";
 import { AUDIT_ACTIONS, type AuditAction } from "@/lib/auditActions";
 
 export interface AuditLogRow {
@@ -37,6 +37,7 @@ export interface AuditLogRow {
   actor_role?: string | null;
   correlation_id?: string | null;
   failure_reason?: string | null;
+  ip_address?: string | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -163,22 +164,13 @@ function formatSectionLabel(key: string): string {
 
 // ─────────────────────────────────────────────────────────────────────────
 // Sensitive-field display rule — presentation layer only, does not change
-// what is stored. Built on the app-wide canonical DPDPA_FIELDS list
-// (src/lib/dpdpa.ts), plus a small supplement for keys that list doesn't
-// cover but this audit UI must still never show real values for.
+// what is stored. Re-exported for existing importers of this module; the
+// canonical definition lives in src/lib/dpdpa.ts so the writer
+// (employee.service.ts — decides what gets persisted) and this reader
+// (decides what gets displayed) can't drift apart again.
 // ─────────────────────────────────────────────────────────────────────────
 
-const AUDIT_EXTRA_SENSITIVE_FIELDS = new Set([
-  "father_name",
-  "mother_name",
-  "disability_status",
-  "chronic_conditions",
-  "allergies",
-]);
-
-export function isSensitiveField(field: string): boolean {
-  return isDpdpaField(field) || AUDIT_EXTRA_SENSITIVE_FIELDS.has(field);
-}
+export { isSensitiveField };
 
 /** The real value for a non-sensitive field; "Not set" when it's genuinely empty/null. */
 function displayableValue(field: string, value: unknown): string {
