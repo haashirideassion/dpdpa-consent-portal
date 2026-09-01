@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ShieldCheckBoldDuotone } from "solar-icon-set";
 import { useState, useEffect } from "react";
-import { IdeassionLogo } from "@/components/IdeassionLogo";
+import { BrandBanner } from "@/components/BrandLogo";
 import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/login")({
@@ -52,14 +52,14 @@ function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
       <Card className="w-full max-w-md shadow-xl border-t-4 border-t-primary animate-in fade-in zoom-in duration-300">
-        <CardHeader className="text-center space-y-4 pb-2">
+        <CardHeader className="text-center pb-2">
           <div className="mx-auto">
-            <IdeassionLogo height={48} />
+            <BrandBanner maxWidth={240} />
           </div>
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
+          <div className="mx-auto mt-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
             <ShieldCheckBoldDuotone size={24} color="var(--primary)" />
           </div>
-          <div>
+          <div className="mt-5">
             <CardTitle className="text-2xl font-bold tracking-tight">
               Employee Data Consent Portal
             </CardTitle>

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ShieldCheckBoldDuotone, ClockCircleBoldDuotone, CheckCircleBoldDuotone } from "solar-icon-set";
-import { IdeassionLogo } from "@/components/IdeassionLogo";
+import { BrandBanner } from "@/components/BrandLogo";
 import { InviteService } from "@/services/invite.service";
 import { signInWithMicrosoft } from "@/lib/auth";
 import { useAuth } from "@/hooks/use-auth";
@@ -162,9 +162,9 @@ function InviteShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
       <Card className="w-full max-w-md shadow-xl border-t-4 border-t-primary animate-in fade-in zoom-in duration-300">
         <CardHeader className="text-center space-y-3 pb-2">
-          <div className="mx-auto"><IdeassionLogo height={40} /></div>
+          <div className="mx-auto"><BrandBanner height={40} /></div>
           <CardTitle className="text-xl font-bold tracking-tight">Employee Data Consent Portal</CardTitle>
-          <CardDescription>Powered by Ideassion · DPDPA 2023 Compliant</CardDescription>
+          <CardDescription>DPDPA 2023 Compliant · Secure Invitation</CardDescription>
         </CardHeader>
         <CardContent className="pt-4 pb-6 px-6">{children}</CardContent>
       </Card>

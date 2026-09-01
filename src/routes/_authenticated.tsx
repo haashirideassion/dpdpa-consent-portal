@@ -4,7 +4,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { signOut } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { ShieldCheckBoldDuotone, LogoutBoldDuotone } from "solar-icon-set";
-import { IdeassionLogo } from "@/components/IdeassionLogo";
 import { AuditService } from "@/services/audit.service";
 import { supabase } from "@/integrations/supabase/client";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
@@ -110,15 +109,11 @@ function AuthenticatedLayout() {
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur-sm">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <IdeassionLogo height={28} />
-            <div className="h-4 w-px bg-border hidden sm:block" />
-            <div className="hidden sm:flex items-center gap-1.5">
-              <ShieldCheckBoldDuotone size={16} color="var(--primary)" />
-              <span className="font-medium text-sm text-muted-foreground">
-                DPDPA Consent Portal
-              </span>
-            </div>
+          <div className="flex items-center gap-1.5">
+            <ShieldCheckBoldDuotone size={16} color="var(--primary)" />
+            <span className="font-medium text-sm text-muted-foreground">
+              DPDPA Consent Portal
+            </span>
           </div>
           <div className="flex items-center gap-3">
             <button

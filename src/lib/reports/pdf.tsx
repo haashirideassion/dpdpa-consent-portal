@@ -9,8 +9,8 @@ import {
 } from "@react-pdf/renderer";
 import type { ReportDocument, RiskLevel } from "./types";
 
-const COMPANY_NAME = "Ideassion";
-const LOGO_SRC = "/ideassion-logo.png";
+const COMPANY_NAME = "DPDPA Consent Portal";
+const LOGO_SRC = "/DPDPA.png";
 
 const COLORS = {
   primary: "#3730d9",

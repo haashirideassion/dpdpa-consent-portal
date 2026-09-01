@@ -31,12 +31,11 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "DPDPA Consent Portal" },
       { name: "description", content: "Employee Data Consent Portal — DPDPA compliance & consent management" },
-      { name: "author", content: "Ideassion" },
+      { name: "author", content: "DPDPA Consent Portal" },
       { property: "og:title", content: "DPDPA Consent Portal" },
       { property: "og:description", content: "Employee Data Consent Portal — DPDPA compliance & consent management" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Ideassion" },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
